@@ -37,7 +37,7 @@ Choose between the photographic Landscape treatment and the warm, minimal
 Ring Stats theme. Both present the same configurable metrics and battery state.
 
 <p align="center">
-  <img src=".github/assets/ring-stats-themes.png" alt="Ring Stats menu-bar popover shown in Landscape and Ring Stats themes" width="760">
+  <img src=".github/assets/ring-stats-themes-v2.png" alt="Ring Stats menu-bar popover shown in Landscape and Default themes" width="760">
 </p>
 
 ## Features
