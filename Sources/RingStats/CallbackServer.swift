@@ -20,6 +20,7 @@ actor CallbackServer {
     private var readyContinuations: [CheckedContinuation<Void, any Error>] = []
     private var callbackContinuation: CheckedContinuation<URL, any Error>?
     private var bufferedResult: Result<URL, any Error>?
+    private var pendingResultAfterListenerShutdown: Result<URL, any Error>?
 
     init(expectedState: String) {
         self.expectedState = expectedState
@@ -87,6 +88,10 @@ actor CallbackServer {
             listenerIsReady = false
             listener = nil
             completeReady(with: .failure(CancellationError()))
+            if let pendingResultAfterListenerShutdown {
+                self.pendingResultAfterListenerShutdown = nil
+                deliverCallback(pendingResultAfterListenerShutdown)
+            }
         default:
             break
         }
@@ -210,9 +215,18 @@ actor CallbackServer {
 
     private func completeCallback(with result: Result<URL, any Error>) {
         listenerIsReady = false
-        listener?.cancel()
-        listener = nil
+        if let listener {
+            if pendingResultAfterListenerShutdown == nil {
+                pendingResultAfterListenerShutdown = result
+            }
+            listener.cancel()
+            return
+        }
 
+        deliverCallback(result)
+    }
+
+    private func deliverCallback(_ result: Result<URL, any Error>) {
         if let callbackContinuation {
             self.callbackContinuation = nil
             callbackContinuation.resume(with: result)
