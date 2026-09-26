@@ -1,5 +1,8 @@
 <p align="center">
-  <img src=".github/assets/ring-stats-banner.png" alt="Ring Stats" width="900">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/ring-stats-banner.svg">
+    <img src=".github/assets/ring-stats-banner.png" alt="Ring Stats" width="900">
+  </picture>
 </p>
 
 <p align="center">
