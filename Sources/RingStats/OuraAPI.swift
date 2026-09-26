@@ -1,97 +1,78 @@
 import Foundation
 
-actor OuraAPI {
+protocol SnapshotFetching: Sendable {
+    func fetchSnapshot(metrics: Set<Metric>, now: Date) async throws -> HealthSnapshot
+}
+
+actor OuraAPI: SnapshotFetching {
     private enum SnapshotPart: Sendable {
-        case score(Metric, Int?)
-        case heartRate(Int?)
+        case score(Metric, DailyScore?)
+        case heartRate(HeartRateRecord?)
         case stress(DailyStressRecord?)
         case resilience(DailyResilienceRecord?)
         case battery(BatteryRecord?)
         case failure(Metric?, RingStatsError)
     }
 
-    private let auth: OAuthClient
+    private let auth: any AccessTokenProviding
     private let session: URLSession
-    private let baseURL = URL(string: "https://api.ouraring.com/v2/usercollection/")!
+    private let baseURL: URL
 
-    init(auth: OAuthClient, session: URLSession = NetworkSessionFactory.ephemeral()) {
+    init(
+        auth: any AccessTokenProviding,
+        session: URLSession = NetworkSessionFactory.ephemeral(),
+        baseURL: URL = URL(string: "https://api.ouraring.com/v2/usercollection/")!
+    ) {
         self.auth = auth
         self.session = session
+        self.baseURL = baseURL
     }
 
-    func fetchSnapshot(now: Date = Date()) async throws -> HealthSnapshot {
-        let token = try await auth.accessToken()
+    func fetchSnapshot(
+        metrics: Set<Metric> = Set(Metric.defaultVisible),
+        now: Date = Date()
+    ) async throws -> HealthSnapshot {
+        let token = try await auth.accessToken(forceRefresh: false)
+        do {
+            return try await collectSnapshot(metrics: metrics, token: token, now: now)
+        } catch RingStatsError.authenticationRequired {
+            let refreshedToken = try await auth.accessToken(forceRefresh: true)
+            do {
+                return try await collectSnapshot(metrics: metrics, token: refreshedToken, now: now)
+            } catch RingStatsError.authenticationRequired {
+                try await auth.invalidateAuthorization()
+                throw RingStatsError.authenticationRequired
+            }
+        }
+    }
+
+    private func collectSnapshot(
+        metrics: Set<Metric>,
+        token: String,
+        now: Date
+    ) async throws -> HealthSnapshot {
         let range = QueryDates.boundedRange(now: now)
         var readings: [Metric: MetricReading] = [:]
         var metricFailures: [Metric: RingStatsError] = [:]
         var battery: BatteryRecord?
-        var firstError: RingStatsError?
+        var failures: [RingStatsError] = []
 
         await withTaskGroup(of: SnapshotPart.self) { group in
-            for metric in Metric.dailyScores {
+            for metric in metrics {
                 group.addTask { [session, baseURL] in
                     do {
-                        return .score(
+                        return try await Self.fetchPart(
                             metric,
-                            try await Self.fetchScore(
-                                metric,
-                                token: token,
-                                range: range,
-                                session: session,
-                                baseURL: baseURL
-                            )
+                            token: token,
+                            range: range,
+                            session: session,
+                            baseURL: baseURL
                         )
                     } catch let error as RingStatsError {
                         return .failure(metric, error)
                     } catch {
-                        return .failure(metric, .server("Oura data request failed."))
+                        return .failure(metric, .transport("Oura data request failed."))
                     }
-                }
-            }
-
-            group.addTask { [session, baseURL] in
-                do {
-                    return .heartRate(
-                        try await Self.fetchHeartRate(token: token, session: session, baseURL: baseURL)
-                    )
-                } catch let error as RingStatsError {
-                    return .failure(.heartRate, error)
-                } catch {
-                    return .failure(.heartRate, .server("Oura heart-rate request failed."))
-                }
-            }
-
-            group.addTask { [session, baseURL] in
-                do {
-                    return .stress(
-                        try await Self.fetchStress(
-                            token: token,
-                            range: range,
-                            session: session,
-                            baseURL: baseURL
-                        )
-                    )
-                } catch let error as RingStatsError {
-                    return .failure(.stress, error)
-                } catch {
-                    return .failure(.stress, .server("Oura stress request failed."))
-                }
-            }
-
-            group.addTask { [session, baseURL] in
-                do {
-                    return .resilience(
-                        try await Self.fetchResilience(
-                            token: token,
-                            range: range,
-                            session: session,
-                            baseURL: baseURL
-                        )
-                    )
-                } catch let error as RingStatsError {
-                    return .failure(.resilience, error)
-                } catch {
-                    return .failure(.resilience, .server("Oura resilience request failed."))
                 }
             }
 
@@ -103,26 +84,29 @@ actor OuraAPI {
                 } catch let error as RingStatsError {
                     return .failure(nil, error)
                 } catch {
-                    return .failure(nil, .server("Oura battery request failed."))
+                    return .failure(nil, .transport("Oura battery request failed."))
                 }
             }
 
             for await part in group {
                 switch part {
-                case .score(let metric, let value):
-                    if let value {
+                case .score(let metric, let record):
+                    if let record, let value = record.score {
+                        let baseDetail = ScoreBand.label(for: value)
                         readings[metric] = MetricReading(
                             value: String(value),
-                            detail: ScoreBand.label(for: value),
-                            score: value
+                            detail: Self.freshnessDetail(baseDetail, sourceDay: record.day, now: now),
+                            score: value,
+                            sourceDay: record.day
                         )
                     }
-                case .heartRate(let value):
-                    if let value {
+                case .heartRate(let record):
+                    if let record {
                         readings[.heartRate] = MetricReading(
-                            value: String(value),
+                            value: String(record.bpm),
                             detail: "bpm",
-                            score: nil
+                            score: nil,
+                            observedAt: record.timestamp
                         )
                     }
                 case .stress(let value):
@@ -130,119 +114,259 @@ actor OuraAPI {
                         let minutes = value.stressHigh.map { max(0, ($0 + 30) / 60) }
                         readings[.stress] = MetricReading(
                             value: minutes.map { "\($0)m" } ?? "—",
-                            detail: value.daySummary?.capitalized ?? "High stress",
-                            score: nil
+                            detail: Self.freshnessDetail(
+                                value.daySummary?.capitalized ?? "High stress",
+                                sourceDay: value.day,
+                                now: now
+                            ),
+                            score: nil,
+                            sourceDay: value.day
                         )
                     }
                 case .resilience(let value):
-                    if let level = value?.level {
+                    if let value, let level = value.level {
                         readings[.resilience] = MetricReading(
                             value: level.capitalized,
-                            detail: "Long-term",
-                            score: nil
+                            detail: Self.freshnessDetail("Long-term", sourceDay: value.day, now: now),
+                            score: nil,
+                            sourceDay: value.day
                         )
                     }
                 case .battery(let value):
                     battery = value
                 case .failure(let metric, let error):
-                    if firstError == nil { firstError = error }
+                    failures.append(error)
                     if let metric { metricFailures[metric] = error }
                 }
             }
         }
 
-        guard !readings.isEmpty || battery != nil else {
-            throw firstError ?? RingStatsError.server("No Oura data was available. Open the Oura phone app to sync, then try again.")
+        if failures.contains(.authenticationRequired) {
+            throw RingStatsError.authenticationRequired
         }
-        for (metric, error) in metricFailures where readings[metric] == nil {
-            let permissionMissing = error.localizedDescription.localizedCaseInsensitiveContains("permission")
+
+        guard !readings.isEmpty || battery != nil else {
+            throw Self.preferredError(from: failures)
+                ?? RingStatsError.server("No Oura data was available. Open the Oura phone app to sync, then try again.")
+        }
+
+        for metric in metrics where readings[metric] == nil {
+            let error = metricFailures[metric]
             readings[metric] = MetricReading(
                 value: "—",
-                detail: permissionMissing ? "Permission required" : "Unavailable",
-                score: nil
+                detail: error == .insufficientScope ? "Permission required" : "Unavailable",
+                score: nil,
+                availability: error == .insufficientScope ? .permissionRequired : .unavailable
             )
         }
-        return HealthSnapshot(readings: readings, battery: battery, fetchedAt: now)
+        return HealthSnapshot(
+            readings: readings,
+            battery: battery,
+            fetchedAt: now,
+            coveredMetrics: metrics
+        )
     }
 
-    private static func fetchScore(_ metric: Metric, token: String, range: (start: String, end: String), session: URLSession, baseURL: URL) async throws -> Int? {
+    private static func fetchPart(
+        _ metric: Metric,
+        token: String,
+        range: (start: String, end: String),
+        session: URLSession,
+        baseURL: URL
+    ) async throws -> SnapshotPart {
+        if metric.isDailyScore {
+            return .score(
+                metric,
+                try await fetchScore(metric, token: token, range: range, session: session, baseURL: baseURL)
+            )
+        }
+        switch metric {
+        case .heartRate:
+            return .heartRate(try await fetchHeartRate(token: token, session: session, baseURL: baseURL))
+        case .stress:
+            return .stress(try await fetchStress(token: token, range: range, session: session, baseURL: baseURL))
+        case .resilience:
+            return .resilience(
+                try await fetchResilience(token: token, range: range, session: session, baseURL: baseURL)
+            )
+        case .readiness, .sleep, .activity:
+            return .score(metric, nil)
+        }
+    }
+
+    private static func preferredError(from errors: [RingStatsError]) -> RingStatsError? {
+        errors.first(where: { if case .rateLimited = $0 { true } else { false } })
+            ?? errors.first(where: { $0 == .insufficientScope })
+            ?? errors.first(where: { $0 == .timedOut })
+            ?? errors.first
+    }
+
+    private static func freshnessDetail(_ detail: String, sourceDay: String, now: Date) -> String {
+        sourceDay == QueryDates.dayString(for: now) ? detail : "\(detail) · \(sourceDay)"
+    }
+
+    private static func fetchScore(
+        _ metric: Metric,
+        token: String,
+        range: (start: String, end: String),
+        session: URLSession,
+        baseURL: URL
+    ) async throws -> DailyScore? {
         guard let endpoint = metric.dailyScoreEndpoint else { return nil }
-        var components = URLComponents(url: baseURL.appendingPathComponent(endpoint), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "start_date", value: range.start),
-            URLQueryItem(name: "end_date", value: range.end),
-            URLQueryItem(name: "fields", value: "day,score"),
-        ]
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent(endpoint),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = dateQuery(range: range, fields: "day,score")
         let data = try await fetch(components.url!, token: token, session: session)
-        let values = try JSONDecoder().decode(ScoreEnvelope.self, from: data).data
-        return values.sorted { $0.day < $1.day }.last(where: { $0.score != nil })?.score
+        do {
+            let values = try JSONDecoder().decode(ScoreEnvelope.self, from: data).data
+            return values.sorted { $0.day < $1.day }.last(where: { $0.score != nil })
+        } catch {
+            throw RingStatsError.malformedData
+        }
     }
 
-    private static func fetchHeartRate(token: String, session: URLSession, baseURL: URL) async throws -> Int? {
-        var components = URLComponents(url: baseURL.appendingPathComponent("heartrate"), resolvingAgainstBaseURL: false)!
+    private static func fetchHeartRate(
+        token: String,
+        session: URLSession,
+        baseURL: URL
+    ) async throws -> HeartRateRecord? {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("heartrate"),
+            resolvingAgainstBaseURL: false
+        )!
         components.queryItems = [
             URLQueryItem(name: "latest", value: "true"),
             URLQueryItem(name: "fields", value: "timestamp,bpm,source"),
         ]
         let data = try await fetch(components.url!, token: token, session: session)
-        let values = try JSONDecoder().decode(HeartRateEnvelope.self, from: data).data
-        return values.max { $0.timestamp < $1.timestamp }?.bpm
+        do {
+            let values = try JSONDecoder().decode(HeartRateEnvelope.self, from: data).data
+            return values.max { $0.timestamp < $1.timestamp }
+        } catch {
+            throw RingStatsError.malformedData
+        }
     }
 
-    private static func fetchStress(token: String, range: (start: String, end: String), session: URLSession, baseURL: URL) async throws -> DailyStressRecord? {
-        var components = URLComponents(url: baseURL.appendingPathComponent("daily_stress"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "start_date", value: range.start),
-            URLQueryItem(name: "end_date", value: range.end),
-            URLQueryItem(name: "fields", value: "day,day_summary,stress_high,recovery_high"),
-        ]
+    private static func fetchStress(
+        token: String,
+        range: (start: String, end: String),
+        session: URLSession,
+        baseURL: URL
+    ) async throws -> DailyStressRecord? {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("daily_stress"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = dateQuery(
+            range: range,
+            fields: "day,day_summary,stress_high,recovery_high"
+        )
         let data = try await fetch(components.url!, token: token, session: session)
-        let values = try JSONDecoder().decode(DailyStressEnvelope.self, from: data).data
-        return values.max { $0.day < $1.day }
+        do {
+            return try JSONDecoder().decode(DailyStressEnvelope.self, from: data).data
+                .filter { $0.stressHigh != nil || $0.daySummary != nil }
+                .max { $0.day < $1.day }
+        } catch {
+            throw RingStatsError.malformedData
+        }
     }
 
-    private static func fetchResilience(token: String, range: (start: String, end: String), session: URLSession, baseURL: URL) async throws -> DailyResilienceRecord? {
-        var components = URLComponents(url: baseURL.appendingPathComponent("daily_resilience"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "start_date", value: range.start),
-            URLQueryItem(name: "end_date", value: range.end),
-            URLQueryItem(name: "fields", value: "day,level"),
-        ]
+    private static func fetchResilience(
+        token: String,
+        range: (start: String, end: String),
+        session: URLSession,
+        baseURL: URL
+    ) async throws -> DailyResilienceRecord? {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("daily_resilience"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = dateQuery(range: range, fields: "day,level")
         let data = try await fetch(components.url!, token: token, session: session)
-        let values = try JSONDecoder().decode(DailyResilienceEnvelope.self, from: data).data
-        return values.max { $0.day < $1.day }
+        do {
+            return try JSONDecoder().decode(DailyResilienceEnvelope.self, from: data).data
+                .filter { $0.level != nil }
+                .max { $0.day < $1.day }
+        } catch {
+            throw RingStatsError.malformedData
+        }
     }
 
-    private static func fetchBattery(token: String, session: URLSession, baseURL: URL) async throws -> BatteryRecord? {
-        var components = URLComponents(url: baseURL.appendingPathComponent("ring_battery_level"), resolvingAgainstBaseURL: false)!
+    private static func fetchBattery(
+        token: String,
+        session: URLSession,
+        baseURL: URL
+    ) async throws -> BatteryRecord? {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("ring_battery_level"),
+            resolvingAgainstBaseURL: false
+        )!
         components.queryItems = [URLQueryItem(name: "latest", value: "true")]
         let data = try await fetch(components.url!, token: token, session: session)
-        return try JSONDecoder().decode(BatteryEnvelope.self, from: data).data.first
+        do {
+            let values = try JSONDecoder().decode(BatteryEnvelope.self, from: data).data
+            return values.max { lhs, rhs in
+                Self.parsedTimestamp(lhs.timestamp) < Self.parsedTimestamp(rhs.timestamp)
+            }
+        } catch {
+            throw RingStatsError.malformedData
+        }
+    }
+
+    private static func dateQuery(
+        range: (start: String, end: String),
+        fields: String
+    ) -> [URLQueryItem] {
+        [
+            URLQueryItem(name: "start_date", value: range.start),
+            URLQueryItem(name: "end_date", value: range.end),
+            URLQueryItem(name: "fields", value: fields),
+        ]
+    }
+
+    private static func parsedTimestamp(_ value: String?) -> Date {
+        guard let value else { return .distantPast }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value) ?? .distantPast
     }
 
     private static func fetch(_ url: URL, token: String, session: URLSession) async throws -> Data {
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: url, timeoutInterval: 15)
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .timedOut {
+            throw RingStatsError.timedOut
+        } catch {
+            throw RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
+        }
         guard let http = response as? HTTPURLResponse else {
             throw RingStatsError.invalidResponse
         }
         guard (200..<300).contains(http.statusCode) else {
-            let detail = (try? JSONDecoder().decode(APIErrorEnvelope.self, from: data).detail) ?? ""
-            if http.statusCode == 401, detail.localizedCaseInsensitiveContains("scope") {
-                throw RingStatsError.server("Oura permissions are missing. Enable Daily, Heart Rate, Stress, and Ring Configuration in the developer portal, then reauthorize.")
+            switch http.statusCode {
+            case 401:
+                throw RingStatsError.authenticationRequired
+            case 403:
+                throw RingStatsError.insufficientScope
+            case 429:
+                let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
+                throw RingStatsError.rateLimited(retryAfter: retryAfter)
+            case 408, 504:
+                throw RingStatsError.timedOut
+            default:
+                // Do not surface arbitrary upstream bodies in the UI. They can
+                // contain HTML, internal diagnostics, or echoed request data.
+                throw RingStatsError.server("Oura data request failed (HTTP \(http.statusCode)).")
             }
-            if http.statusCode == 403 {
-                throw RingStatsError.server("Oura denied API access. Confirm that your membership is active, then reconnect.")
-            }
-            throw RingStatsError.server(detail.isEmpty ? "Oura data request failed (HTTP \(http.statusCode))." : detail)
         }
         return data
     }
-}
-
-private struct APIErrorEnvelope: Decodable {
-    let detail: String?
 }

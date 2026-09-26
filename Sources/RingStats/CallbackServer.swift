@@ -1,13 +1,24 @@
 import Foundation
 import Network
 
-final class CallbackServer: @unchecked Sendable {
+enum OAuthLoopback {
+    static let host = "127.0.0.1"
+    static let port: UInt16 = 43_828
+    static let path = "/oauth/callback"
+    static let origin = "http://\(host):\(port)"
+    static let callbackURL = "\(origin)\(path)"
+    static let acceptedHostHeaders = ["\(host):\(port)", "localhost:\(port)"]
+}
+
+actor CallbackServer {
+    private static let maximumHeaderBytes = 16_384
+
     private let expectedState: String
     private let queue = DispatchQueue(label: "local.ringstats.oauth-callback")
     private var listener: NWListener?
-    private let lock = NSLock()
-    private var readyContinuation: CheckedContinuation<Void, any Error>?
-    private var continuation: CheckedContinuation<URL, any Error>?
+    private var listenerIsReady = false
+    private var readyContinuations: [CheckedContinuation<Void, any Error>] = []
+    private var callbackContinuation: CheckedContinuation<URL, any Error>?
     private var bufferedResult: Result<URL, any Error>?
 
     init(expectedState: String) {
@@ -15,74 +26,94 @@ final class CallbackServer: @unchecked Sendable {
     }
 
     func start() async throws {
+        if listenerIsReady { return }
+
         try await withCheckedThrowingContinuation { ready in
-            let shouldStart = lock.withLock { () -> Bool in
-                guard listener == nil else { return false }
-                readyContinuation = ready
-                return true
-            }
-            guard shouldStart else {
-                ready.resume()
-                return
-            }
+            readyContinuations.append(ready)
+            guard listener == nil else { return }
+
             do {
                 let parameters = NWParameters.tcp
-                parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: 43828)
-                let listener = try NWListener(using: parameters)
-                self.listener = listener
-                listener.stateUpdateHandler = { [weak self] state in
-                    switch state {
-                    case .ready:
-                        self?.finishReady(.success(()))
-                    case .failed(let error):
-                        self?.finishReady(.failure(error))
-                        self?.finish(.failure(error))
-                    case .cancelled:
-                        self?.finishReady(.failure(CancellationError()))
-                    default:
-                        break
-                    }
+                parameters.requiredLocalEndpoint = .hostPort(
+                    host: NWEndpoint.Host(OAuthLoopback.host),
+                    port: NWEndpoint.Port(rawValue: OAuthLoopback.port)!
+                )
+                let newListener = try NWListener(using: parameters)
+                listener = newListener
+                newListener.stateUpdateHandler = { [weak self] state in
+                    Task { await self?.handleListenerState(state) }
                 }
-                listener.newConnectionHandler = { [weak self] in self?.handle($0) }
-                listener.start(queue: queue)
+                newListener.newConnectionHandler = { [weak self] connection in
+                    Task { await self?.handle(connection) }
+                }
+                newListener.start(queue: queue)
             } catch {
-                finishReady(.failure(error))
-                finish(.failure(error))
+                completeReady(with: .failure(error))
+                completeCallback(with: .failure(error))
             }
         }
     }
 
     func waitForCallback() async throws -> URL {
-        try await withTaskCancellationHandler {
+        try Task.checkCancellation()
+        return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
-                let buffered = lock.withLock { () -> Result<URL, any Error>? in
-                    if let bufferedResult {
-                        self.bufferedResult = nil
-                        return bufferedResult
-                    }
-                    self.continuation = continuation
-                    return nil
-                }
-                if let buffered {
-                    continuation.resume(with: buffered)
+                if let bufferedResult {
+                    self.bufferedResult = nil
+                    continuation.resume(with: bufferedResult)
+                } else {
+                    callbackContinuation = continuation
                 }
             }
         } onCancel: {
-            finish(.failure(CancellationError()))
+            Task { await self.cancel() }
+        }
+    }
+
+    func cancel() {
+        completeReady(with: .failure(CancellationError()))
+        completeCallback(with: .failure(CancellationError()))
+    }
+
+    private func handleListenerState(_ state: NWListener.State) {
+        switch state {
+        case .ready:
+            listenerIsReady = true
+            completeReady(with: .success(()))
+        case .failed(let error):
+            completeReady(with: .failure(error))
+            completeCallback(with: .failure(error))
+        case .cancelled:
+            listenerIsReady = false
+            listener = nil
+            completeReady(with: .failure(CancellationError()))
+        default:
+            break
         }
     }
 
     private func handle(_ connection: NWConnection) {
         connection.start(queue: queue)
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { [weak self] data, _, _, error in
-            guard let self else { return }
-            if let error { finish(.failure(error)); return }
-            guard let data,
-                  let request = String(data: data, encoding: .utf8),
-                  let url = Self.validatedCallbackURL(
-                    from: request,
-                    expectedState: expectedState
-                  ) else {
+        Self.receiveHeaders(over: connection) { [weak self] result in
+            Task { await self?.handleRequest(result, over: connection) }
+        }
+    }
+
+    private func handleRequest(
+        _ result: Result<String, any Error>,
+        over connection: NWConnection
+    ) {
+        switch result {
+        case .failure:
+            // Browsers, health checks, and local processes can open or reset a
+            // loopback connection while OAuth is pending. A single malformed
+            // connection must not terminate the authorization flow.
+            connection.cancel()
+        case .success(let request):
+            guard let url = Self.validatedCallbackURL(
+                from: request,
+                expectedState: expectedState
+            ) else {
                 sendResponse(
                     status: "400 Bad Request",
                     body: "Invalid callback request.",
@@ -95,28 +126,72 @@ final class CallbackServer: @unchecked Sendable {
                 body: "Connected. You can close this window.",
                 over: connection
             )
-            finish(.success(url))
+            completeCallback(with: .success(url))
         }
     }
 
-    static func validatedCallbackURL(from request: String, expectedState: String) -> URL? {
+    nonisolated private static func receiveHeaders(
+        over connection: NWConnection,
+        accumulated: Data = Data(),
+        completion: @escaping @Sendable (Result<String, any Error>) -> Void
+    ) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 4_096) {
+            data,
+            _,
+            isComplete,
+            error in
+            if let error {
+                completion(.failure(error))
+                return
+            }
+
+            var buffer = accumulated
+            if let data { buffer.append(data) }
+            if buffer.count > maximumHeaderBytes {
+                completion(.failure(CallbackServerError.headersTooLarge))
+                return
+            }
+
+            if let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) {
+                let headerData = buffer[..<headerEnd.upperBound]
+                guard let request = String(data: headerData, encoding: .utf8) else {
+                    completion(.failure(CallbackServerError.invalidEncoding))
+                    return
+                }
+                completion(.success(request))
+                return
+            }
+
+            guard !isComplete else {
+                completion(.failure(CallbackServerError.incompleteHeaders))
+                return
+            }
+            receiveHeaders(over: connection, accumulated: buffer, completion: completion)
+        }
+    }
+
+    nonisolated static func validatedCallbackURL(
+        from request: String,
+        expectedState: String
+    ) -> URL? {
         let lines = request.components(separatedBy: "\r\n")
         guard let requestLine = lines.first else { return nil }
         let requestParts = requestLine.split(separator: " ")
         guard requestParts.count == 3,
               requestParts[0] == "GET",
-              let url = URL(string: "http://localhost:43828\(requestParts[1])"),
-              url.path == "/oauth/callback",
+              requestParts[2] == "HTTP/1.1",
+              let url = URL(string: "\(OAuthLoopback.origin)\(requestParts[1])"),
+              url.path == OAuthLoopback.path,
               URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?
                 .first(where: { $0.name == "state" })?
                 .value == expectedState else { return nil }
 
-        let host = lines.dropFirst().first { $0.lowercased().hasPrefix("host:") }?
+        guard let host = lines.dropFirst().first(where: { $0.lowercased().hasPrefix("host:") })?
             .dropFirst("host:".count)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        return ["localhost:43828", "127.0.0.1:43828"].contains(host) ? url : nil
+            .lowercased() else { return nil }
+        return OAuthLoopback.acceptedHostHeaders.contains(host) ? url : nil
     }
 
     private func sendResponse(status: String, body: String, over connection: NWConnection) {
@@ -127,27 +202,39 @@ final class CallbackServer: @unchecked Sendable {
         )
     }
 
-    private func finishReady(_ result: Result<Void, any Error>) {
-        let pending = lock.withLock { () -> CheckedContinuation<Void, any Error>? in
-            defer { readyContinuation = nil }
-            return readyContinuation
-        }
-        pending?.resume(with: result)
+    private func completeReady(with result: Result<Void, any Error>) {
+        let pending = readyContinuations
+        readyContinuations.removeAll()
+        pending.forEach { $0.resume(with: result) }
     }
 
-    private func finish(_ result: Result<URL, any Error>) {
-        let pending = lock.withLock { () -> CheckedContinuation<URL, any Error>? in
-            if let continuation {
-                self.continuation = nil
-                return continuation
-            }
-            if bufferedResult == nil {
-                bufferedResult = result
-            }
-            return nil
-        }
+    private func completeCallback(with result: Result<URL, any Error>) {
+        listenerIsReady = false
         listener?.cancel()
         listener = nil
-        pending?.resume(with: result)
+
+        if let callbackContinuation {
+            self.callbackContinuation = nil
+            callbackContinuation.resume(with: result)
+        } else if bufferedResult == nil {
+            bufferedResult = result
+        }
+    }
+}
+
+private enum CallbackServerError: LocalizedError {
+    case headersTooLarge
+    case incompleteHeaders
+    case invalidEncoding
+
+    var errorDescription: String? {
+        switch self {
+        case .headersTooLarge:
+            "The OAuth callback headers exceeded the allowed size."
+        case .incompleteHeaders:
+            "The OAuth callback ended before its headers were complete."
+        case .invalidEncoding:
+            "The OAuth callback headers were not valid UTF-8."
+        }
     }
 }

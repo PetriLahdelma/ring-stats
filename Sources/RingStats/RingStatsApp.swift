@@ -3,6 +3,7 @@ import SwiftUI
 
 enum PopoverLayout {
     static let minimumWidth: CGFloat = 420
+    static let defaultWidth: CGFloat = 680
     static let maximumWidth: CGFloat = 840
     static let widthDefaultsKey = "popover-width"
 
@@ -13,7 +14,13 @@ enum PopoverLayout {
 }
 
 final class StatusPopoverPanel: NSPanel {
+    var onCancel: (() -> Void)?
+
     override var canBecomeKey: Bool { true }
+
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
+    }
 
     init() {
         super.init(
@@ -26,7 +33,7 @@ final class StatusPopoverPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = true
         level = .popUpMenu
-        collectionBehavior = [.transient, .moveToActiveSpace]
+        collectionBehavior = [.transient, .moveToActiveSpace, .fullScreenAuxiliary]
         hidesOnDeactivate = false
         isFloatingPanel = true
         becomesKeyOnlyIfNeeded = true
@@ -55,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var popoverPanel: StatusPopoverPanel?
     private var popoverSizeProvider: ((CGFloat) -> NSSize)?
     private var outsideClickMonitor: Any?
+    private var localClickMonitor: Any?
     private var connectionWindowController: NSWindowController?
     private var appearanceWindowController: NSWindowController?
     private var aboutWindowController: NSWindowController?
@@ -63,6 +71,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.accessory)
         configurePopover()
         configureStatusItem()
+        Task { [weak self] in
+            guard let self else { return }
+            await model.updateConnectionState()
+            if !model.configured {
+                showConnectionWindow()
+            }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -72,6 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func configurePopover() {
         let rootView = MenuPopoverShell(geometry: popoverGeometry) {
             MenuPopoverView(
+                refresh: { [weak self] in self?.refreshPopover(force: true) },
                 showConnection: { [weak self] in self?.showConnectionWindow() },
                 showAppearance: { [weak self] in self?.showAppearanceWindow() },
                 showAbout: { [weak self] in self?.showAboutWindow() }
@@ -83,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
 
         let panel = StatusPopoverPanel()
+        panel.onCancel = { [weak self] in self?.closePopover() }
         panel.delegate = self
         panel.contentViewController = hostingController
         popoverPanel = panel
@@ -139,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         let savedWidth = UserDefaults.standard.object(forKey: PopoverLayout.widthDefaultsKey)
             .map { _ in CGFloat(UserDefaults.standard.double(forKey: PopoverLayout.widthDefaultsKey)) }
-            ?? PopoverLayout.minimumWidth
+            ?? PopoverLayout.defaultWidth
         let width = PopoverLayout.clampedWidth(savedWidth, availableWidth: availableWidth)
         let size = popoverSizeProvider?(width) ?? NSSize(width: width, height: 260)
         let maximumWidth = PopoverLayout.clampedWidth(
@@ -166,8 +183,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         panel.setFrameOrigin(origin)
         updatePopoverArrowPosition()
-        panel.orderFrontRegardless()
+        panel.makeKeyAndOrderFront(nil)
         installOutsideClickMonitor()
+        refreshPopover(force: false)
+    }
+
+    private var visibleMetrics: Set<Metric> {
+        let stored = UserDefaults.standard.string(forKey: MetricConfiguration.storageKey)
+        return Set(MetricConfiguration.decode(stored).visibleMetrics)
+    }
+
+    private func refreshPopover(force: Bool) {
+        Task { [weak self] in
+            guard let self else { return }
+            if force {
+                await model.refreshNow(metrics: visibleMetrics)
+            } else {
+                await model.refreshOnOpen(metrics: visibleMetrics)
+            }
+            resizeVisiblePopoverToFit()
+        }
+    }
+
+    private func resizeVisiblePopoverToFit() {
+        guard let panel = popoverPanel, panel.isVisible else { return }
+        let width = panel.contentLayoutRect.width
+        let previousTop = panel.frame.maxY
+        let size = popoverSizeProvider?(width) ?? panel.frame.size
+        panel.contentMinSize = NSSize(width: PopoverLayout.minimumWidth, height: size.height)
+        panel.contentMaxSize = NSSize(width: panel.contentMaxSize.width, height: size.height)
+        panel.setContentSize(size)
+        panel.setFrameOrigin(NSPoint(x: panel.frame.minX, y: previousTop - panel.frame.height))
+        updatePopoverArrowPosition()
     }
 
     private func updatePopoverArrowPosition() {
@@ -187,6 +234,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.closePopover()
             }
         }
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] event in
+            guard let self else { return event }
+            if event.window !== popoverPanel,
+               event.window !== statusItem?.button?.window {
+                closePopover()
+            }
+            return event
+        }
     }
 
     private func closePopover() {
@@ -194,6 +251,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let outsideClickMonitor {
             NSEvent.removeMonitor(outsideClickMonitor)
             self.outsideClickMonitor = nil
+        }
+        if let localClickMonitor {
+            NSEvent.removeMonitor(localClickMonitor)
+            self.localClickMonitor = nil
         }
     }
 
@@ -210,6 +271,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         appearanceItem.target = self
         menu.addItem(appearanceItem)
 
+        let connectionItem = NSMenuItem(
+            title: "Connection…",
+            action: #selector(openConnectionFromMenu(_:)),
+            keyEquivalent: ""
+        )
+        connectionItem.target = self
+        menu.addItem(connectionItem)
+
         let aboutItem = NSMenuItem(
             title: "About & Credits",
             action: #selector(openAboutFromMenu(_:)),
@@ -219,6 +288,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(aboutItem)
 
         menu.addItem(.separator())
+
+        let refreshItem = NSMenuItem(
+            title: model.loading ? "Refreshing…" : "Refresh Now",
+            action: #selector(refreshFromMenu(_:)),
+            keyEquivalent: "r"
+        )
+        refreshItem.target = self
+        refreshItem.isEnabled = model.connected && !model.loading
+        menu.addItem(refreshItem)
 
         let reauthorizeItem = NSMenuItem(
             title: model.loading ? "Reauthorizing…" : "Reauthorize Permissions",
@@ -269,7 +347,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let contentHeight = max(minimumHeight, min(fittingSize.height, maximumHeight))
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: width, height: contentHeight),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
@@ -338,6 +416,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc private func openConnectionFromMenu(_ sender: NSMenuItem) {
+        DispatchQueue.main.async { [weak self] in
+            self?.showConnectionWindow()
+        }
+    }
+
     @objc private func openAboutFromMenu(_ sender: NSMenuItem) {
         DispatchQueue.main.async { [weak self] in
             self?.showAboutWindow()
@@ -345,7 +429,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func reauthorizeFromMenu(_ sender: NSMenuItem) {
-        Task { await model.reauthorize() }
+        Task { await model.reauthorize(metrics: visibleMetrics) }
+    }
+
+    @objc private func refreshFromMenu(_ sender: NSMenuItem) {
+        Task { await model.refreshNow(metrics: visibleMetrics) }
     }
 
     @objc private func quitFromMenu(_ sender: NSMenuItem) {

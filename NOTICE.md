@@ -16,3 +16,7 @@ licensed or included with this project.
 
 The MIT License applies to the project software and project-owned artwork. It
 does not grant rights in third-party names, marks, services, or data.
+
+Asset-specific provenance is documented in [ASSETS.md](ASSETS.md). Health
+values shown in repository presentation images are synthetic fixtures, not a
+user's health data.

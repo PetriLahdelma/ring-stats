@@ -69,6 +69,7 @@ import Testing
 }
 
 @Test func popoverWidthClampsToSupportedRange() {
+    #expect(PopoverLayout.defaultWidth == 680)
     #expect(PopoverLayout.clampedWidth(300, availableWidth: 1_000) == 420)
     #expect(PopoverLayout.clampedWidth(640, availableWidth: 1_000) == 640)
     #expect(PopoverLayout.clampedWidth(1_000, availableWidth: 1_000) == 840)
@@ -80,6 +81,22 @@ import Testing
     #expect(panel.styleMask.contains(.resizable))
     #expect(panel.styleMask.contains(.borderless))
     #expect(panel.styleMask.contains(.nonactivatingPanel))
+    #expect(panel.collectionBehavior.contains(.fullScreenAuxiliary))
+}
+
+@Test @MainActor func statusPopoverEscapeInvokesCancellationHandler() {
+    let panel = StatusPopoverPanel()
+    var cancelled = false
+    panel.onCancel = { cancelled = true }
+
+    panel.makeKeyAndOrderFront(nil)
+    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+
+    #expect(panel.isKeyWindow)
+    panel.cancelOperation(nil)
+
+    #expect(cancelled)
+    panel.orderOut(nil)
 }
 
 @Test func extendedMetricPayloadsDecodePublishedFields() throws {

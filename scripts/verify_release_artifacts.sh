@@ -1,0 +1,89 @@
+#!/bin/bash
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+APP_DIR="${APP_DIR:-$PROJECT_DIR/dist/Ring Stats.app}"
+DMG_PATH="${DMG_PATH:-}"
+EXPECTED_BUNDLE_ID="${EXPECTED_BUNDLE_ID:-com.digitaltableteur.ringstats}"
+EXPECTED_ARCHS="${EXPECTED_ARCHS:-arm64 x86_64}"
+EXECUTABLE="$APP_DIR/Contents/MacOS/RingStats"
+
+fail() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+verify_disk_image() {
+  local disk_image="$1"
+  local attempt output
+  for attempt in 1 2 3; do
+    if output="$(/usr/bin/hdiutil verify "$disk_image" 2>&1)"; then
+      echo "$output"
+      return 0
+    fi
+    if [[ "$output" != *"Resource temporarily unavailable"* || "$attempt" -eq 3 ]]; then
+      echo "$output" >&2
+      return 1
+    fi
+    /bin/sleep 1
+  done
+}
+
+[[ -d "$APP_DIR" ]] || fail "Missing application bundle: $APP_DIR"
+[[ -x "$EXECUTABLE" ]] || fail "Missing executable: $EXECUTABLE"
+
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_DIR/Contents/Info.plist")"
+[[ "$bundle_id" == "$EXPECTED_BUNDLE_ID" ]] || fail "Unexpected bundle identifier: $bundle_id"
+
+short_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_DIR/Contents/Info.plist")"
+build_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_DIR/Contents/Info.plist")"
+[[ -n "$short_version" && -n "$build_version" ]] || fail "Missing bundle version metadata"
+
+actual_archs="$(/usr/bin/lipo -archs "$EXECUTABLE")"
+for architecture in $EXPECTED_ARCHS; do
+  [[ " $actual_archs " == *" $architecture "* ]] || fail "Missing architecture $architecture ($actual_archs)"
+done
+
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+[[ -f "$APP_DIR/Contents/Resources/AppIcon.icns" ]] || fail "AppIcon.icns was not compiled into the bundle"
+
+scan_artifact() {
+  local target="$1"
+  local findings
+  findings="$(/usr/bin/strings -a "$target" | /usr/bin/grep -E '/Users/[^/]+/|CLIENT_SECRET|APPLE_NOTARY_PROFILE|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' || true)"
+  [[ -z "$findings" ]] || {
+    echo "$findings" >&2
+    fail "Potential workspace path or secret material found in $target"
+  }
+}
+
+scan_bundle() {
+  local bundle="$1"
+  while IFS= read -r -d '' file; do
+    scan_artifact "$file"
+  done < <(/usr/bin/find "$bundle/Contents" -type f -print0)
+}
+
+scan_bundle "$APP_DIR"
+
+if [[ -n "$DMG_PATH" ]]; then
+  [[ -f "$DMG_PATH" ]] || fail "Missing disk image: $DMG_PATH"
+  scan_artifact "$DMG_PATH"
+  verify_disk_image "$DMG_PATH" >/dev/null
+
+  mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/ring-stats-mount.XXXXXX")"
+  cleanup() {
+    /usr/bin/hdiutil detach "$mount_dir" -quiet >/dev/null 2>&1 || true
+    /bin/rmdir "$mount_dir" >/dev/null 2>&1 || true
+  }
+  trap cleanup EXIT
+  /usr/bin/hdiutil attach "$DMG_PATH" -nobrowse -readonly -mountpoint "$mount_dir" -quiet
+  [[ -d "$mount_dir/Ring Stats.app" ]] || fail "DMG does not contain Ring Stats.app"
+  [[ -L "$mount_dir/Applications" ]] || fail "DMG does not contain the Applications shortcut"
+  /usr/bin/codesign --verify --deep --strict --verbose=2 "$mount_dir/Ring Stats.app"
+  scan_bundle "$mount_dir/Ring Stats.app"
+  cleanup
+  trap - EXIT
+fi
+
+echo "Verified Ring Stats $short_version ($build_version), bundle $bundle_id, architectures: $actual_archs"

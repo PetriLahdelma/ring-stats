@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Sensitive security or privacy report
+    url: https://github.com/PetriLahdelma/ring-stats/security/advisories/new
+    about: Privately report vulnerabilities or anything involving credentials, tokens, or health data.
+  - name: Questions and ideas
+    url: https://github.com/PetriLahdelma/ring-stats/discussions
+    about: Use Discussions for non-sensitive questions and early ideas.

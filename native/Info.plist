@@ -6,6 +6,8 @@
   <key>CFBundleExecutable</key><string>RingStats</string>
   <key>CFBundleIdentifier</key><string>com.digitaltableteur.ringstats</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundleName</key><string>Ring Stats</string>
   <key>CFBundleDisplayName</key><string>Ring Stats</string>
   <key>CFBundlePackageType</key><string>APPL</string>

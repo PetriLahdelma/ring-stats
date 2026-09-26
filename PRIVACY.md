@@ -9,13 +9,20 @@ review its source and distributor's policy before using it.
 
 ## Data the app accesses
 
-After you authorize access through Oura's OAuth flow, Ring Stats requests only
-the scopes needed to display the selected menu-bar statistics:
+After you authorize access through Oura's OAuth flow, Ring Stats derives the
+requested scopes from the statistics enabled in Appearance:
 
 - daily Readiness, Sleep, and Activity scores;
 - heart-rate samples;
 - daily stress and resilience data; and
 - ring configuration data used to display battery and charging status.
+
+Battery status always requires the `ring_configuration` scope. Daily scores and
+Resilience use `daily`, Heart Rate uses `heartrate`, and Stress uses `stress`.
+Only enabled statistics are fetched. Hiding a statistic stops its endpoint from
+being requested on later refreshes, but it does not remove a permission already
+granted to the current OAuth token. Revoke or reauthorize to change the token's
+permissions.
 
 Ring Stats also stores local display preferences such as theme, visible metric
 order, and popover width. These preferences are not health data.
@@ -29,13 +36,27 @@ data, use data for advertising, or use data to train an AI or machine-learning
 model. Network requests use a dedicated ephemeral session with URL caching and
 cookie persistence disabled.
 
-Your Oura developer Client ID, Client Secret, OAuth access token, and OAuth
-refresh token are stored locally as generic-password items in your macOS
-Keychain. The app does not embed a shared Client Secret.
+Your Oura developer Client ID, Client Secret, current OAuth access token, and
+OAuth refresh token are stored locally as device-only generic-password items in
+your macOS Keychain. If replacement authorization succeeds but revocation of an
+older access token is temporarily unavailable, that old access token is also
+kept in Keychain in a revocation queue. Ring Stats retries every queued token on
+later authenticated requests and removes each one after successful revocation
+or when you disconnect. When the data-protection Keychain is unavailable to a
+local build, Ring Stats uses the compatible macOS Keychain. The app does not
+embed a shared Client Secret.
 
 Local interface preferences are stored using macOS `UserDefaults`. The OAuth
-callback is received by a temporary listener at
-`http://localhost:43828/oauth/callback`; it is not a remote project server.
+callback is received by a temporary IPv4 loopback listener at
+`http://127.0.0.1:43828/oauth/callback`; it is not a remote project server.
+
+Early development builds could store OAuth JSON under
+`~/Library/Application Support/Ring Stats Public/Legacy Secrets/`. Current
+builds migrate readable legacy values into Keychain and delete each plaintext
+file only after the Keychain write succeeds. They also migrate older compatible
+Keychain items into the data-protection Keychain when available. A migration
+failure is shown to the user instead of silently treating the account as
+disconnected.
 
 ## Data sharing
 
@@ -48,11 +69,14 @@ application.
 ## Retention and deletion
 
 Health responses disappear when the in-memory application state is replaced or
-the app quits. Choosing **Disconnect & Delete Local Data** attempts to revoke
+the app quits. A failed refresh may leave the previous in-memory snapshot on
+screen with a stale warning until the next successful refresh or until the app
+quits. Choosing **Disconnect & Delete Local Data** attempts to revoke
 the current Oura authorization and removes the saved Client ID, Client Secret,
-access token, and refresh token from the macOS Keychain. Local display
-preferences can also be removed by deleting the app's preferences through
-macOS or by removing the application and its preference domain.
+current and queued access tokens, and refresh token from the macOS Keychain. Local display
+preferences remain in `UserDefaults` until the preference domain is removed.
+Deleting the application by itself does not revoke the OAuth token, delete
+Keychain items, or remove preferences.
 
 If remote revocation cannot complete because the device is offline, local
 secrets are still removed. You can separately revoke access through your Oura
@@ -81,9 +105,11 @@ advice.
 ## Changes and contact
 
 Material changes will be documented in this file and its effective date will
-be updated. Privacy questions and deletion problems may be submitted through
-the repository's issue tracker. Do not include health data, OAuth credentials,
-or other private information in a public issue.
+be updated. Non-sensitive privacy questions may use the repository's issue
+tracker. Report deletion failures or any matter involving health data,
+credentials, tokens, or other private information through
+[GitHub private vulnerability reporting](https://github.com/PetriLahdelma/ring-stats/security/advisories/new),
+not a public issue.
 
 Use of Oura services is also governed by Oura's own terms and privacy policy.
 This project is independent and is not affiliated with or endorsed by Oura.

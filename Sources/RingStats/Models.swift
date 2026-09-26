@@ -40,9 +40,39 @@ struct ScoreEnvelope: Codable, Sendable {
 }
 
 struct HeartRateRecord: Codable, Sendable, Equatable {
-    let timestamp: String
+    let timestamp: Date
     let bpm: Int
     let source: String
+
+    private enum CodingKeys: String, CodingKey {
+        case timestamp, bpm, source
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawTimestamp = try container.decode(String.self, forKey: .timestamp)
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let standard = ISO8601DateFormatter()
+        standard.formatOptions = [.withInternetDateTime]
+        guard let timestamp = fractional.date(from: rawTimestamp) ?? standard.date(from: rawTimestamp) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .timestamp,
+                in: container,
+                debugDescription: "Expected an ISO 8601 timestamp."
+            )
+        }
+        self.timestamp = timestamp
+        self.bpm = try container.decode(Int.self, forKey: .bpm)
+        self.source = try container.decode(String.self, forKey: .source)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(ISO8601DateFormatter().string(from: timestamp), forKey: .timestamp)
+        try container.encode(bpm, forKey: .bpm)
+        try container.encode(source, forKey: .source)
+    }
 }
 
 struct HeartRateEnvelope: Codable, Sendable {
@@ -137,12 +167,56 @@ enum Metric: String, CaseIterable, Codable, Identifiable, Sendable {
     }
 
     var isDailyScore: Bool { dailyScoreEndpoint != nil }
+
+    var requiredScope: OuraScope {
+        switch self {
+        case .readiness, .sleep, .activity, .resilience: .daily
+        case .heartRate: .heartRate
+        case .stress: .stress
+        }
+    }
+}
+
+enum OuraScope: String, CaseIterable, Sendable {
+    case daily
+    case heartRate = "heartrate"
+    case stress
+    case ringConfiguration = "ring_configuration"
+
+    static func required(for metrics: Set<Metric>) -> Set<OuraScope> {
+        Set(metrics.map(\.requiredScope)).union([.ringConfiguration])
+    }
+}
+
+enum MetricAvailability: Sendable, Equatable {
+    case available
+    case permissionRequired
+    case unavailable
 }
 
 struct MetricReading: Sendable, Equatable {
     let value: String
     let detail: String?
     let score: Int?
+    let observedAt: Date?
+    let sourceDay: String?
+    let availability: MetricAvailability
+
+    init(
+        value: String,
+        detail: String?,
+        score: Int?,
+        observedAt: Date? = nil,
+        sourceDay: String? = nil,
+        availability: MetricAvailability = .available
+    ) {
+        self.value = value
+        self.detail = detail
+        self.score = score
+        self.observedAt = observedAt
+        self.sourceDay = sourceDay
+        self.availability = availability
+    }
 }
 
 struct MetricConfiguration: Codable, Sendable, Equatable {
@@ -203,8 +277,78 @@ struct HealthSnapshot: Sendable, Equatable {
     var readings: [Metric: MetricReading]
     var battery: BatteryRecord?
     var fetchedAt: Date
+    var coveredMetrics: Set<Metric>
 
-    static let empty = HealthSnapshot(readings: [:], battery: nil, fetchedAt: .distantPast)
+    init(
+        readings: [Metric: MetricReading],
+        battery: BatteryRecord?,
+        fetchedAt: Date,
+        coveredMetrics: Set<Metric>? = nil
+    ) {
+        self.readings = readings
+        self.battery = battery
+        self.fetchedAt = fetchedAt
+        self.coveredMetrics = coveredMetrics ?? Set(readings.keys)
+    }
+
+    static let empty = HealthSnapshot(
+        readings: [:],
+        battery: nil,
+        fetchedAt: .distantPast,
+        coveredMetrics: []
+    )
+
+    var hasData: Bool { !readings.isEmpty || battery != nil }
+
+    func isFresh(at date: Date, ttl: TimeInterval) -> Bool {
+        hasData && date.timeIntervalSince(fetchedAt) < ttl
+    }
+
+    func isFresh(
+        for metrics: Set<Metric>,
+        at date: Date,
+        ttl: TimeInterval
+    ) -> Bool {
+        isFresh(at: date, ttl: ttl) && coveredMetrics.isSuperset(of: metrics)
+    }
+}
+
+enum RefreshPolicy: Sendable, Equatable {
+    case ifStale
+    case force
+}
+
+enum AppState: Sendable, Equatable {
+    case unconfigured
+    case configured
+    case authorizing
+    case connected
+    case refreshing
+    case authorizationExpired
+    case failed(message: String, connected: Bool, configured: Bool)
+
+    var isConfigured: Bool {
+        switch self {
+        case .unconfigured: false
+        case .failed(_, _, let configured): configured
+        default: true
+        }
+    }
+
+    var isConnected: Bool {
+        switch self {
+        case .connected, .refreshing: true
+        case .failed(_, let connected, _): connected
+        default: false
+        }
+    }
+
+    var isLoading: Bool {
+        switch self {
+        case .authorizing, .refreshing: true
+        default: false
+        }
+    }
 }
 
 enum ScoreBand {
@@ -229,6 +373,14 @@ enum QueryDates {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         return (formatter.string(from: start), formatter.string(from: end))
+    }
+
+    static func dayString(for date: Date, calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 }
 
@@ -267,10 +419,20 @@ struct ClientCredentials: Codable, Sendable, Equatable {
     let clientSecret: String
 }
 
-enum RingStatsError: LocalizedError, Sendable {
+enum RingStatsError: LocalizedError, Sendable, Equatable {
     case notConfigured
     case notConnected
     case invalidResponse
+    case authenticationRequired
+    case invalidClientCredentials
+    case authorizationRestartRequired
+    case invalidRequestedScope
+    case insufficientScope
+    case rateLimited(retryAfter: TimeInterval?)
+    case timedOut
+    case malformedData
+    case credentialStore(String)
+    case transport(String)
     case server(String)
     case callback(String)
 
@@ -279,6 +441,21 @@ enum RingStatsError: LocalizedError, Sendable {
         case .notConfigured: "Enter Oura application credentials first."
         case .notConnected: "Connect your Oura account first."
         case .invalidResponse: "Oura returned an invalid response."
+        case .authenticationRequired: "Your Oura authorization has expired. Reauthorize to continue."
+        case .invalidClientCredentials: "Oura rejected the Client ID or Client Secret. Check the developer application credentials and try again."
+        case .authorizationRestartRequired: "Oura rejected the authorization code. Start the browser connection again."
+        case .invalidRequestedScope: "Oura rejected a requested permission. Check the developer application scopes and reconnect."
+        case .insufficientScope: "Oura permission is missing for this statistic. Reauthorize with the requested permission."
+        case .rateLimited(let retryAfter):
+            if let retryAfter {
+                "Oura is temporarily rate limiting requests. Try again in \(Int(ceil(retryAfter))) seconds."
+            } else {
+                "Oura is temporarily rate limiting requests. Try again shortly."
+            }
+        case .timedOut: "The Oura request timed out. Check your connection and try again."
+        case .malformedData: "Oura returned data in an unexpected format."
+        case .credentialStore(let message): message
+        case .transport(let message): message
         case .server(let message): message
         case .callback(let message): message
         }

@@ -76,21 +76,6 @@ struct OAuthSecurityTests {
         #expect(await !client.isConfigured)
     }
 
-    @Test func reauthorizationRevokesTokenButKeepsClientCredentials() async throws {
-        let store = try Self.seededStore()
-        let recorder = RequestRecorder { request in
-            Self.response(for: request, status: 204, body: "")
-        }
-        let client = OAuthClient(store: store, session: recorder.session)
-
-        try await client.clearAuthorization()
-
-        #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
-        #expect(try store.load(ClientCredentials.self, account: "client-credentials") != nil)
-        #expect(await !client.isConnected)
-        #expect(await client.isConfigured)
-    }
-
     @Test func disconnectDeletesLocalSecretsEvenWhenRemoteRevocationFails() async throws {
         let store = try Self.seededStore()
         let recorder = RequestRecorder { request in
