@@ -1,0 +1,55 @@
+# macOS and editors
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Swift Package Manager and Xcode
+.build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Build and release output
+dist/
+release/
+*.app
+*.dmg
+*.pkg
+*.zip
+
+# Local agent/session state
+.omx/
+.codex/
+*.log
+logs/
+
+# Credentials, signing material, and local configuration
+.env
+.env.*
+!.env.example
+Secrets/
+credentials*.json
+client-credentials*
+oauth-token*
+*.p12
+*.p8
+*.pfx
+*.pem
+*.cer
+*.crt
+*.der
+*.csr
+*.mobileprovision
+*.provisionprofile
+*.key
+
+# Python artifacts retained only for local development, if present
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
