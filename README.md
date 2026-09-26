@@ -28,6 +28,15 @@ Download the latest Developer ID-signed and Apple-notarized universal DMG from
 The release includes a SHA-256 checksum. Ring Stats requires macOS 14 or later
 and uses bring-your-own Oura developer credentials.
 
+## Themes
+
+Choose between the photographic Landscape treatment and the warm, minimal
+Ring Stats theme. Both present the same configurable metrics and battery state.
+
+<p align="center">
+  <img src=".github/assets/ring-stats-themes.png" alt="Ring Stats menu-bar popover shown in Landscape and Ring Stats themes" width="760">
+</p>
+
 ## Features
 
 - Native SwiftUI/AppKit menu-bar application with no Dock icon.
