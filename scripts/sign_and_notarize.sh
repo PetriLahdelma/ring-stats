@@ -108,7 +108,8 @@ xcrun stapler validate "$DMG_PATH"
   "$DMG_PATH"
 
 echo "Signed, notarized, and stapled: $DMG_PATH"
-/usr/bin/shasum -a 256 "$DMG_PATH" > "$METADATA_DIR/Ring-Stats-$VERSION.dmg.sha256"
+(cd "$OUTPUT_DIR" && /usr/bin/shasum -a 256 "Ring-Stats-$VERSION.dmg") \
+  > "$METADATA_DIR/Ring-Stats-$VERSION.dmg.sha256"
 /usr/bin/shasum -a 256 "$APP_DIR/Contents/MacOS/RingStats" > "$METADATA_DIR/RingStats-binary.sha256"
 DMG_PATH="$DMG_PATH" "$PROJECT_DIR/scripts/verify_release_artifacts.sh"
 echo "Release evidence retained in: $METADATA_DIR"

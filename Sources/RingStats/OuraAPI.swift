@@ -12,6 +12,7 @@ actor OuraAPI: SnapshotFetching {
         case resilience(DailyResilienceRecord?)
         case battery(BatteryRecord?)
         case failure(Metric?, RingStatsError)
+        case cancelled
     }
 
     private let auth: any AccessTokenProviding
@@ -56,6 +57,7 @@ actor OuraAPI: SnapshotFetching {
         var metricFailures: [Metric: RingStatsError] = [:]
         var battery: BatteryRecord?
         var failures: [RingStatsError] = []
+        var wasCancelled = false
 
         await withTaskGroup(of: SnapshotPart.self) { group in
             for metric in metrics {
@@ -68,6 +70,8 @@ actor OuraAPI: SnapshotFetching {
                             session: session,
                             baseURL: baseURL
                         )
+                    } catch is CancellationError {
+                        return .cancelled
                     } catch let error as RingStatsError {
                         return .failure(metric, error)
                     } catch {
@@ -81,6 +85,8 @@ actor OuraAPI: SnapshotFetching {
                     return .battery(
                         try await Self.fetchBattery(token: token, session: session, baseURL: baseURL)
                     )
+                } catch is CancellationError {
+                    return .cancelled
                 } catch let error as RingStatsError {
                     return .failure(nil, error)
                 } catch {
@@ -137,9 +143,13 @@ actor OuraAPI: SnapshotFetching {
                 case .failure(let metric, let error):
                     failures.append(error)
                     if let metric { metricFailures[metric] = error }
+                case .cancelled:
+                    wasCancelled = true
                 }
             }
         }
+
+        if wasCancelled { throw CancellationError() }
 
         if failures.contains(.authenticationRequired) {
             throw RingStatsError.authenticationRequired
@@ -342,9 +352,12 @@ actor OuraAPI: SnapshotFetching {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch let error as URLError where error.code == .timedOut {
             throw RingStatsError.timedOut
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             throw RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
         }
         guard let http = response as? HTTPURLResponse else {

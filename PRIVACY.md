@@ -54,9 +54,11 @@ Early development builds could store OAuth JSON under
 `~/Library/Application Support/Ring Stats Public/Legacy Secrets/`. Current
 builds migrate readable legacy values into Keychain and delete each plaintext
 file only after the Keychain write succeeds. They also migrate older compatible
-Keychain items into the data-protection Keychain when available. A migration
-failure is shown to the user instead of silently treating the account as
-disconnected.
+Keychain items into the data-protection Keychain when available. Cleanup of a
+weaker copy is best-effort and retried on later reads so a cleanup permission
+failure does not make an otherwise valid protected credential unusable. If file
+permissions continue to prevent cleanup, remove the legacy directory manually
+after confirming the account still connects.
 
 ## Data sharing
 

@@ -383,6 +383,16 @@ struct CoreDataTests {
         }
     }
 
+    @Test func cancelledHealthRequestPropagatesCancellation() async {
+        let auth = AccessTokenStub(tokens: ["access"])
+        let recorder = CoreRequestRecorder { _ in throw URLError(.cancelled) }
+        let api = OuraAPI(auth: auth, session: recorder.session)
+
+        await #expect(throws: CancellationError.self) {
+            try await api.fetchSnapshot(metrics: [.readiness], now: Date())
+        }
+    }
+
     @Test func unauthorizedResponseRefreshesTokenOnceAndRetries() async throws {
         let auth = AccessTokenStub(tokens: ["expired", "fresh"])
         let recorder = CoreRequestRecorder { request in
@@ -433,6 +443,7 @@ struct CoreDataTests {
 
         #expect(await client.isConfigured)
         #expect(!(await client.isConnected))
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == nil)
         #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
         let restarted = OAuthClient(store: store, session: recorder.session)
         #expect(await restarted.isConfigured)
@@ -568,7 +579,12 @@ struct CoreDataTests {
         }
 
         #expect(try await client.accessToken(forceRefresh: false) == "working-token")
-        #expect(try store.load(OAuthToken.self, account: "oauth-token")?.accessToken == "working-token")
+        #expect(
+            try store.load(
+                StoredOAuthAuthorization.self,
+                account: "oauth-authorization"
+            )?.token?.accessToken == "working-token"
+        )
     }
 
     @Test func authenticationFailureDoesNotExposeUpstreamResponseBody() async throws {
@@ -592,6 +608,20 @@ struct CoreDataTests {
         } catch let error as RingStatsError {
             #expect(error.localizedDescription == "Oura authentication failed (HTTP 503).")
             #expect(!error.localizedDescription.contains("request-id-private"))
+        }
+    }
+
+    @Test func cancelledTokenExchangePropagatesCancellation() async throws {
+        let store = CoreMemoryCredentialStore()
+        try store.save(
+            ClientCredentials(clientID: "client", clientSecret: "secret"),
+            account: "client-credentials"
+        )
+        let recorder = CoreRequestRecorder { _ in throw URLError(.cancelled) }
+        let client = OAuthClient(store: store, session: recorder.session)
+
+        await #expect(throws: CancellationError.self) {
+            try await client.exchange(code: "temporary-code")
         }
     }
 
@@ -670,6 +700,7 @@ struct CoreDataTests {
 
         #expect(await client.isConfigured)
         #expect(!(await client.isConnected))
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == nil)
         #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
         #expect(try store.load(ClientCredentials.self, account: "client-credentials") == credentials)
 
@@ -707,7 +738,12 @@ struct CoreDataTests {
         try? await Task.sleep(for: .milliseconds(50))
 
         #expect(revocations.value == 2)
-        #expect(try store.load(Set<String>.self, account: "pending-revocation-access-token") == nil)
+        #expect(
+            try store.load(
+                StoredOAuthAuthorization.self,
+                account: "oauth-authorization"
+            )?.pendingRevocationAccessTokens.isEmpty == true
+        )
     }
 
     @Test func multipleFailedRevocationsRemainQueuedUntilEachSucceeds() async throws {
@@ -741,21 +777,28 @@ struct CoreDataTests {
         try await client.exchange(code: "first")
         try await client.exchange(code: "second")
         #expect(
-            try store.load(Set<String>.self, account: "pending-revocation-access-token")
-                == ["old", "new-1"]
+            try store.load(
+                StoredOAuthAuthorization.self,
+                account: "oauth-authorization"
+            )?.pendingRevocationAccessTokens == ["old", "new-1"]
         )
 
         for _ in 0..<5 {
             #expect(try await client.accessToken(forceRefresh: false) == "new-2")
             try? await Task.sleep(for: .milliseconds(30))
             if try store.load(
-                Set<String>.self,
-                account: "pending-revocation-access-token"
-            ) == nil {
+                StoredOAuthAuthorization.self,
+                account: "oauth-authorization"
+            )?.pendingRevocationAccessTokens.isEmpty == true {
                 break
             }
         }
-        #expect(try store.load(Set<String>.self, account: "pending-revocation-access-token") == nil)
+        #expect(
+            try store.load(
+                StoredOAuthAuthorization.self,
+                account: "oauth-authorization"
+            )?.pendingRevocationAccessTokens.isEmpty == true
+        )
 
         let revokedTokens: Set<String> = Set(recorder.requests.compactMap { request -> String? in
             guard request.url?.path == "/oauth/revoke" else { return nil }
@@ -798,8 +841,10 @@ struct CoreDataTests {
         try? await Task.sleep(for: .milliseconds(100))
 
         #expect(
-            try store.load(Set<String>.self, account: "pending-revocation-access-token")
-                == ["old", "new-1"]
+            try store.load(
+                StoredOAuthAuthorization.self,
+                account: "oauth-authorization"
+            )?.pendingRevocationAccessTokens == ["old", "new-1"]
         )
     }
 
@@ -849,6 +894,7 @@ struct CoreDataTests {
         #expect(!(await client.isConfigured))
         #expect(store.deletedAccounts == [
             "client-credentials",
+            "oauth-authorization",
             "oauth-token",
             "pending-revocation-access-token",
         ])
@@ -1036,9 +1082,9 @@ private final class CoreInitiallyUnreadableCredentialStore: CredentialStoring, @
 private final class CoreRequestRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recordedRequests: [URLRequest] = []
-    private let response: @Sendable (URLRequest) -> (HTTPURLResponse, Data)
+    private let response: @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)
 
-    init(response: @escaping @Sendable (URLRequest) -> (HTTPURLResponse, Data)) {
+    init(response: @escaping @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)) {
         self.response = response
     }
 
@@ -1050,7 +1096,7 @@ private final class CoreRequestRecorder: @unchecked Sendable {
         CoreURLProtocol.install { [weak self] request in
             guard let self else { throw URLError(.cancelled) }
             self.lock.withLock { self.recordedRequests.append(request) }
-            return self.response(request)
+            return try self.response(request)
         }
         return URLSession(configuration: configuration)
     }

@@ -30,7 +30,7 @@ dashboard.
 - Connection and local deletion controls reachable from connected and
   disconnected states.
 - Keychain migration, callback socket tests, universal app/DMG verification,
-  and 60 automated tests.
+  and 62 automated tests.
 
 The hardening items above are implemented on `main`; users of an earlier
 release receive them when the next release is published.

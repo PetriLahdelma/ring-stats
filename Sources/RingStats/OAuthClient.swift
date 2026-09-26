@@ -16,6 +16,16 @@ protocol OAuthServicing: AccessTokenProviding {
     func exchange(code: String) async throws
 }
 
+struct StoredOAuthAuthorization: Codable, Sendable, Equatable {
+    var token: OAuthToken?
+    var pendingRevocationAccessTokens: Set<String>
+
+    static let empty = StoredOAuthAuthorization(
+        token: nil,
+        pendingRevocationAccessTokens: []
+    )
+}
+
 actor OAuthClient: OAuthServicing {
     private enum GrantContext: Equatable {
         case authorizationCode
@@ -29,9 +39,8 @@ actor OAuthClient: OAuthServicing {
 
     private let store: any CredentialStoring
     private let session: URLSession
-    private var token: OAuthToken?
+    private var authorization: StoredOAuthAuthorization
     private var credentials: ClientCredentials?
-    private var pendingRevocationAccessTokens: Set<String>
     private var loadError: RingStatsError?
     private var refreshTask: Task<OAuthToken, any Error>?
     private var revocationRetryTask: Task<Void, Never>?
@@ -44,17 +53,31 @@ actor OAuthClient: OAuthServicing {
         self.store = store
         self.session = session
         do {
-            self.token = try store.load(OAuthToken.self, account: "oauth-token")
             self.credentials = try store.load(ClientCredentials.self, account: "client-credentials")
-            self.pendingRevocationAccessTokens = try store.load(
-                Set<String>.self,
-                account: "pending-revocation-access-token"
-            ) ?? []
+            if let stored = try store.load(
+                StoredOAuthAuthorization.self,
+                account: "oauth-authorization"
+            ) {
+                self.authorization = stored
+            } else {
+                let migrated = StoredOAuthAuthorization(
+                    token: try store.load(OAuthToken.self, account: "oauth-token"),
+                    pendingRevocationAccessTokens: try store.load(
+                        Set<String>.self,
+                        account: "pending-revocation-access-token"
+                    ) ?? []
+                )
+                self.authorization = migrated
+                if migrated.token != nil || !migrated.pendingRevocationAccessTokens.isEmpty {
+                    try store.save(migrated, account: "oauth-authorization")
+                    try? store.delete(account: "oauth-token")
+                    try? store.delete(account: "pending-revocation-access-token")
+                }
+            }
             self.loadError = nil
         } catch {
-            self.token = nil
+            self.authorization = .empty
             self.credentials = nil
-            self.pendingRevocationAccessTokens = []
             self.loadError = .credentialStore(
                 "Saved credentials could not be read securely. \(error.localizedDescription)"
             )
@@ -63,7 +86,7 @@ actor OAuthClient: OAuthServicing {
 
     var startupError: RingStatsError? { loadError }
     var isConfigured: Bool { credentials != nil || loadError != nil }
-    var isConnected: Bool { token != nil }
+    var isConnected: Bool { authorization.token != nil }
 
     func configure(_ credentials: ClientCredentials) throws {
         try ensureStoreLoaded()
@@ -99,7 +122,7 @@ actor OAuthClient: OAuthServicing {
         try ensureStoreLoaded()
         try Task.checkCancellation()
         guard let credentials else { throw RingStatsError.notConfigured }
-        let previousAccessToken = token?.accessToken
+        let previousAccessToken = authorization.token?.accessToken
         let response = try await tokenRequest(
             parameters: [
                 "grant_type": "authorization_code",
@@ -111,30 +134,28 @@ actor OAuthClient: OAuthServicing {
         )
         try Task.checkCancellation()
         let newToken = response.token()
-        try store.save(newToken, account: "oauth-token")
-        token = newToken
+        var updatedAuthorization = authorization
+        updatedAuthorization.token = newToken
         if let previousAccessToken, previousAccessToken != newToken.accessToken {
-            // Persist the cleanup obligation before attempting it. The replacement
-            // remains usable if Oura's revocation endpoint is temporarily down.
-            pendingRevocationAccessTokens.insert(previousAccessToken)
-            try store.save(
-                pendingRevocationAccessTokens,
-                account: "pending-revocation-access-token"
-            )
-            schedulePendingRevocationRetry()
+            updatedAuthorization.pendingRevocationAccessTokens.insert(previousAccessToken)
         }
+        // Commit the replacement token and every cleanup obligation in one
+        // Keychain item so a partial write cannot orphan the previous token.
+        try persistAuthorization(updatedAuthorization)
+        schedulePendingRevocationRetry()
     }
 
     func accessToken(forceRefresh: Bool = false) async throws -> String {
         try ensureStoreLoaded()
         schedulePendingRevocationRetry()
-        guard var current = token else { throw RingStatsError.notConnected }
+        guard var current = authorization.token else { throw RingStatsError.notConnected }
         if current.needsRefresh || forceRefresh {
             guard let credentials else { throw RingStatsError.notConfigured }
             if let refreshTask {
                 current = try await refreshTask.value
-                try store.save(current, account: "oauth-token")
-                token = current
+                var updatedAuthorization = authorization
+                updatedAuthorization.token = current
+                try persistAuthorization(updatedAuthorization)
                 return current.accessToken
             }
             let refreshToken = current.refreshToken
@@ -152,15 +173,17 @@ actor OAuthClient: OAuthServicing {
             refreshTask = task
             do {
                 current = try await task.value
-                try store.save(current, account: "oauth-token")
-                token = current
+                var updatedAuthorization = authorization
+                updatedAuthorization.token = current
+                try persistAuthorization(updatedAuthorization)
                 refreshTask = nil
             } catch {
                 refreshTask = nil
                 if error as? RingStatsError == .authenticationRequired {
-                    token = nil
+                    var updatedAuthorization = authorization
+                    updatedAuthorization.token = nil
                     do {
-                        try store.delete(account: "oauth-token")
+                        try persistAuthorization(updatedAuthorization)
                     } catch {
                         throw RingStatsError.credentialStore(
                             "The expired authorization could not be removed securely. \(error.localizedDescription)"
@@ -176,9 +199,10 @@ actor OAuthClient: OAuthServicing {
     func invalidateAuthorization() throws {
         refreshTask?.cancel()
         refreshTask = nil
-        token = nil
+        var updatedAuthorization = authorization
+        updatedAuthorization.token = nil
         do {
-            try store.delete(account: "oauth-token")
+            try persistAuthorization(updatedAuthorization)
         } catch {
             throw RingStatsError.credentialStore(
                 "The invalid authorization could not be removed securely. \(error.localizedDescription)"
@@ -229,6 +253,15 @@ actor OAuthClient: OAuthServicing {
         if let loadError { throw loadError }
     }
 
+    private func persistAuthorization(_ updated: StoredOAuthAuthorization) throws {
+        if updated.token == nil, updated.pendingRevocationAccessTokens.isEmpty {
+            try store.delete(account: "oauth-authorization")
+        } else {
+            try store.save(updated, account: "oauth-authorization")
+        }
+        authorization = updated
+    }
+
     private func removeAuthorization(deleteCredentials: Bool) async throws {
         let pendingRetry = revocationRetryTask
         pendingRetry?.cancel()
@@ -237,8 +270,8 @@ actor OAuthClient: OAuthServicing {
         revocationRetryRequested = false
 
         var revocationError: (any Error)?
-        let accessTokens = pendingRevocationAccessTokens.union(
-            token.map { [$0.accessToken] } ?? []
+        let accessTokens = authorization.pendingRevocationAccessTokens.union(
+            authorization.token.map { [$0.accessToken] } ?? []
         )
         for accessToken in accessTokens {
             do {
@@ -248,12 +281,12 @@ actor OAuthClient: OAuthServicing {
             }
         }
 
-        token = nil
-        pendingRevocationAccessTokens = []
+        authorization = .empty
         if deleteCredentials { credentials = nil }
 
         var storageError: (any Error)?
         do {
+            try store.delete(account: "oauth-authorization")
             try store.delete(account: "oauth-token")
             try store.delete(account: "pending-revocation-access-token")
         } catch {
@@ -272,34 +305,23 @@ actor OAuthClient: OAuthServicing {
     }
 
     private func retryPendingRevocations() async {
-        guard !pendingRevocationAccessTokens.isEmpty else { return }
-        let tokensToAttempt = pendingRevocationAccessTokens.sorted()
+        guard !authorization.pendingRevocationAccessTokens.isEmpty else { return }
+        let tokensToAttempt = authorization.pendingRevocationAccessTokens.sorted()
         for accessToken in tokensToAttempt {
             do {
                 try await revoke(accessToken: accessToken)
-                pendingRevocationAccessTokens.remove(accessToken)
+                var updatedAuthorization = authorization
+                updatedAuthorization.pendingRevocationAccessTokens.remove(accessToken)
+                try persistAuthorization(updatedAuthorization)
             } catch {
                 // Keep this token queued while allowing other pending tokens to
                 // be retried independently.
             }
         }
-        do {
-            if pendingRevocationAccessTokens.isEmpty {
-                try store.delete(account: "pending-revocation-access-token")
-            } else {
-                try store.save(
-                    pendingRevocationAccessTokens,
-                    account: "pending-revocation-access-token"
-                )
-            }
-        } catch {
-            // The existing durable queue remains authoritative if persistence of
-            // the reduced set fails. Retrying extra revocations is safe.
-        }
     }
 
     private func schedulePendingRevocationRetry() {
-        guard !pendingRevocationAccessTokens.isEmpty else { return }
+        guard !authorization.pendingRevocationAccessTokens.isEmpty else { return }
         if revocationRetryTask != nil {
             revocationRetryRequested = true
             return
@@ -329,9 +351,12 @@ actor OAuthClient: OAuthServicing {
         let response: URLResponse
         do {
             (_, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch let error as URLError where error.code == .timedOut {
             throw RingStatsError.timedOut
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             throw RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
         }
         guard let http = response as? HTTPURLResponse else { throw RingStatsError.invalidResponse }
@@ -360,9 +385,12 @@ actor OAuthClient: OAuthServicing {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch let error as URLError where error.code == .timedOut {
             throw RingStatsError.timedOut
         } catch {
+            if Task.isCancelled { throw CancellationError() }
             throw RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
         }
         guard let http = response as? HTTPURLResponse else { throw RingStatsError.invalidResponse }

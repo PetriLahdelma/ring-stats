@@ -51,8 +51,11 @@ struct OAuthSecurityTests {
         try await client.exchange(code: "authorization-code")
 
         #expect(recorder.requests.count == 1)
-        let token = try store.load(OAuthToken.self, account: "oauth-token")
-        #expect(token?.accessToken == "access")
+        let authorization = try store.load(
+            StoredOAuthAuthorization.self,
+            account: "oauth-authorization"
+        )
+        #expect(authorization?.token?.accessToken == "access")
     }
 
     @Test func disconnectRevokesTokenAndDeletesAllOAuthSecrets() async throws {
@@ -70,6 +73,7 @@ struct OAuthSecurityTests {
         try await client.disconnect()
 
         #expect(recorder.requests.count == 1)
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == nil)
         #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
         #expect(try store.load(ClientCredentials.self, account: "client-credentials") == nil)
         #expect(await !client.isConnected)
@@ -91,6 +95,7 @@ struct OAuthSecurityTests {
         }
 
         #expect(revocationFailed)
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == nil)
         #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
         #expect(try store.load(ClientCredentials.self, account: "client-credentials") == nil)
         #expect(await !client.isConnected)

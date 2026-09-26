@@ -58,7 +58,8 @@ Run the artifact verifier once more with the final DMG:
 ```bash
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' native/Info.plist)"
 DMG_PATH="$PWD/dist/Ring-Stats-$version.dmg" scripts/verify_release_artifacts.sh
-shasum -a 256 -c "dist/release-metadata/Ring-Stats-$version.dmg.sha256"
+cp "dist/release-metadata/Ring-Stats-$version.dmg.sha256" "dist/"
+(cd dist && shasum -a 256 -c "Ring-Stats-$version.dmg.sha256")
 ```
 
 ## Publish
