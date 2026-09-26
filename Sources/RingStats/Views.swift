@@ -162,8 +162,8 @@ struct RingStatsLogoView: View {
 
     var body: some View {
         Canvas { context, canvas in
-            let sourceWidth: CGFloat = 121
-            let sourceHeight: CGFloat = 61
+            let sourceWidth: CGFloat = 526
+            let sourceHeight: CGFloat = 251.512
             let scale = min(canvas.width / sourceWidth, canvas.height / sourceHeight)
             let xOffset = (canvas.width - sourceWidth * scale) / 2
             let yOffset = (canvas.height - sourceHeight * scale) / 2
@@ -172,28 +172,28 @@ struct RingStatsLogoView: View {
             }
 
             var lowerRing = Path()
-            lowerRing.move(to: point(118.451, 24.999))
-            lowerRing.addCurve(to: point(121, 33.9453), control1: point(120.109, 27.832), control2: point(121, 30.8352))
-            lowerRing.addCurve(to: point(60.5, 61), control1: point(121, 51.0964), control2: point(93.9131, 61))
-            lowerRing.addCurve(to: point(0, 33.9453), control1: point(27.0869, 61), control2: point(0.000234972, 51.0964))
-            lowerRing.addCurve(to: point(2.54785, 24.999), control1: point(0, 30.8354), control2: point(0.890459, 27.8319))
-            lowerRing.addCurve(to: point(60.5, 38.0469), control1: point(15.1778, 32.8755), control2: point(36.4214, 38.0469))
-            lowerRing.addCurve(to: point(118.451, 24.999), control1: point(84.5781, 38.0469), control2: point(105.821, 32.8752))
+            lowerRing.move(to: point(517.817, 110.911))
+            lowerRing.addCurve(to: point(526, 142.113), control1: point(523.16, 120.887), control2: point(526, 131.342))
+            lowerRing.addCurve(to: point(263, 251.512), control1: point(526, 211.465), control2: point(408.251, 251.512))
+            lowerRing.addCurve(to: point(0, 142.113), control1: point(117.749, 251.512), control2: point(0.000492217, 211.465))
+            lowerRing.addCurve(to: point(8.18262, 110.911), control1: point(0, 131.342), control2: point(2.84024, 120.887))
+            lowerRing.addCurve(to: point(263, 169.517), control1: point(62.6995, 146.215), control2: point(156.469, 169.517))
+            lowerRing.addCurve(to: point(517.817, 110.911), control1: point(369.531, 169.517), control2: point(463.301, 146.215))
             lowerRing.closeSubpath()
             context.fill(lowerRing, with: .color(color))
 
             var upperRing = Path()
-            upperRing.move(to: point(17.9414, 23.5332))
-            upperRing.addCurve(to: point(7, 14.6543), control1: point(11.0774, 21.069), control2: point(7, 17.9932))
-            upperRing.addCurve(to: point(60.5, 0), control1: point(7.00073, 6.56092), control2: point(30.9532, 0))
-            upperRing.addCurve(to: point(114, 14.6543), control1: point(90.0468, 0), control2: point(113.999, 6.56091))
-            upperRing.addCurve(to: point(103.06, 23.5332), control1: point(114, 17.9931), control2: point(109.923, 21.069))
-            upperRing.addCurve(to: point(60.5, 14.0576), control1: point(94.821, 17.8864), control2: point(78.8508, 14.0576))
-            upperRing.addCurve(to: point(17.9414, 23.5332), control1: point(42.1497, 14.0576), control2: point(26.1802, 17.8866))
+            upperRing.move(to: point(98.1716, 81.6885))
+            upperRing.addCurve(to: point(54.6316, 50.6807), control1: point(70.8771, 73.1177), control2: point(54.6316, 62.361))
+            upperRing.addCurve(to: point(263, 0), control1: point(54.6325, 22.6905), control2: point(147.922, 0.0000915429))
+            upperRing.addCurve(to: point(471.369, 50.6807), control1: point(378.078, 0.00000816373), control2: point(471.368, 22.6904))
+            upperRing.addCurve(to: point(427.83, 81.6885), control1: point(471.369, 62.3608), control2: point(455.124, 73.1177))
+            upperRing.addCurve(to: point(263, 50.8291), control1: point(395.481, 63.2731), control2: point(333.787, 50.8291))
+            upperRing.addCurve(to: point(98.1716, 81.6885), control1: point(192.213, 50.8292), control2: point(130.521, 63.2735))
             upperRing.closeSubpath()
             context.fill(upperRing, with: .color(color))
         }
-        .frame(width: size, height: size * 61 / 121)
+        .frame(width: size, height: size * 251.512 / 526)
     }
 }
 

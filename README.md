@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".github/assets/ring-stats-banner.png" alt="Ring Stats" width="900">
+</p>
+
 # Ring Stats
 
 Ring Stats is an independent, open-source macOS menu-bar viewer for personal
