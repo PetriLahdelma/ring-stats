@@ -162,38 +162,38 @@ struct RingStatsLogoView: View {
 
     var body: some View {
         Canvas { context, canvas in
-            let scale = min(canvas.width, canvas.height) / 128
-            let xOffset = (canvas.width - 128 * scale) / 2
-            let yOffset = (canvas.height - 128 * scale) / 2
+            let sourceWidth: CGFloat = 121
+            let sourceHeight: CGFloat = 61
+            let scale = min(canvas.width / sourceWidth, canvas.height / sourceHeight)
+            let xOffset = (canvas.width - sourceWidth * scale) / 2
+            let yOffset = (canvas.height - sourceHeight * scale) / 2
             func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
                 CGPoint(x: xOffset + x * scale, y: yOffset + y * scale)
             }
 
-            var rearBand = Path()
-            rearBand.move(to: point(5, 47))
-            rearBand.addCurve(to: point(64, 28), control1: point(10, 34), control2: point(34, 28))
-            rearBand.addCurve(to: point(123, 47), control1: point(94, 28), control2: point(118, 34))
-            rearBand.addCurve(to: point(107, 60), control1: point(125, 52), control2: point(118, 57))
-            rearBand.addCurve(to: point(64, 51), control1: point(93, 54), control2: point(79, 51))
-            rearBand.addCurve(to: point(21, 60), control1: point(49, 51), control2: point(35, 54))
-            rearBand.addCurve(to: point(5, 47), control1: point(10, 57), control2: point(3, 52))
-            rearBand.closeSubpath()
-            context.fill(rearBand, with: .color(color))
+            var lowerRing = Path()
+            lowerRing.move(to: point(118.451, 24.999))
+            lowerRing.addCurve(to: point(121, 33.9453), control1: point(120.109, 27.832), control2: point(121, 30.8352))
+            lowerRing.addCurve(to: point(60.5, 61), control1: point(121, 51.0964), control2: point(93.9131, 61))
+            lowerRing.addCurve(to: point(0, 33.9453), control1: point(27.0869, 61), control2: point(0.000234972, 51.0964))
+            lowerRing.addCurve(to: point(2.54785, 24.999), control1: point(0, 30.8354), control2: point(0.890459, 27.8319))
+            lowerRing.addCurve(to: point(60.5, 38.0469), control1: point(15.1778, 32.8755), control2: point(36.4214, 38.0469))
+            lowerRing.addCurve(to: point(118.451, 24.999), control1: point(84.5781, 38.0469), control2: point(105.821, 32.8752))
+            lowerRing.closeSubpath()
+            context.fill(lowerRing, with: .color(color))
 
-            var frontBand = Path()
-            frontBand.move(to: point(5, 76))
-            frontBand.addCurve(to: point(34, 72), control1: point(13, 69), control2: point(23, 68))
-            frontBand.addCurve(to: point(64, 84), control1: point(45, 80), control2: point(54, 84))
-            frontBand.addCurve(to: point(94, 72), control1: point(74, 84), control2: point(83, 80))
-            frontBand.addCurve(to: point(123, 76), control1: point(105, 68), control2: point(115, 69))
-            frontBand.addCurve(to: point(119, 95), control1: point(127, 82), control2: point(125, 89))
-            frontBand.addCurve(to: point(64, 107), control1: point(106, 103), control2: point(86, 107))
-            frontBand.addCurve(to: point(9, 95), control1: point(42, 107), control2: point(22, 103))
-            frontBand.addCurve(to: point(5, 76), control1: point(3, 89), control2: point(1, 82))
-            frontBand.closeSubpath()
-            context.fill(frontBand, with: .color(color))
+            var upperRing = Path()
+            upperRing.move(to: point(17.9414, 23.5332))
+            upperRing.addCurve(to: point(7, 14.6543), control1: point(11.0774, 21.069), control2: point(7, 17.9932))
+            upperRing.addCurve(to: point(60.5, 0), control1: point(7.00073, 6.56092), control2: point(30.9532, 0))
+            upperRing.addCurve(to: point(114, 14.6543), control1: point(90.0468, 0), control2: point(113.999, 6.56091))
+            upperRing.addCurve(to: point(103.06, 23.5332), control1: point(114, 17.9931), control2: point(109.923, 21.069))
+            upperRing.addCurve(to: point(60.5, 14.0576), control1: point(94.821, 17.8864), control2: point(78.8508, 14.0576))
+            upperRing.addCurve(to: point(17.9414, 23.5332), control1: point(42.1497, 14.0576), control2: point(26.1802, 17.8866))
+            upperRing.closeSubpath()
+            context.fill(upperRing, with: .color(color))
         }
-        .frame(width: size, height: size)
+        .frame(width: size, height: size * 61 / 121)
     }
 }
 
