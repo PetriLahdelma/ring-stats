@@ -70,7 +70,9 @@ NSStatusItem / AppDelegate
 
 Old compatible Keychain items and early JSON files under
 `~/Library/Application Support/Ring Stats Public/Legacy Secrets/` are migrated
-only after the new Keychain write succeeds. The weaker copy is then deleted.
+only after the new Keychain write succeeds. Cleanup of the weaker copy is
+best-effort and retried on later reads without blocking access to the protected
+credential.
 
 ## Security boundaries
 
@@ -88,7 +90,7 @@ only after the new Keychain write succeeds. The weaker copy is then deleted.
 
 ## Build and release boundaries
 
-`swift test -Xswiftc -warnings-as-errors` runs 60 tests. CI also assembles a
+`swift test -Xswiftc -warnings-as-errors` runs 62 tests. CI also assembles a
 universal app and ad-hoc DMG, verifies architecture, bundle metadata, signature,
 app icon, mountability, and scans artifacts for paths or likely secrets.
 

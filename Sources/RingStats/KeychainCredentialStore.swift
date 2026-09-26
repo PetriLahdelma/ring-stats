@@ -35,8 +35,8 @@ struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
                 // then failed before removing a weaker source. Retry cleanup on
                 // every successful preferred read so duplicate secrets do not
                 // persist indefinitely.
-                try deleteKeychainItem(account: account, useDataProtectionKeychain: false)
-                try deleteLegacyItem(account: account)
+                try? deleteKeychainItem(account: account, useDataProtectionKeychain: false)
+                try? deleteLegacyItem(account: account)
                 return value
             }
         } catch where isMissingEntitlement(error) {
@@ -48,7 +48,7 @@ struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
                 // A prior plaintext migration may have saved this compatible
                 // Keychain copy before deletion of the source file failed.
                 // Retry that cleanup on every successful read.
-                try deleteLegacyItem(account: account)
+                try? deleteLegacyItem(account: account)
                 return value
             }
             return try migrateLegacyItem(type, account: account)
@@ -63,12 +63,12 @@ struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
                 // Delete the compatible copy only after the protected write
                 // succeeds. Unsandboxed/older builds keep using that copy.
                 try save(legacyData, account: account, useDataProtectionKeychain: true)
-                try deleteKeychainItem(account: account, useDataProtectionKeychain: false)
-            } catch where isMissingEntitlement(error) {
-                // The compatible Keychain item is already durable, so the
-                // plaintext source should still be removed.
+                try? deleteKeychainItem(account: account, useDataProtectionKeychain: false)
+            } catch {
+                // The compatible Keychain item remains authoritative. Retry
+                // migration on a later read without blocking app access.
             }
-            try deleteLegacyItem(account: account)
+            try? deleteLegacyItem(account: account)
             return value
         }
 
