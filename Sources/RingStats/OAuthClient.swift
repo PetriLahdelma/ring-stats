@@ -59,6 +59,11 @@ actor OAuthClient: OAuthServicing {
                 account: "oauth-authorization"
             ) {
                 self.authorization = stored
+                // The atomic item is authoritative, including when it is an
+                // empty tombstone. Retry removal of legacy aliases without ever
+                // importing them over this state.
+                try? store.delete(account: "oauth-token")
+                try? store.delete(account: "pending-revocation-access-token")
             } else {
                 let migrated = StoredOAuthAuthorization(
                     token: try store.load(OAuthToken.self, account: "oauth-token"),
@@ -254,11 +259,10 @@ actor OAuthClient: OAuthServicing {
     }
 
     private func persistAuthorization(_ updated: StoredOAuthAuthorization) throws {
-        if updated.token == nil, updated.pendingRevocationAccessTokens.isEmpty {
-            try store.delete(account: "oauth-authorization")
-        } else {
-            try store.save(updated, account: "oauth-authorization")
-        }
+        // Persist the empty state as a non-secret tombstone. Removing it could
+        // let an undeletable legacy alias resurrect an invalidated token after
+        // restart.
+        try store.save(updated, account: "oauth-authorization")
         authorization = updated
     }
 
@@ -281,16 +285,19 @@ actor OAuthClient: OAuthServicing {
             }
         }
 
-        authorization = .empty
-        if deleteCredentials { credentials = nil }
-
         var storageError: (any Error)?
         do {
-            try store.delete(account: "oauth-authorization")
+            try persistAuthorization(.empty)
+        } catch {
+            storageError = error
+        }
+        if deleteCredentials { credentials = nil }
+
+        do {
             try store.delete(account: "oauth-token")
             try store.delete(account: "pending-revocation-access-token")
         } catch {
-            storageError = error
+            storageError = storageError ?? error
         }
         if deleteCredentials {
             do {

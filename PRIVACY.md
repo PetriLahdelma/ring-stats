@@ -80,6 +80,11 @@ preferences remain in `UserDefaults` until the preference domain is removed.
 Deleting the application by itself does not revoke the OAuth token, delete
 Keychain items, or remove preferences.
 
+After token deletion, Ring Stats may retain an empty, non-secret Keychain
+migration marker. It contains no credentials or tokens and prevents an older
+Keychain alias that macOS would not allow the app to delete from being imported
+again on a later launch.
+
 If remote revocation cannot complete because the device is offline, local
 secrets are still removed. You can separately revoke access through your Oura
 account or developer controls.
