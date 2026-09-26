@@ -199,6 +199,7 @@ struct RingStatsLogoView: View {
 
 struct MenuPopoverView: View {
     @EnvironmentObject private var model: AppViewModel
+    let refresh: () -> Void
     let showConnection: () -> Void
     let showAppearance: () -> Void
     let showAbout: () -> Void
@@ -216,7 +217,7 @@ struct MenuPopoverView: View {
 
     private var missingPermissionMetrics: [Metric] {
         metricConfiguration.visibleMetrics.filter {
-            model.snapshot.readings[$0]?.detail == "Permission required"
+            model.snapshot.readings[$0]?.availability == .permissionRequired
         }
     }
 
@@ -260,12 +261,19 @@ struct MenuPopoverView: View {
             Button(action: showAppearance) {
                 Label("Appearance", systemImage: "paintpalette")
             }
+            Button(action: showConnection) {
+                Label("Connection", systemImage: "person.crop.circle")
+            }
             Button(action: showAbout) {
                 Label("About & Credits", systemImage: "info.circle")
             }
             Divider()
+            Button(action: refresh) {
+                Label(model.loading ? "Refreshing…" : "Refresh Now", systemImage: "arrow.clockwise")
+            }
+            .disabled(!model.connected || model.loading)
             Button(model.loading ? "Reauthorizing…" : "Reauthorize Permissions") {
-                Task { await model.reauthorize() }
+                Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
             }
             .disabled(!model.configured || model.loading)
             Divider()
@@ -289,7 +297,7 @@ struct MenuPopoverView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            if model.connected {
+            if model.connected || model.snapshot.hasData {
                 ScrollView(.horizontal) {
                     HStack(alignment: .top, spacing: 16) {
                         ForEach(metricConfiguration.visibleMetrics) { metric in
@@ -326,7 +334,7 @@ struct MenuPopoverView: View {
                 .scrollIndicators(.hidden)
                 if !missingPermissionMetrics.isEmpty {
                     Button {
-                        Task { await model.reauthorize() }
+                        Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
                     } label: {
                         Label(
                             model.loading ? "Opening Oura…" : permissionActionTitle,
@@ -349,6 +357,17 @@ struct MenuPopoverView: View {
                 Divider().overlay(theme.divider)
                 HStack {
                     BatteryRow(battery: model.snapshot.battery, loading: model.loading, theme: theme)
+                    if let freshnessLabel {
+                        Text(freshnessLabel)
+                            .font(.system(size: 10))
+                            .foregroundStyle(
+                                model.isShowingStaleData
+                                    ? Palette.alert
+                                    : theme.secondaryContent
+                            )
+                            .lineLimit(1)
+                            .accessibilityLabel(freshnessAccessibilityLabel)
+                    }
                     Spacer()
                     optionsMenu
                 }
@@ -369,6 +388,11 @@ struct MenuPopoverView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 132)
                 HStack {
+                    if model.state == .authorizing {
+                        Button("Cancel") {
+                            Task { await model.cancelAuthorization() }
+                        }
+                    }
                     Spacer()
                     optionsMenu
                 }
@@ -380,7 +404,27 @@ struct MenuPopoverView: View {
         .frame(minWidth: 420, maxWidth: .infinity)
         .foregroundStyle(theme.primaryContent)
         .preferredColorScheme(theme == .landscape ? .dark : .light)
-        .task { await model.refresh() }
+    }
+
+    private var freshnessLabel: String? {
+        guard let updatedAt = model.lastUpdatedAt else { return nil }
+        let age = max(0, Date().timeIntervalSince(updatedAt))
+        let value: String
+        switch age {
+        case ..<60:
+            value = "Updated now"
+        case ..<3_600:
+            value = "Updated \(Int(age / 60))m ago"
+        default:
+            value = "Updated \(Int(age / 3_600))h ago"
+        }
+        return model.isShowingStaleData ? "Update failed · \(value)" : value
+    }
+
+    private var freshnessAccessibilityLabel: String {
+        model.isShowingStaleData
+            ? "Update failed. Showing the last successful values."
+            : freshnessLabel ?? ""
     }
 }
 
@@ -398,6 +442,24 @@ struct MetricGauge: View {
 
     private var valueFontSize: CGFloat {
         metric == .resilience ? 18 : 28
+    }
+
+    private var shouldShowDetail: Bool {
+        guard theme == .landscape else { return true }
+        guard !pending, reading?.availability == .available else { return true }
+        if reading?.observedAt != nil { return true }
+        guard let sourceDay = reading?.sourceDay else { return false }
+        return sourceDay != QueryDates.dayString(for: Date())
+    }
+
+    private var detailText: String {
+        guard let reading else { return pending ? "Updating…" : "No data" }
+        guard let observedAt = reading.observedAt else { return reading.detail ?? "No data" }
+        let age = max(0, Date().timeIntervalSince(observedAt))
+        let compactAge = age < 3_600
+            ? "\(max(1, Int(age / 60)))m ago"
+            : "\(Int(age / 3_600))h ago"
+        return [reading.detail, compactAge].compactMap { $0 }.joined(separator: " · ")
     }
 
     var body: some View {
@@ -433,8 +495,8 @@ struct MetricGauge: View {
             VStack(spacing: 2) {
                 Text(metric.title)
                     .font(.system(size: 12, weight: .semibold))
-                if theme != .landscape {
-                    Text(pending ? "Updating…" : reading?.detail ?? "No data")
+                if shouldShowDetail {
+                    Text(detailText)
                     .font(.system(size: 11))
                     .foregroundStyle(theme.secondaryContent)
                     .lineLimit(1)
@@ -491,6 +553,18 @@ struct BatteryRow: View {
         return battery.charging == true || battery.inCharger == true ? "Charging" : "Not charging"
     }
 
+    private var sampleAge: String? {
+        guard let timestamp = battery?.timestamp else { return nil }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let observedAt = fractional.date(from: timestamp)
+            ?? ISO8601DateFormatter().date(from: timestamp) else { return nil }
+        let age = max(0, Date().timeIntervalSince(observedAt))
+        return age < 3_600
+            ? "\(max(1, Int(age / 60)))m ago"
+            : "\(Int(age / 3_600))h ago"
+    }
+
     var body: some View {
         HStack(spacing: 7) {
             BatteryStatusIcon(
@@ -503,7 +577,11 @@ struct BatteryRow: View {
                     .monospacedDigit()
                     .foregroundStyle(theme.primaryContent)
                 Text(chargingStatus)
-                    .foregroundStyle(theme.primaryContent.opacity(0.5))
+                    .foregroundStyle(theme.primaryContent.opacity(0.68))
+                if let sampleAge {
+                    Text(sampleAge)
+                        .foregroundStyle(theme.primaryContent.opacity(0.5))
+                }
             }
         }
         .font(.system(size: 12, weight: .medium))
@@ -674,6 +752,10 @@ struct AppearanceSettingsView: View {
                             Label(metric.title, systemImage: metric.symbolName)
                         }
                         .toggleStyle(.checkbox)
+                        .disabled(
+                            configuration.visibleMetrics.count == 1
+                                && !configuration.hidden.contains(metric)
+                        )
 
                         Spacer()
 
@@ -744,6 +826,19 @@ struct AboutCreditsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 16) {
+                Link("GitHub", destination: URL(string: "https://github.com/PetriLahdelma/ring-stats")!)
+                Link(
+                    "Privacy",
+                    destination: URL(string: "https://github.com/PetriLahdelma/ring-stats/blob/main/PRIVACY.md")!
+                )
+                Link(
+                    "Releases",
+                    destination: URL(string: "https://github.com/PetriLahdelma/ring-stats/releases")!
+                )
+            }
+            .font(.caption)
+            .foregroundStyle(Palette.signalBlue)
         }
         .padding(24)
         .frame(width: 420)
@@ -760,6 +855,11 @@ struct ConnectionSettingsView: View {
     @State private var clientID = ""
     @State private var clientSecret = ""
     @State private var showingDisconnectConfirmation = false
+    @AppStorage(MetricConfiguration.storageKey) private var metricConfigurationRaw = MetricConfiguration.default.encoded
+
+    private var visibleMetrics: Set<Metric> {
+        Set(MetricConfiguration.decode(metricConfigurationRaw).visibleMetrics)
+    }
 
     init(onConnected: @escaping () -> Void = {}) {
         self.onConnected = onConnected
@@ -770,14 +870,17 @@ struct ConnectionSettingsView: View {
             Text("Oura Connection")
                 .font(.title2.weight(.semibold))
 
-            if model.connected {
-                Label("Oura account connected", systemImage: "checkmark.circle")
+            if model.configured {
+                Label(
+                    model.connected ? "Oura account connected" : "Oura authorization required",
+                    systemImage: model.connected ? "checkmark.circle" : "exclamationmark.circle"
+                )
                     .font(.callout.weight(.medium))
                 if let error = model.errorMessage {
                     Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
                 }
                 Button(model.loading ? "Reauthorizing…" : "Reauthorize Permissions") {
-                    Task { await model.reauthorize() }
+                    Task { await model.reauthorize(metrics: visibleMetrics) }
                 }
                 .disabled(model.loading)
 
@@ -800,7 +903,19 @@ struct ConnectionSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Link("Open Oura developer portal", destination: URL(string: "https://developer.ouraring.com/applications")!)
                     .foregroundStyle(Palette.signalBlue)
-                Text(OAuthClient.callbackURL).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                HStack(spacing: 8) {
+                    Text(OAuthClient.callbackURL)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(OAuthClient.callbackURL, forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Copy callback URL")
+                }
                 TextField("Client ID", text: $clientID)
                 SecureField("Client Secret", text: $clientSecret)
                 if let error = model.errorMessage {
@@ -809,7 +924,13 @@ struct ConnectionSettingsView: View {
                 HStack {
                     Spacer()
                     Button(model.loading ? "Connecting…" : "Connect in Browser") {
-                        Task { await model.connect(clientID: clientID, clientSecret: clientSecret) }
+                        Task {
+                            await model.connect(
+                                clientID: clientID,
+                                clientSecret: clientSecret,
+                                metrics: visibleMetrics
+                            )
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Palette.signalBlue)
@@ -837,6 +958,11 @@ struct ConnectionSettingsView: View {
             if connected {
                 dismiss()
                 onConnected()
+            }
+        }
+        .onDisappear {
+            if model.state == .authorizing {
+                Task { await model.cancelAuthorization() }
             }
         }
     }

@@ -4,7 +4,7 @@
 
 ## Platform
 
-adaptive
+macOS 14 or later; native SwiftUI/AppKit menu-bar accessory
 
 ## Users
 
@@ -12,7 +12,7 @@ The primary user is the owner of an Oura Ring using a Mac who wants a fast glanc
 
 ## Product Purpose
 
-Provide a native macOS menu-bar utility for today's Sleep, Readiness, and Activity scores plus current ring battery state. Success means the user clicks one menu-bar icon, reads everything in seconds, and dismisses the popover.
+Provide a native macOS menu-bar utility for selected Readiness, Sleep, Activity, Heart Rate, Stress, and Resilience values plus current ring battery state. Success means the user clicks one menu-bar icon, understands each value and its freshness in seconds, and dismisses the popover.
 
 ## Positioning
 
@@ -32,12 +32,15 @@ The Oura Ring continues syncing through the official phone app. Ring Stats reads
 - Let users drag visible shortcuts directly in the popover; the shared order updates Appearance immediately.
 - Let users resize the popover horizontally from 420pt to 840pt and persist the chosen width.
 - Show ring battery percentage and charging status in a compact row.
-- Provide Appearance, About & Credits, Reauthorize Permissions, and Quit Ring Stats inside a compact hamburger menu in the popover.
+- Provide Appearance, Connection, About & Credits, Refresh Now, Reauthorize Permissions, and Quit Ring Stats inside a compact hamburger menu in the popover.
 - Keep Appearance, About & Credits, and Connection as separate native views with one clear responsibility each; stat customization lives inside Appearance.
-- Use an AppKit-owned status item so left-click opens the SwiftUI popover and right-click or Control-click reliably opens native Appearance, About & Credits, Reauthorize Permissions, and Quit Ring Stats actions.
+- Use an AppKit-owned status item so left-click opens the SwiftUI popover and right-click or Control-click reliably opens native Appearance, Connection, About & Credits, Refresh Now, Reauthorize Permissions, and Quit Ring Stats actions.
 - Let the user switch persistently between the default Ring Stats theme and an independent Landscape photo theme from the Appearance view.
 - Permit a separate first-run connection window only until OAuth is configured.
-- Authenticate with Oura OAuth2 authorization-code flow using the required `daily`, `heartrate`, `stress`, and `ring_configuration` scopes.
+- Authenticate with Oura OAuth2 authorization-code flow through `http://127.0.0.1:43828/oauth/callback`; derive `daily`, `heartrate`, and `stress` from enabled metrics and always request `ring_configuration` for battery.
+- Refresh on open when the last successful snapshot is at least five minutes old; allow an explicit refresh at any time.
+- Preserve the last successful in-memory snapshot across transient failures and label it stale; expose source-day or sample-age context when values are older.
+- Fetch only enabled statistics plus battery. Hiding a statistic changes collection as well as presentation.
 - Keep client credentials and OAuth tokens encrypted in macOS Keychain and provide explicit revocation and local deletion controls.
 - Keep health data ephemeral; do not persist a health-history database.
 - Add no third-party runtime dependencies.
@@ -50,7 +53,7 @@ Use an independent warm-neutral palette, original Ring Stats split-ring mark, na
 ## Evidence on Hand
 
 - Oura API V2 provides the three daily score collections and latest ring battery data.
-- The native Swift implementation and its focused tests are the sole shipped application surface.
+- The native Swift implementation and its 60 focused tests are the sole shipped application surface.
 
 ## Product Principles
 

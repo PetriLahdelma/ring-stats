@@ -11,7 +11,7 @@ colors:
 typography:
   metric:
     fontFamily: ".AppleSystemUIFontRounded, -apple-system, sans-serif"
-    fontSize: "32pt"
+    fontSize: "28pt"
     fontWeight: 500
     lineHeight: 1
   label:
@@ -83,7 +83,7 @@ Use dark ink and white as the functional base, with signal blue and a warm separ
 
 Use SF Pro through SwiftUI's system text styles. Do not bundle or imitate Oura's proprietary AkkuratLL or Editorial New fonts.
 
-- **Metric** (`32pt`, medium, rounded design): score numerals.
+- **Metric** (`28pt`, medium, rounded design): score numerals.
 - **Label** (`12pt`, semibold): Sleep, Readiness, Activity, and Battery.
 - **Caption** (`10pt`, regular): Optimal/Good/Fair/Pay attention, charging state, and attribution.
 
@@ -91,7 +91,7 @@ Use tabular numerals for values. Sentence case only.
 
 ## Layout
 
-The popover starts at 420pt wide and can be resized horizontally up to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt shortcut items with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, Stress, and Customize; Resilience is available through customization. Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery/footer row.
+The popover defaults to 680pt wide and can be resized horizontally from 420pt to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt shortcut items with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, Stress, and Customize; Resilience is available through customization. Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery, freshness, and options row.
 
 The popover never resizes vertically: its fixed-height menu-bar composition expands only along the horizontal axis. Connection, Appearance, and About & Credits appear in separate compact windows.
 
@@ -108,7 +108,7 @@ Use native macOS popover/window elevation. The Ring Stats theme adds no custom s
 ### Landscape
 - An original bundled Nordic landscape photograph spans the entire popover width and height.
 - A dark vertical veil protects contrast without obscuring the terrain.
-- Score charts and qualitative labels are removed entirely; each metric uses only its white native icon and number, with the metric name beneath.
+- Score charts are removed; each metric uses a white native icon and number with the metric name beneath. Detail text remains visible for loading, permission-required, unavailable, or stale/older values so presentation never hides status.
 - Numbers, labels, battery artwork, dividers, and actions use white with controlled opacity hierarchy.
 - The photo contains no embedded UI, text, logos, people, or product imagery.
 - Settings stays on the stable Ring Stats surface so theme selection remains predictable and legible.
@@ -120,8 +120,8 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 ## Components
 
 ### Score Donut
-- `84pt` square with only a `9pt` Signal Blue trimmed arc; the unfilled remainder and center stay transparent over Canvas Warm.
-- Score centered in 32pt rounded system type with tabular numerals.
+- `84pt` square with only an `8pt` Signal Blue trimmed arc; the unfilled remainder and center stay transparent over Canvas Warm.
+- Score centered in 28pt rounded system type with tabular numerals.
 - Metric and qualitative label below the ring.
 - Missing state uses no arc, an em dash, and an explicit “No data” caption.
 
@@ -155,26 +155,28 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 - Contains nothing related to credits or OAuth.
 
 ### Connection
-- Opens independently from the disconnected Connect action.
+- Opens independently from the disconnected Connect action and from both menu surfaces in every configured state.
 - Owns OAuth application credentials, callback URL guidance, connection errors, and reauthorization status.
+- Shows the exact numeric callback URL with a Copy action and owns **Disconnect & Delete Local Data**.
 
 ### Popover Options Menu
 - The visible control is the `line.3.horizontal` SF Symbol without an additional disclosure indicator.
-- Menu items are Appearance, About & Credits, a divider, Reauthorize Permissions, another divider, and Quit Ring Stats.
+- Menu items are Appearance, Connection, About & Credits, a divider, Refresh Now, Reauthorize Permissions, another divider, and Quit Ring Stats.
 - Reauthorize Permissions is disabled when stored credentials are unavailable or authorization is already running.
 
 ### Menu-Bar Context Menu
 - An AppKit-owned status item dispatches clicks explicitly: left-click opens the SwiftUI popover; right-click or Control-click opens a native menu.
 - The status item uses the original 17pt Ring Stats split-ring template asset.
-- Reauthorize Permissions is available when stored developer credentials exist and disabled while authorization is already running.
+- Connection remains available in every state. Refresh Now requires a connected account; Reauthorize Permissions requires stored developer credentials. Both are disabled while the app is already loading.
 - Quit Ring Stats remains available as the final menu action.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** keep the three score donuts visible side by side at all times.
+- **Do** keep enabled metrics in the user-selected order and make horizontal overflow discoverable.
 - **Do** keep donut centers and unfilled segments free of gray background fills.
 - **Do** refresh automatically when the popover appears.
+- **Do** show the last successful refresh time and retain prior values with an explicit stale warning after a transient failure.
 - **Do** identify Oura as the data provider in Credits.
 - **Do** use native macOS focus, keyboard, and VoiceOver behavior.
 

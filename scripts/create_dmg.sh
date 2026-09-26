@@ -11,7 +11,7 @@ SKIP_BUILD="${SKIP_BUILD:-0}"
 DMG_CODESIGN_IDENTITY="${DMG_CODESIGN_IDENTITY:-${CODESIGN_IDENTITY:--}}"
 
 if [[ "$SKIP_BUILD" != "1" ]]; then
-  INSTALL_APP=0 "$PROJECT_DIR/scripts/build_app.sh"
+  "$PROJECT_DIR/scripts/build_app.sh"
 fi
 
 if [[ ! -d "$APP_DIR" ]]; then

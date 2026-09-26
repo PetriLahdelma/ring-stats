@@ -10,7 +10,7 @@ BUILD_ARCHS="${BUILD_ARCHS:-$(uname -m)}"
 OUTPUT_DIR="$PROJECT_DIR/dist"
 APP_DIR="$OUTPUT_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
-INSTALL_APP="${INSTALL_APP:-1}"
+INSTALL_APP="${INSTALL_APP:-0}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 MARKETING_VERSION="${MARKETING_VERSION:-}"
 BUILD_NUMBER="${BUILD_NUMBER:-}"
@@ -40,6 +40,7 @@ for architecture in $BUILD_ARCHS; do
     --product "$PRODUCT_NAME" \
     --triple "$triple" \
     --scratch-path "$scratch_path" \
+    -Xswiftc -warnings-as-errors \
     -Xswiftc -gnone \
     -Xswiftc -file-prefix-map \
     -Xswiftc "$PROJECT_DIR=."
@@ -72,11 +73,28 @@ if [[ -n "$BUILD_NUMBER" ]]; then
 fi
 
 if [[ -d "$PROJECT_DIR/Sources/RingStats/Resources/Assets.xcassets" ]]; then
+  asset_info_plist="$(mktemp "${TMPDIR:-/tmp}/ring-stats-assets.plist.XXXXXX")"
+  trap 'rm -f "$asset_info_plist"' EXIT
   xcrun actool "$PROJECT_DIR/Sources/RingStats/Resources/Assets.xcassets" \
     --compile "$CONTENTS_DIR/Resources" \
     --platform macosx \
     --minimum-deployment-target 14.0 \
+    --app-icon AppIcon \
+    --include-all-app-icons \
+    --bundle-identifier com.digitaltableteur.ringstats \
+    --output-partial-info-plist "$asset_info_plist" \
     --output-format human-readable-text >/dev/null
+  rm -f "$asset_info_plist"
+  trap - EXIT
+
+  icon_parent="$(mktemp -d "${TMPDIR:-/tmp}/ring-stats-icon.XXXXXX")"
+  iconset_dir="$icon_parent/AppIcon.iconset"
+  trap 'rm -rf "$icon_parent"' EXIT
+  mkdir "$iconset_dir"
+  /bin/cp "$PROJECT_DIR/Sources/RingStats/Resources/Assets.xcassets/AppIcon.appiconset/"*.png "$iconset_dir/"
+  /usr/bin/iconutil -c icns "$iconset_dir" -o "$CONTENTS_DIR/Resources/AppIcon.icns"
+  rm -rf "$icon_parent"
+  trap - EXIT
 fi
 
 sign_target() {
@@ -100,7 +118,9 @@ sign_target "$APP_DIR"
 echo "Built and signed: $APP_DIR"
 echo "Architectures: $(/usr/bin/lipo -archs "$CONTENTS_DIR/MacOS/$EXECUTABLE_NAME")"
 
-if [[ "$INSTALL_APP" == "1" ]]; then
+case "$INSTALL_APP" in
+0) ;;
+1)
   mkdir -p "$USER_APPLICATIONS_DIR"
   rm -rf "$INSTALLED_APP_DIR"
   /usr/bin/ditto "$APP_DIR" "$INSTALLED_APP_DIR"
@@ -109,4 +129,9 @@ if [[ "$INSTALL_APP" == "1" ]]; then
     -f "$INSTALLED_APP_DIR"
   /usr/bin/mdimport -i "$INSTALLED_APP_DIR" >/dev/null 2>&1 || true
   echo "Installed and registered: $INSTALLED_APP_DIR"
-fi
+  ;;
+*)
+  echo "INSTALL_APP must be 0 or 1." >&2
+  exit 1
+  ;;
+esac

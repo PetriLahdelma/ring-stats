@@ -40,11 +40,10 @@ own terms and policies. Their availability, accuracy, compatibility, and API
 behavior may change or end without notice. You are responsible for charges,
 subscriptions, permissions, and accounts those services may require.
 
-To the maximum extent permitted by law, all third-party services and service
-providers disclaim all warranties, including implied warranties of
-merchantability, fitness for a particular purpose, and non-infringement, and
-are excluded from liability for consequential, special, punitive, or indirect
-damages arising from your use of Ring Stats.
+Ring Stats does not control those third-party services and does not promise
+their availability, accuracy, security, or continued compatibility. Nothing in
+these terms states or changes a warranty, disclaimer, or liability position on
+behalf of Apple, Oura, GitHub, or any other third party.
 
 ## Software license and warranty
 
@@ -64,5 +63,7 @@ through the application. Distribution or support may be changed or discontinued
 at any time. Updated terms will be published in this repository with a revised
 effective date.
 
-Questions may be submitted through the repository's issue tracker. Do not
-include credentials, health data, or other private information in public issues.
+Non-sensitive questions may be submitted through the repository's issue
+tracker. Use
+[private vulnerability reporting](https://github.com/PetriLahdelma/ring-stats/security/advisories/new)
+for anything involving credentials, health data, or other private information.

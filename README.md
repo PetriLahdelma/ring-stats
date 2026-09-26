@@ -31,6 +31,24 @@ Download the latest Developer ID-signed and Apple-notarized universal DMG from
 The release includes a SHA-256 checksum. Ring Stats requires macOS 14 or later
 and uses bring-your-own Oura developer credentials.
 
+### Install
+
+1. Download the DMG and its `.sha256` file from
+   [GitHub Releases](https://github.com/PetriLahdelma/ring-stats/releases/latest).
+2. In Terminal, verify the download from the directory containing both files:
+
+   ```bash
+   shasum -a 256 -c Ring-Stats-1.0.dmg.sha256
+   ```
+
+3. Open the DMG and drag **Ring Stats** to **Applications**.
+4. Open Ring Stats from Applications. Its split-ring icon appears in the menu
+   bar; the app intentionally has no Dock icon.
+
+To update, quit Ring Stats, download the newer signed release, and replace the
+copy in Applications. Keychain credentials and interface preferences remain in
+place across ordinary updates.
+
 ## Themes
 
 Choose between the photographic Landscape treatment and the warm, minimal
@@ -52,12 +70,14 @@ Ring Stats theme. Both present the same configurable metrics and battery state.
 - Health API responses kept in memory rather than written to a local database.
 - No analytics, advertising, telemetry, or third-party runtime dependencies.
 
-## Requirements
+## User requirements
 
 - macOS 14 or later.
-- Xcode 26 or another toolchain supporting Swift tools version 6.2.
 - An Oura account with API access and an application created in the
   [Oura developer portal](https://developer.ouraring.com/applications).
+
+Building from source additionally requires Xcode 26 or another toolchain that
+supports Swift tools version 6.2. Binary users do not need Xcode.
 
 Access to Oura data remains subject to Oura's current API agreement, account
 requirements, permissions, and service availability.
@@ -73,15 +93,18 @@ license does not grant access to Oura services or override their terms.
 2. Register this redirect URI exactly:
 
    ```text
-   http://localhost:43828/oauth/callback
+   http://127.0.0.1:43828/oauth/callback
    ```
 
 3. Launch Ring Stats, open Connection settings, and enter your Client ID and
    Client Secret.
 4. Complete Oura's browser-based consent flow.
 
-The app requests the `daily`, `heartrate`, `stress`, and
-`ring_configuration` scopes. Grant only the permissions you want to use.
+Ring Stats derives authorization scopes from the statistics currently enabled
+in Appearance. Battery status always requires `ring_configuration`; the other
+possible scopes are `daily`, `heartrate`, and `stress`. The default visible set
+uses all four. Hidden statistics are not fetched, although permissions already
+granted to an existing token remain granted until you revoke or reauthorize it.
 
 Never post a Client Secret in an issue, commit it to a repository, or include
 it in a distributed application.
@@ -89,17 +112,17 @@ it in a distributed application.
 ## Build and test
 
 ```bash
-swift test
-swift build -Xswiftc -warnings-as-errors
-scripts/build_app.sh
-open "$HOME/Applications/Ring Stats.app"
+swift test -Xswiftc -warnings-as-errors
+BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
+open "dist/Ring Stats.app"
 ```
 
-`scripts/build_app.sh` creates an ad-hoc-signed local build by default. Set
-`INSTALL_APP=0` to build without replacing the copy in `~/Applications`:
+`scripts/build_app.sh` creates an ad-hoc-signed local build under `dist/` and
+does not install it by default. To install the build under `~/Applications`,
+opt in explicitly:
 
 ```bash
-INSTALL_APP=0 scripts/build_app.sh
+INSTALL_APP=1 scripts/build_app.sh
 ```
 
 The default build targets the current Mac architecture. To create a universal
@@ -145,12 +168,48 @@ The script verifies the application signature, submits the DMG with
 `notarytool`, staples the notarization ticket, validates it, and prints a
 SHA-256 checksum. See [SECURITY.md](SECURITY.md) for release-integrity notes.
 
-## Privacy and data deletion
+## Refresh and data freshness
+
+Opening the popover requests a refresh when the last successful snapshot is
+more than five minutes old. **Refresh Now** bypasses that interval. The footer
+shows the last successful update time; when a refresh fails, Ring Stats keeps
+the prior values visible and marks them as stale instead of replacing them with
+empty data. Daily values identify an older source day, and Heart Rate shows the
+age of the latest sample.
+
+## Privacy, disconnect, and uninstall
 
 Health responses are fetched directly from Oura and kept in memory. OAuth
 credentials and tokens remain in macOS Keychain. **Disconnect & Delete Local
 Data** revokes the current authorization when possible and removes the locally
 stored OAuth secrets. See [PRIVACY.md](PRIVACY.md) for the complete data flow.
+
+Before uninstalling, open **Connection** from the popover menu or the menu-bar
+icon's context menu and choose **Disconnect & Delete Local Data**. Then quit
+Ring Stats and move it from Applications to the Trash. Removing only the app
+does **not** revoke Oura authorization, remove Keychain items, or delete local
+preferences. If the app cannot run, revoke access through Oura and remove the
+Ring Stats generic-password items in Keychain Access. Optional display
+preferences can be removed with:
+
+```bash
+defaults delete com.digitaltableteur.ringstats
+```
+
+See [PRIVACY.md](PRIVACY.md) for migration and deletion details.
+
+## Troubleshooting
+
+- **Authorization never returns:** confirm the registered redirect is exactly
+  `http://127.0.0.1:43828/oauth/callback`; `localhost` is not interchangeable.
+- **A statistic says permission is required:** enable it in Appearance, then
+  choose **Reauthorize Permissions**.
+- **Values are old:** check the per-value date/time and footer update label,
+  then choose **Refresh Now**. Oura may publish today's daily values later.
+- **Authorization expired:** open **Connection** and reauthorize. Existing
+  values remain visible but are marked stale until a refresh succeeds.
+- **Saved credentials cannot be read:** open **Connection** and follow the
+  displayed Keychain error. Do not post credentials in a public issue.
 
 ## Contributing
 
@@ -165,8 +224,9 @@ Do not commit personal health data, credentials, signing material, Oura brand
 assets, or screenshots containing private information. Security reports should
 follow [SECURITY.md](SECURITY.md), not public issues.
 
-See the [product roadmap](ROADMAP.md) for the prioritized path to signed
-releases, better reliability, macOS automation, and sustainable funding.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the verified development workflow,
+[ARCHITECTURE.md](ARCHITECTURE.md) for system boundaries, and
+[ROADMAP.md](ROADMAP.md) for planned work.
 
 ## Legal
 
@@ -177,6 +237,11 @@ releases, better reliability, macOS automation, and sustainable funding.
 - [Trademark Policy](TRADEMARKS.md)
 - [Notices](NOTICE.md)
 - [Roadmap](ROADMAP.md)
+- [Architecture](ARCHITECTURE.md)
+- [Asset provenance](ASSETS.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Release process](RELEASING.md)
 
 This project is a convenience viewer, not a medical device, and does not offer
 medical advice.
