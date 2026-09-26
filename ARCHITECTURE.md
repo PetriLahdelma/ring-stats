@@ -65,6 +65,7 @@ NSStatusItem / AppDelegate
 | --- | --- | --- |
 | Health snapshot | Process memory | Until replaced or app quits |
 | OAuth credentials and current/queued tokens | macOS Keychain | Until successful revocation, disconnect, or manual deletion |
+| Empty OAuth migration tombstone | macOS Keychain | May remain after token deletion to prevent legacy-token reimport |
 | Theme, metric order/visibility, width | `UserDefaults` | Until preference-domain deletion |
 | OAuth state/callback listener | Process memory | One authorization attempt |
 
@@ -90,7 +91,7 @@ credential.
 
 ## Build and release boundaries
 
-`swift test -Xswiftc -warnings-as-errors` runs 62 tests. CI also assembles a
+`swift test -Xswiftc -warnings-as-errors` runs 63 tests. CI also assembles a
 universal app and ad-hoc DMG, verifies architecture, bundle metadata, signature,
 app icon, mountability, and scans artifacts for paths or likely secrets.
 

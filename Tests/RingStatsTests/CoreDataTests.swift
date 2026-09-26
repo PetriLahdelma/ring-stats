@@ -443,7 +443,7 @@ struct CoreDataTests {
 
         #expect(await client.isConfigured)
         #expect(!(await client.isConnected))
-        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == nil)
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == .empty)
         #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
         let restarted = OAuthClient(store: store, session: recorder.session)
         #expect(await restarted.isConfigured)
@@ -700,7 +700,7 @@ struct CoreDataTests {
 
         #expect(await client.isConfigured)
         #expect(!(await client.isConnected))
-        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == nil)
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == .empty)
         #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
         #expect(try store.load(ClientCredentials.self, account: "client-credentials") == credentials)
 
@@ -894,10 +894,34 @@ struct CoreDataTests {
         #expect(!(await client.isConfigured))
         #expect(store.deletedAccounts == [
             "client-credentials",
-            "oauth-authorization",
             "oauth-token",
             "pending-revocation-access-token",
         ])
+    }
+
+    @Test func emptyAuthorizationTombstonePreventsLegacyTokenResurrection() async throws {
+        let store = CoreLegacyDeletionFailingStore()
+        try store.save(
+            ClientCredentials(clientID: "client", clientSecret: "secret"),
+            account: "client-credentials"
+        )
+        try store.save(
+            OAuthToken(accessToken: "legacy", refreshToken: "refresh", expiresAt: .distantFuture),
+            account: "oauth-token"
+        )
+        store.failLegacyTokenDeletion = true
+        let recorder = CoreRequestRecorder { request in Self.response(request, 200, "") }
+        let client = OAuthClient(store: store, session: recorder.session)
+
+        #expect(await client.isConnected)
+        try await client.invalidateAuthorization()
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == .empty)
+        #expect(try store.load(OAuthToken.self, account: "oauth-token")?.accessToken == "legacy")
+
+        let restarted = OAuthClient(store: store, session: recorder.session)
+        #expect(await restarted.isConfigured)
+        #expect(!(await restarted.isConnected))
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == .empty)
     }
 
     private static func response(
@@ -1076,6 +1100,34 @@ private final class CoreInitiallyUnreadableCredentialStore: CredentialStoring, @
 
     func delete(account: String) throws {
         _ = lock.withLock { deletions.insert(account) }
+    }
+}
+
+private final class CoreLegacyDeletionFailingStore: CredentialStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: Data] = [:]
+    private var shouldFailLegacyTokenDeletion = false
+
+    var failLegacyTokenDeletion: Bool {
+        get { lock.withLock { shouldFailLegacyTokenDeletion } }
+        set { lock.withLock { shouldFailLegacyTokenDeletion = newValue } }
+    }
+
+    func load<T: Decodable & Sendable>(_ type: T.Type, account: String) throws -> T? {
+        guard let data = lock.withLock({ values[account] }) else { return nil }
+        return try JSONDecoder().decode(type, from: data)
+    }
+
+    func save<T: Encodable & Sendable>(_ value: T, account: String) throws {
+        let data = try JSONEncoder().encode(value)
+        lock.withLock { values[account] = data }
+    }
+
+    func delete(account: String) throws {
+        if account == "oauth-token", failLegacyTokenDeletion {
+            throw RingStatsError.credentialStore("Simulated legacy alias deletion failure.")
+        }
+        lock.withLock { values[account] = nil }
     }
 }
 

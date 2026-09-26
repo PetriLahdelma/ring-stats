@@ -73,7 +73,7 @@ struct OAuthSecurityTests {
         try await client.disconnect()
 
         #expect(recorder.requests.count == 1)
-        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == nil)
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == .empty)
         #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
         #expect(try store.load(ClientCredentials.self, account: "client-credentials") == nil)
         #expect(await !client.isConnected)
@@ -95,7 +95,7 @@ struct OAuthSecurityTests {
         }
 
         #expect(revocationFailed)
-        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == nil)
+        #expect(try store.load(StoredOAuthAuthorization.self, account: "oauth-authorization") == .empty)
         #expect(try store.load(OAuthToken.self, account: "oauth-token") == nil)
         #expect(try store.load(ClientCredentials.self, account: "client-credentials") == nil)
         #expect(await !client.isConnected)
