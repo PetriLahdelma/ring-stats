@@ -1,6 +1,6 @@
 # Trademark Policy
 
-The Ring Stats name, logo, and other project identifiers are associated with
+The Ring Stats name, split-ring logo, and other project identifiers are associated with
 Digitaltableteur. The MIT License permits use of the software;
 it does not grant permission to imply that a modified build or third-party
 distribution is an official Ring Stats release or is endorsed by the project

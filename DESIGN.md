@@ -50,7 +50,7 @@ components:
 
 **Creative North Star: “The Quiet Signal Strip”**
 
-Ring Stats uses its own warm-neutral palette, halo mark, compact score geometry, and native macOS controls. Oura appears only as the factual data provider; its logo, named palette, proprietary fonts, product silhouette, and application chrome are not reproduced.
+Ring Stats uses its own warm-neutral palette, split-ring mark, compact score geometry, and native macOS controls. Oura appears only as the factual data provider; its logo, named palette, proprietary fonts, product silhouette, and application chrome are not reproduced.
 
 The menu-bar popover is one horizontally scrollable shortcut strip, a slim battery row, and a compact options menu. There are no cards, tabs, headings, or decorative analytics.
 
@@ -115,7 +115,7 @@ Use native macOS popover/window elevation. The Ring Stats theme adds no custom s
 
 ## Shapes
 
-Circular status geometry is the signature language. Buttons and window surfaces follow native macOS corner behavior. The menu-bar item uses the original Ring Stats halo mark as a monochrome template image; battery uses the native macOS battery symbol family.
+Circular status geometry is the signature language. Buttons and window surfaces follow native macOS corner behavior. The menu-bar item uses the original Ring Stats split-ring silhouette as a monochrome template image; battery uses the native macOS battery symbol family.
 
 ## Components
 
@@ -165,7 +165,7 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 
 ### Menu-Bar Context Menu
 - An AppKit-owned status item dispatches clicks explicitly: left-click opens the SwiftUI popover; right-click or Control-click opens a native menu.
-- The status item uses the original 17pt Ring Stats halo template asset.
+- The status item uses the original 17pt Ring Stats split-ring template asset.
 - Reauthorize Permissions is available when stored developer credentials exist and disabled while authorization is already running.
 - Quit Ring Stats remains available as the final menu action.
 

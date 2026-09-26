@@ -165,32 +165,33 @@ struct RingStatsLogoView: View {
             let scale = min(canvas.width, canvas.height) / 128
             let xOffset = (canvas.width - 128 * scale) / 2
             let yOffset = (canvas.height - 128 * scale) / 2
+            func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+                CGPoint(x: xOffset + x * scale, y: yOffset + y * scale)
+            }
 
-            var upperArc = Path()
-            upperArc.move(to: CGPoint(x: xOffset + 22 * scale, y: yOffset + 50 * scale))
-            upperArc.addCurve(
-                to: CGPoint(x: xOffset + 106 * scale, y: yOffset + 50 * scale),
-                control1: CGPoint(x: xOffset + 38 * scale, y: yOffset + 30 * scale),
-                control2: CGPoint(x: xOffset + 90 * scale, y: yOffset + 30 * scale)
-            )
-            context.stroke(
-                upperArc,
-                with: .color(color),
-                style: StrokeStyle(lineWidth: 16 * scale, lineCap: .round)
-            )
+            var rearBand = Path()
+            rearBand.move(to: point(5, 47))
+            rearBand.addCurve(to: point(64, 28), control1: point(10, 34), control2: point(34, 28))
+            rearBand.addCurve(to: point(123, 47), control1: point(94, 28), control2: point(118, 34))
+            rearBand.addCurve(to: point(107, 60), control1: point(125, 52), control2: point(118, 57))
+            rearBand.addCurve(to: point(64, 51), control1: point(93, 54), control2: point(79, 51))
+            rearBand.addCurve(to: point(21, 60), control1: point(49, 51), control2: point(35, 54))
+            rearBand.addCurve(to: point(5, 47), control1: point(10, 57), control2: point(3, 52))
+            rearBand.closeSubpath()
+            context.fill(rearBand, with: .color(color))
 
-            var lowerArc = Path()
-            lowerArc.move(to: CGPoint(x: xOffset + 22 * scale, y: yOffset + 78 * scale))
-            lowerArc.addCurve(
-                to: CGPoint(x: xOffset + 106 * scale, y: yOffset + 78 * scale),
-                control1: CGPoint(x: xOffset + 38 * scale, y: yOffset + 98 * scale),
-                control2: CGPoint(x: xOffset + 90 * scale, y: yOffset + 98 * scale)
-            )
-            context.stroke(
-                lowerArc,
-                with: .color(color),
-                style: StrokeStyle(lineWidth: 16 * scale, lineCap: .round)
-            )
+            var frontBand = Path()
+            frontBand.move(to: point(5, 76))
+            frontBand.addCurve(to: point(34, 72), control1: point(13, 69), control2: point(23, 68))
+            frontBand.addCurve(to: point(64, 84), control1: point(45, 80), control2: point(54, 84))
+            frontBand.addCurve(to: point(94, 72), control1: point(74, 84), control2: point(83, 80))
+            frontBand.addCurve(to: point(123, 76), control1: point(105, 68), control2: point(115, 69))
+            frontBand.addCurve(to: point(119, 95), control1: point(127, 82), control2: point(125, 89))
+            frontBand.addCurve(to: point(64, 107), control1: point(106, 103), control2: point(86, 107))
+            frontBand.addCurve(to: point(9, 95), control1: point(42, 107), control2: point(22, 103))
+            frontBand.addCurve(to: point(5, 76), control1: point(3, 89), control2: point(1, 82))
+            frontBand.closeSubpath()
+            context.fill(frontBand, with: .color(color))
         }
         .frame(width: size, height: size)
     }

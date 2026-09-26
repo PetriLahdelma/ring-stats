@@ -45,7 +45,7 @@ The Oura Ring continues syncing through the official phone app. Ring Stats reads
 
 ## Brand Commitments
 
-Use an independent warm-neutral palette, original Ring Stats halo mark, native system icons, and a calm macOS hierarchy. Do not use Oura's logo, wordmark, product silhouette, proprietary fonts, named palette, slogans, or copied application chrome. Credits identify Digitaltableteur as the creator and Oura as the data provider and trademark owner without implying endorsement.
+Use an independent warm-neutral palette, original Ring Stats split-ring mark, native system icons, and a calm macOS hierarchy. Do not use Oura's logo, wordmark, product silhouette, proprietary fonts, named palette, slogans, or copied application chrome. Credits identify Digitaltableteur as the creator and Oura as the data provider and trademark owner without implying endorsement.
 
 ## Evidence on Hand
 
