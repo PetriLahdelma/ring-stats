@@ -2,6 +2,13 @@
   <img src=".github/assets/ring-stats-banner.png" alt="Ring Stats" width="900">
 </p>
 
+<p align="center">
+  <a href="https://github.com/PetriLahdelma/ring-stats/actions/workflows/ci.yml"><img src="https://github.com/PetriLahdelma/ring-stats/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&amp;logoColor=white" alt="macOS 14 or later">
+  <img src="https://img.shields.io/badge/Swift-6.2-F05138?logo=swift&amp;logoColor=white" alt="Swift 6.2">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2F855A.svg" alt="MIT License"></a>
+</p>
+
 # Ring Stats
 
 Ring Stats is an independent, open-source macOS menu-bar viewer for personal
@@ -137,6 +144,9 @@ Do not commit personal health data, credentials, signing material, Oura brand
 assets, or screenshots containing private information. Security reports should
 follow [SECURITY.md](SECURITY.md), not public issues.
 
+See the [product roadmap](ROADMAP.md) for the prioritized path to signed
+releases, better reliability, macOS automation, and sustainable funding.
+
 ## Legal
 
 - [MIT License](LICENSE)
@@ -145,6 +155,7 @@ follow [SECURITY.md](SECURITY.md), not public issues.
 - [Security Policy](SECURITY.md)
 - [Trademark Policy](TRADEMARKS.md)
 - [Notices](NOTICE.md)
+- [Roadmap](ROADMAP.md)
 
 This project is a convenience viewer, not a medical device, and does not offer
 medical advice.

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test and build
+    runs-on: macos-26
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Report toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+
+      - name: Run tests
+        run: swift test -Xswiftc -warnings-as-errors
+
+      - name: Build release executable
+        run: swift build -c release -Xswiftc -warnings-as-errors
