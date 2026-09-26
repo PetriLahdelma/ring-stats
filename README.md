@@ -7,6 +7,8 @@
   <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&amp;logoColor=white" alt="macOS 14 or later">
   <img src="https://img.shields.io/badge/Swift-6.2-F05138?logo=swift&amp;logoColor=white" alt="Swift 6.2">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2F855A.svg" alt="MIT License"></a>
+  <a href="https://github.com/PetriLahdelma/ring-stats/releases/latest"><img src="https://img.shields.io/github/v/release/PetriLahdelma/ring-stats?display_name=tag" alt="Latest release"></a>
+  <a href="https://github.com/PetriLahdelma/ring-stats/releases"><img src="https://img.shields.io/github/downloads/PetriLahdelma/ring-stats/total" alt="GitHub downloads"></a>
 </p>
 
 # Ring Stats
@@ -18,6 +20,13 @@ ordering controls.
 
 Ring Stats is not affiliated with, authorized, sponsored, or endorsed by Oura
 Health Oy or its affiliates. Oura and Oura Ring are third-party trademarks.
+
+## Download
+
+Download the latest Developer ID-signed and Apple-notarized universal DMG from
+[GitHub Releases](https://github.com/PetriLahdelma/ring-stats/releases/latest).
+The release includes a SHA-256 checksum. Ring Stats requires macOS 14 or later
+and uses bring-your-own Oura developer credentials.
 
 ## Features
 
