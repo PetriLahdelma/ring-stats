@@ -80,10 +80,7 @@ dashboard.
 
 ## P2: Hardening
 
-1. **App Sandbox.** Adopt with `network.client` and `network.server`
-   entitlements, preserving or migrating existing Keychain items. See
-   [THREAT_MODEL.md](THREAT_MODEL.md).
-2. **Connection error copy.** Clearer explanations for port conflicts, invalid
+1. **Connection error copy.** Clearer explanations for port conflicts, invalid
    credentials, delayed Oura processing, and unavailable services, using the
    diagnostic event kinds already recorded.
 

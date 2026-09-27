@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- On the first sandboxed launch, macOS moves these into the app's
+       container so existing preferences and any legacy development-build
+       credential files remain readable to the migration code. -->
+  <key>Move</key>
+  <array>
+    <string>${Library}/Preferences/com.digitaltableteur.ringstats.plist</string>
+    <string>${Library}/Application Support/Ring Stats Public</string>
+  </array>
+</dict>
+</plist>

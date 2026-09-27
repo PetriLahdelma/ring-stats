@@ -21,6 +21,8 @@ BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
 scripts/verify_release_artifacts.sh
 scripts/verify_candidate_manifest.sh
 scripts/tests/test_delivery_safety.sh
+scripts/tests/test_sandbox_keychain.sh
+scripts/tests/test_container_migration.sh
 ```
 
 `swift test` writes a state gallery of every popover state, theme, and width,

@@ -60,6 +60,18 @@ actual_binary_hash="$(/usr/bin/shasum -a 256 "$EXECUTABLE" | /usr/bin/awk '{prin
 
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 [[ -f "$APP_DIR/Contents/Resources/AppIcon.icns" ]] || fail "AppIcon.icns was not compiled into the bundle"
+[[ -f "$APP_DIR/Contents/Resources/container-migration.plist" ]] || fail "container-migration.plist is missing from the bundle"
+signed_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$APP_DIR" 2>/dev/null)"
+for entitlement in \
+  com.apple.security.app-sandbox \
+  com.apple.security.network.client \
+  com.apple.security.network.server \
+  com.apple.security.files.user-selected.read-write; do
+  [[ "$signed_entitlements" == *"$entitlement"* ]] || fail "Missing entitlement: $entitlement"
+done
+for entitlement in com.apple.security.cs.disable-library-validation com.apple.security.cs.allow-unsigned-executable-memory com.apple.security.get-task-allow; do
+  [[ "$signed_entitlements" != *"$entitlement"* ]] || fail "Unexpected entitlement: $entitlement"
+done
 
 scan_artifact() {
   local target="$1"

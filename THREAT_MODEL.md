@@ -108,17 +108,33 @@ builds used the file-based login Keychain.
 
 ## Sandboxing
 
-Ring Stats is signed with the hardened runtime and notarized, but it is not
-App Sandboxed. It needs outbound HTTPS and a short-lived inbound loopback
-listener, both of which the sandbox allows with the `network.client` and
-`network.server` entitlements, so sandboxing is feasible.
+Ring Stats runs in the App Sandbox with the hardened runtime. Its entitlements
+(`native/RingStats.entitlements`) are the minimum it needs:
 
-- **Current decision:** not yet enabled. The app has no file access, plug-ins,
-  or third-party code, so the sandbox would mainly limit the impact of a code
-  execution bug. The cost is Keychain access-group and migration testing across
-  existing installs.
-- **Tracked:** sandboxing is on the roadmap. Adopting it must preserve access
-  to existing Keychain items or migrate them.
+| Entitlement | Why |
+| --- | --- |
+| `app-sandbox` | Confines the app to its container |
+| `network.client` | HTTPS to Oura's OAuth and API endpoints |
+| `network.server` | The short-lived OAuth listener on `127.0.0.1:43828` |
+| `files.user-selected.read-write` | Save… in Diagnostics, only where the user chooses |
+
+- **Verified:** `scripts/tests/test_sandbox_keychain.sh` compiles the
+  production Keychain store into a probe signed with these entitlements and
+  confirms, inside a real sandbox, that credentials save, read back, and delete
+  and that the loopback listener binds. A control without `network.server`
+  fails with "Operation not permitted".
+- **Migration:** `native/container-migration.plist` moves existing preferences
+  and any legacy development-build credential folder into the container on
+  first sandboxed launch. `scripts/tests/test_container_migration.sh` proves
+  the manifest's form moves both, as a move rather than a copy.
+- **Artifact checks:** `scripts/verify_release_artifacts.sh` rejects a bundle
+  without these entitlements or the migration manifest, and one carrying
+  `get-task-allow`, `disable-library-validation`, or
+  `allow-unsigned-executable-memory`.
+- **Residual risk:** Keychain items written by an earlier unsandboxed release
+  are expected to remain readable, because the code signature's designated
+  requirement is unchanged. This is confirmed per release by installing the
+  sandboxed candidate over a connected unsandboxed one before approval.
 
 ## Release pipeline and key custody
 

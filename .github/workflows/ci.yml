@@ -48,6 +48,11 @@ jobs:
           bash -n scripts/*.sh scripts/tests/*.sh
           scripts/tests/test_delivery_safety.sh
 
+      - name: Verify the App Sandbox allows Keychain, loopback, and migration
+        run: |
+          scripts/tests/test_sandbox_keychain.sh
+          scripts/tests/test_container_migration.sh
+
       - name: Verify application bundle
         run: scripts/verify_release_artifacts.sh
 

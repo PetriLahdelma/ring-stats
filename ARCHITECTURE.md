@@ -92,6 +92,9 @@ credential.
 
 ## Security boundaries
 
+- The app runs in the App Sandbox with only network client, network server
+  (for the loopback callback), and user-selected file write entitlements.
+  A container-migration manifest moves existing preferences on first launch.
 - OAuth and health requests use dedicated ephemeral sessions with caching and
   cookies disabled and finite request/resource timeouts.
 - The app connects only to documented Oura HTTPS endpoints and the numeric local

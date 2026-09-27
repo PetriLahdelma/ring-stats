@@ -46,7 +46,10 @@ or when you disconnect. When the data-protection Keychain is unavailable to a
 local build, Ring Stats uses the compatible macOS Keychain. The app does not
 embed a shared Client Secret.
 
-Local interface preferences are stored using macOS `UserDefaults`. The OAuth
+Ring Stats runs in the macOS App Sandbox, so its local files live in its
+container at `~/Library/Containers/com.digitaltableteur.ringstats/`. Local
+interface preferences are stored there using macOS `UserDefaults`; on the
+first sandboxed launch, macOS moves existing preferences into the container. The OAuth
 callback is received by a temporary IPv4 loopback listener at
 `http://127.0.0.1:43828/oauth/callback`; it is not a remote project server.
 

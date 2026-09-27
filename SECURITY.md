@@ -28,6 +28,9 @@ reasonable remediation period before public disclosure.
 [THREAT_MODEL.md](THREAT_MODEL.md) describes assets, trust boundaries,
 mitigations, and accepted residual risks in detail.
 
+- Ring Stats runs in the App Sandbox with the hardened runtime, limited to
+  network client, loopback network server, and user-selected file write
+  entitlements.
 - Users bring their own Oura developer application credentials.
 - OAuth credentials, current tokens, and access tokens queued after a temporary
   revocation failure are stored as generic-password items in the user's macOS

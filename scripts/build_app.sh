@@ -128,15 +128,21 @@ if [[ -d "$PROJECT_DIR/Sources/RingStats/Resources/Assets.xcassets" ]]; then
   trap - EXIT
 fi
 
+# The App Sandbox needs a container-migration manifest so the first
+# sandboxed launch moves existing preferences into the container.
+/bin/cp "$PROJECT_DIR/native/container-migration.plist" "$CONTENTS_DIR/Resources/container-migration.plist"
+
+ENTITLEMENTS="$PROJECT_DIR/native/RingStats.entitlements"
 sign_target() {
   local target="$1"
   if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
-    /usr/bin/codesign --force --sign - "$target"
+    /usr/bin/codesign --force --sign - --entitlements "$ENTITLEMENTS" "$target"
   else
     /usr/bin/codesign \
       --force \
       --options runtime \
       --timestamp \
+      --entitlements "$ENTITLEMENTS" \
       --sign "$CODESIGN_IDENTITY" \
       "$target"
   fi
