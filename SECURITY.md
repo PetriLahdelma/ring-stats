@@ -43,14 +43,15 @@ reasonable remediation period before public disclosure.
 
 Official release artifacts should be signed with a Developer ID Application
 certificate, notarized by Apple, and stapled. Verify a downloaded application
-or disk image before opening it:
+or disk image before opening it, replacing `<version>` with the downloaded
+release number:
 
 ```bash
-shasum -a 256 -c Ring-Stats-1.0.dmg.sha256
-codesign --verify --verbose=2 "Ring-Stats-1.0.dmg"
-xcrun stapler validate "Ring-Stats-1.0.dmg"
+shasum -a 256 -c "Ring-Stats-<version>.dmg.sha256"
+codesign --verify --verbose=2 "Ring-Stats-<version>.dmg"
+xcrun stapler validate "Ring-Stats-<version>.dmg"
 spctl --assess --type open --context context:primary-signature --verbose=2 \
-  "Ring-Stats-1.0.dmg"
+  "Ring-Stats-<version>.dmg"
 ```
 
 After mounting the disk image, the enclosed application signature can be

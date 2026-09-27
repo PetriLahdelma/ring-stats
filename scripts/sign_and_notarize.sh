@@ -10,6 +10,7 @@ VERSION="${MARKETING_VERSION:-$SOURCE_VERSION}"
 BUILD_NUMBER="${BUILD_NUMBER:-$SOURCE_BUILD_NUMBER}"
 DMG_PATH="$OUTPUT_DIR/Ring-Stats-$VERSION.dmg"
 METADATA_DIR="$OUTPUT_DIR/release-metadata"
+RELEASE_BRANCH_REF="${RELEASE_BRANCH_REF:-origin/main}"
 
 : "${APPLE_SIGNING_IDENTITY:?Set APPLE_SIGNING_IDENTITY to a Developer ID Application identity}"
 : "${APPLE_NOTARY_PROFILE:?Set APPLE_NOTARY_PROFILE to a notarytool Keychain profile}"
@@ -36,6 +37,17 @@ fi
 tag_version="${exact_tag#v}"
 if [[ "$tag_version" != "$VERSION" ]]; then
   echo "Tag version $tag_version does not match bundle version $VERSION." >&2
+  exit 1
+fi
+
+if ! branch_commit="$(/usr/bin/git -C "$PROJECT_DIR" rev-parse --verify "$RELEASE_BRANCH_REF^{commit}" 2>/dev/null)"; then
+  echo "Release branch ref is unavailable: $RELEASE_BRANCH_REF" >&2
+  echo "Fetch the protected release branch before signing." >&2
+  exit 1
+fi
+tag_commit="$(/usr/bin/git -C "$PROJECT_DIR" rev-parse "$exact_tag^{commit}")"
+if [[ "$tag_commit" != "$branch_commit" ]]; then
+  echo "Release tag $exact_tag must point to the exact $RELEASE_BRANCH_REF commit." >&2
   exit 1
 fi
 if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then

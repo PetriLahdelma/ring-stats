@@ -35,10 +35,11 @@ and uses bring-your-own Oura developer credentials.
 
 1. Download the DMG and its `.sha256` file from
    [GitHub Releases](https://github.com/PetriLahdelma/ring-stats/releases/latest).
-2. In Terminal, verify the download from the directory containing both files:
+2. In Terminal, replace `<version>` with the downloaded release number and
+   verify the download from the directory containing both files:
 
    ```bash
-   shasum -a 256 -c Ring-Stats-1.0.dmg.sha256
+   shasum -a 256 -c "Ring-Stats-<version>.dmg.sha256"
    ```
 
 3. Open the DMG and drag **Ring Stats** to **Applications**.

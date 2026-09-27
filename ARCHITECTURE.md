@@ -91,9 +91,10 @@ credential.
 
 ## Build and release boundaries
 
-`swift test -Xswiftc -warnings-as-errors` runs 63 tests. CI also assembles a
-universal app and ad-hoc DMG, verifies architecture, bundle metadata, signature,
-app icon, mountability, and scans artifacts for paths or likely secrets.
+`swift test -Xswiftc -warnings-as-errors` runs the focused automated test suite.
+CI also assembles a universal app and ad-hoc DMG, verifies architecture, bundle
+metadata, signature, app icon, mountability, and scans artifacts for paths or
+likely secrets.
 
 Authenticated releases are separate: `scripts/sign_and_notarize.sh` requires a
 clean exact annotated version tag, Developer ID identity, and Keychain notary

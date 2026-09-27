@@ -197,15 +197,111 @@ struct RingStatsLogoView: View {
     }
 }
 
+enum MetricStripLayout {
+    static let coordinateSpaceName = "metric-strip"
+    static let itemWidth: CGFloat = 92
+    static let spacing: CGFloat = 16
+    static let reorderHysteresis: CGFloat = 4
+
+    static var stride: CGFloat { itemWidth + spacing }
+
+    static func centerX(at index: Int) -> CGFloat {
+        itemWidth / 2 + CGFloat(index) * stride
+    }
+
+    static func contains(_ point: CGPoint, in size: CGSize) -> Bool {
+        guard size.width > 0, size.height > 0 else { return true }
+        return CGRect(origin: .zero, size: size).contains(point)
+    }
+}
+
+struct MetricReorderSession: Equatable {
+    let source: Metric
+    let original: MetricConfiguration
+    private let originalSourceIndex: Int
+    private(set) var provisional: MetricConfiguration
+
+    init(source: Metric, configuration: MetricConfiguration) {
+        self.source = source
+        self.original = configuration.normalized
+        self.provisional = configuration.normalized
+        self.originalSourceIndex = configuration.normalized.visibleMetrics.firstIndex(of: source) ?? 0
+    }
+
+    @discardableResult
+    mutating func update(translationX: CGFloat) -> Bool {
+        let draggedCenterX = self.draggedCenterX(translationX: translationX)
+        var didMove = false
+
+        while let sourceIndex = provisional.visibleMetrics.firstIndex(of: source) {
+            let visibleMetrics = provisional.visibleMetrics
+            if sourceIndex > 0 {
+                let leftIndex = sourceIndex - 1
+                let leftThreshold = MetricStripLayout.centerX(at: leftIndex)
+                    - MetricStripLayout.reorderHysteresis
+                if draggedCenterX < leftThreshold {
+                    provisional = provisional.moving(
+                        source,
+                        relativeTo: visibleMetrics[leftIndex],
+                        after: false
+                    )
+                    didMove = true
+                    continue
+                }
+            }
+
+            if sourceIndex < visibleMetrics.count - 1 {
+                let rightIndex = sourceIndex + 1
+                let rightThreshold = MetricStripLayout.centerX(at: rightIndex)
+                    + MetricStripLayout.reorderHysteresis
+                if draggedCenterX > rightThreshold {
+                    provisional = provisional.moving(
+                        source,
+                        relativeTo: visibleMetrics[rightIndex],
+                        after: true
+                    )
+                    didMove = true
+                    continue
+                }
+            }
+            break
+        }
+
+        return didMove
+    }
+
+    func draggedCenterX(translationX: CGFloat) -> CGFloat {
+        MetricStripLayout.centerX(at: originalSourceIndex) + translationX
+    }
+
+    func sourceOffsetX(translationX: CGFloat) -> CGFloat {
+        guard let currentIndex = provisional.visibleMetrics.firstIndex(of: source) else {
+            return translationX
+        }
+        return draggedCenterX(translationX: translationX)
+            - MetricStripLayout.centerX(at: currentIndex)
+    }
+
+    @discardableResult
+    mutating func resetPreview() -> Bool {
+        guard provisional != original else { return false }
+        provisional = original
+        return true
+    }
+}
+
 struct MenuPopoverView: View {
     @EnvironmentObject private var model: AppViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let refresh: () -> Void
     let showConnection: () -> Void
     let showAppearance: () -> Void
     let showAbout: () -> Void
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var metricConfigurationRaw = MetricConfiguration.default.encoded
-    @State private var dropTarget: Metric?
+    @State private var reorderSession: MetricReorderSession?
+    @State private var dragTranslationX: CGFloat = 0
+    @State private var metricStripSize: CGSize = .zero
 
     private var theme: AppTheme {
         AppTheme.resolve(selectedThemeRaw)
@@ -213,6 +309,14 @@ struct MenuPopoverView: View {
 
     private var metricConfiguration: MetricConfiguration {
         MetricConfiguration.decode(metricConfigurationRaw)
+    }
+
+    private var displayedMetrics: [Metric] {
+        reorderSession?.provisional.visibleMetrics ?? metricConfiguration.visibleMetrics
+    }
+
+    private var reorderAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.16)
     }
 
     private var customizeIconOffset: CGFloat {
@@ -236,9 +340,64 @@ struct MenuPopoverView: View {
         reading == nil && loading
     }
 
-    private func reorderMetric(_ source: Metric, relativeTo target: Metric, dropX: CGFloat) {
-        let updated = metricConfiguration.moving(source, relativeTo: target, after: dropX >= 46)
+    private func commitReordering(_ completed: MetricReorderSession) {
+        let updated = completed.provisional
+        guard updated != completed.original else { return }
         metricConfigurationRaw = updated.encoded
+        if let index = updated.visibleMetrics.firstIndex(of: completed.source) {
+            AccessibilityNotification.Announcement(
+                "\(completed.source.title) moved to position \(index + 1)"
+            ).post()
+        }
+    }
+
+    private func updateReordering(
+        metric: Metric,
+        translationX: CGFloat,
+        location: CGPoint
+    ) {
+        if reorderSession == nil {
+            reorderSession = MetricReorderSession(
+                source: metric,
+                configuration: metricConfiguration
+            )
+        }
+        guard var updated = reorderSession, updated.source == metric else { return }
+        dragTranslationX = translationX
+        guard MetricStripLayout.contains(location, in: metricStripSize) else {
+            if updated.resetPreview() {
+                withAnimation(reorderAnimation) {
+                    reorderSession = updated
+                }
+            }
+            return
+        }
+        if updated.update(translationX: translationX) {
+            withAnimation(reorderAnimation) {
+                reorderSession = updated
+            }
+        }
+    }
+
+    private func finishReordering(
+        metric: Metric,
+        translationX: CGFloat,
+        location: CGPoint
+    ) {
+        guard var completed = reorderSession, completed.source == metric else { return }
+        if MetricStripLayout.contains(location, in: metricStripSize) {
+            _ = completed.update(translationX: translationX)
+            commitReordering(completed)
+        }
+        withAnimation(reorderAnimation) {
+            reorderSession = nil
+            dragTranslationX = 0
+        }
+    }
+
+    private func sourceOffsetX(for metric: Metric) -> CGFloat {
+        guard let reorderSession, reorderSession.source == metric else { return 0 }
+        return reorderSession.sourceOffsetX(translationX: dragTranslationX)
     }
 
     private var customizeMetric: some View {
@@ -252,7 +411,7 @@ struct MenuPopoverView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .padding(.top, 12)
             }
-            .frame(width: 92)
+            .frame(width: MetricStripLayout.itemWidth)
             .foregroundStyle(theme.primaryContent)
             .contentShape(Rectangle())
         }
@@ -304,9 +463,10 @@ struct MenuPopoverView: View {
         VStack(spacing: 20) {
             if model.connected || model.snapshot.hasData {
                 ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: 16) {
-                        ForEach(metricConfiguration.visibleMetrics) { metric in
+                    HStack(alignment: .top, spacing: MetricStripLayout.spacing) {
+                        ForEach(displayedMetrics) { metric in
                             let reading = model.snapshot.readings[metric]
+                            let isDragging = reorderSession?.source == metric
                             MetricGauge(
                                 metric: metric,
                                 reading: reading,
@@ -314,27 +474,40 @@ struct MenuPopoverView: View {
                                 theme: theme
                             )
                             .contentShape(Rectangle())
-                            .draggable(metric.rawValue)
-                            .dropDestination(for: String.self) { values, location in
-                                guard let rawValue = values.first,
-                                      let source = Metric(rawValue: rawValue) else { return false }
-                                reorderMetric(source, relativeTo: metric, dropX: location.x)
-                                dropTarget = nil
-                                return true
-                            } isTargeted: { targeted in
-                                dropTarget = targeted ? metric : nil
-                            }
-                            .overlay {
-                                if dropTarget == metric {
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(theme.action.opacity(0.72), lineWidth: 1.5)
-                                }
-                            }
+                            .offset(x: sourceOffsetX(for: metric))
+                            .scaleEffect(isDragging ? 1.035 : 1)
+                            .zIndex(isDragging ? 1 : 0)
+                            .animation(reorderAnimation, value: isDragging)
+                            .gesture(
+                                DragGesture(
+                                    minimumDistance: 4,
+                                    coordinateSpace: .named(MetricStripLayout.coordinateSpaceName)
+                                )
+                                    .onChanged { value in
+                                        updateReordering(
+                                            metric: metric,
+                                            translationX: value.translation.width,
+                                            location: value.location
+                                        )
+                                    }
+                                    .onEnded { value in
+                                        finishReordering(
+                                            metric: metric,
+                                            translationX: value.translation.width,
+                                            location: value.location
+                                        )
+                                    }
+                            )
                             .accessibilityHint("Drag to reorder. The same order appears in Appearance.")
                         }
                         customizeMetric
                     }
-                    .animation(.easeInOut(duration: 0.16), value: metricConfigurationRaw)
+                    .coordinateSpace(name: MetricStripLayout.coordinateSpaceName)
+                    .onGeometryChange(for: CGSize.self) { geometry in
+                        geometry.size
+                    } action: { size in
+                        metricStripSize = size
+                    }
                 }
                 .scrollIndicators(.hidden)
                 if !missingPermissionMetrics.isEmpty {
@@ -409,6 +582,10 @@ struct MenuPopoverView: View {
         .frame(minWidth: 420, maxWidth: .infinity)
         .foregroundStyle(theme.primaryContent)
         .preferredColorScheme(theme == .landscape ? .dark : .light)
+        .onDisappear {
+            reorderSession = nil
+            dragTranslationX = 0
+        }
     }
 
     private var freshnessLabel: String? {
@@ -521,7 +698,7 @@ struct MetricGauge: View {
             }
             .padding(.top, 12)
         }
-        .frame(width: 92)
+        .frame(width: MetricStripLayout.itemWidth)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             pending
