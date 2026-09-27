@@ -10,6 +10,8 @@ if [[ ! -x "$INSTALLED_EXECUTABLE" ]] || find \
   "$PROJECT_DIR/Package.swift" \
   "$PROJECT_DIR/native" \
   "$PROJECT_DIR/scripts/build_app.sh" \
+  "$PROJECT_DIR/scripts/install_local_candidate.sh" \
+  "$PROJECT_DIR/scripts/emit_candidate_manifest.sh" \
   -newer "$INSTALLED_EXECUTABLE" -print -quit | grep -q .; then
   INSTALL_APP=1 "$PROJECT_DIR/scripts/build_app.sh"
 fi

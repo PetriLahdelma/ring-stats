@@ -262,6 +262,42 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
         return updated.normalized
     }
 
+    func moving(fromOffsets sourceOffsets: IndexSet, toOffset destination: Int) -> MetricConfiguration {
+        let current = normalized
+        guard !sourceOffsets.isEmpty,
+              sourceOffsets.allSatisfy(current.order.indices.contains),
+              (0...current.order.count).contains(destination) else { return current }
+
+        let moved = sourceOffsets.sorted().map { current.order[$0] }
+        var remaining = current.order.enumerated()
+            .filter { !sourceOffsets.contains($0.offset) }
+            .map(\.element)
+        let removedBeforeDestination = sourceOffsets.filter { $0 < destination }.count
+        let insertionIndex = max(0, min(remaining.count, destination - removedBeforeDestination))
+        remaining.insert(contentsOf: moved, at: insertionIndex)
+        return MetricConfiguration(order: remaining, hidden: current.hidden).normalized
+    }
+
+    func moving(_ metric: Metric, by offset: Int) -> MetricConfiguration {
+        let current = normalized
+        guard let source = current.order.firstIndex(of: metric), offset != 0 else { return current }
+        let target = source + offset
+        guard current.order.indices.contains(target) else { return current }
+        let destination = offset > 0 ? target + 1 : target
+        return current.moving(fromOffsets: IndexSet(integer: source), toOffset: destination)
+    }
+
+    func reorderCapabilities(for metric: Metric) -> MetricReorderCapabilities? {
+        let current = normalized
+        guard let index = current.order.firstIndex(of: metric) else { return nil }
+        return MetricReorderCapabilities(
+            position: index + 1,
+            total: current.order.count,
+            canMoveUp: index > current.order.startIndex,
+            canMoveDown: index < current.order.index(before: current.order.endIndex)
+        )
+    }
+
     static func decode(_ rawValue: String?) -> MetricConfiguration {
         guard let rawValue,
               let data = rawValue.data(using: .utf8),
@@ -271,6 +307,13 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
         let normalized = decoded.normalized
         return normalized.visibleMetrics.isEmpty ? .default : normalized
     }
+}
+
+struct MetricReorderCapabilities: Sendable, Equatable {
+    let position: Int
+    let total: Int
+    let canMoveUp: Bool
+    let canMoveDown: Bool
 }
 
 struct HealthSnapshot: Sendable, Equatable {

@@ -9,13 +9,12 @@ CONFIGURATION="${CONFIGURATION:-release}"
 BUILD_ARCHS="${BUILD_ARCHS:-$(uname -m)}"
 OUTPUT_DIR="$PROJECT_DIR/dist"
 APP_DIR="$OUTPUT_DIR/$APP_NAME.app"
+DSYM_DIR="$OUTPUT_DIR/$APP_NAME.app.dSYM"
 CONTENTS_DIR="$APP_DIR/Contents"
 INSTALL_APP="${INSTALL_APP:-0}"
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:--}"
 MARKETING_VERSION="${MARKETING_VERSION:-}"
 BUILD_NUMBER="${BUILD_NUMBER:-}"
-USER_APPLICATIONS_DIR="$HOME/Applications"
-INSTALLED_APP_DIR="$USER_APPLICATIONS_DIR/$APP_NAME.app"
 
 if [[ ! -f "$PROJECT_DIR/native/Info.plist" ]]; then
   echo "Missing native/Info.plist" >&2
@@ -24,6 +23,16 @@ fi
 
 cd "$PROJECT_DIR"
 mkdir -p "$OUTPUT_DIR"
+
+source_index="$(mktemp "${TMPDIR:-/tmp}/ring-stats-build-index.XXXXXX")"
+trap '/bin/rm -f "$source_index"' EXIT
+GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" read-tree HEAD
+GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" add -A
+FROZEN_SOURCE_TREE="$(GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" write-tree)"
+FROZEN_SOURCE_COMMIT="$(/usr/bin/git -C "$PROJECT_DIR" rev-parse HEAD)"
+if [[ -z "$(/usr/bin/git -C "$PROJECT_DIR" status --porcelain --untracked-files=normal)" ]]; then FROZEN_SOURCE_CLEAN=true; else FROZEN_SOURCE_CLEAN=false; fi
+FROZEN_COMPILER_PATH="$(xcrun --find swiftc)"
+FROZEN_COMPILER_VERSION="$("$FROZEN_COMPILER_PATH" --version 2>&1 | /usr/bin/head -n 1)"
 
 binary_paths=()
 
@@ -35,17 +44,17 @@ for architecture in $BUILD_ARCHS; do
 
   scratch_path="$PROJECT_DIR/.build/release-$architecture"
   triple="$architecture-apple-macosx14.0"
-  swift build \
+  SWIFT_EXEC="$FROZEN_COMPILER_PATH" swift build \
     -c "$CONFIGURATION" \
     --product "$PRODUCT_NAME" \
     --triple "$triple" \
     --scratch-path "$scratch_path" \
     -Xswiftc -warnings-as-errors \
-    -Xswiftc -gnone \
+    -Xswiftc -g \
     -Xswiftc -file-prefix-map \
     -Xswiftc "$PROJECT_DIR=."
 
-  bin_path="$(swift build \
+  bin_path="$(SWIFT_EXEC="$FROZEN_COMPILER_PATH" swift build \
     -c "$CONFIGURATION" \
     --triple "$triple" \
     --scratch-path "$scratch_path" \
@@ -53,7 +62,12 @@ for architecture in $BUILD_ARCHS; do
   binary_paths+=("$bin_path/$EXECUTABLE_NAME")
 done
 
+GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" read-tree HEAD
+GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" add -A
+[[ "$(GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" write-tree)" == "$FROZEN_SOURCE_TREE" ]] || { echo "Source tree changed during compilation." >&2; exit 1; }
+
 rm -rf "$APP_DIR"
+rm -rf "$DSYM_DIR"
 mkdir -p "$CONTENTS_DIR/MacOS" "$CONTENTS_DIR/Resources"
 
 if [[ "${#binary_paths[@]}" -eq 1 ]]; then
@@ -61,6 +75,23 @@ if [[ "${#binary_paths[@]}" -eq 1 ]]; then
 else
   /usr/bin/lipo -create "${binary_paths[@]}" -output "$CONTENTS_DIR/MacOS/$EXECUTABLE_NAME"
 fi
+/usr/bin/dsymutil "$CONTENTS_DIR/MacOS/$EXECUTABLE_NAME" -o "$DSYM_DIR"
+while IFS= read -r -d '' yaml; do
+  /usr/bin/sed -i '' "s#${PROJECT_DIR//\#/\\#}#.#g" "$yaml"
+done < <(/usr/bin/find "$DSYM_DIR" -type f -name '*.yml' -print0)
+
+executable_uuids="$(/usr/bin/dwarfdump --uuid "$CONTENTS_DIR/MacOS/$EXECUTABLE_NAME" | /usr/bin/sed -E 's/^UUID: ([^ ]+) \(([^)]+)\).*/\2:\1/' | LC_ALL=C /usr/bin/sort)"
+dsym_uuids="$(/usr/bin/dwarfdump --uuid "$DSYM_DIR" | /usr/bin/sed -E 's/^UUID: ([^ ]+) \(([^)]+)\).*/\2:\1/' | LC_ALL=C /usr/bin/sort)"
+if [[ "$executable_uuids" != "$dsym_uuids" ]]; then
+  echo "Executable and dSYM UUIDs do not match." >&2
+  exit 1
+fi
+for architecture in $BUILD_ARCHS; do
+  if [[ "$executable_uuids" != *"$architecture:"* ]]; then
+    echo "Missing $architecture UUID in executable/dSYM evidence." >&2
+    exit 1
+  fi
+done
 /usr/bin/strip -S -x "$CONTENTS_DIR/MacOS/$EXECUTABLE_NAME"
 
 /usr/bin/ditto "$PROJECT_DIR/native/Info.plist" "$CONTENTS_DIR/Info.plist"
@@ -114,21 +145,23 @@ sign_target() {
 sign_target "$CONTENTS_DIR/MacOS/$EXECUTABLE_NAME"
 sign_target "$APP_DIR"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" read-tree HEAD
+GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" add -A
+[[ "$(GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" write-tree)" == "$FROZEN_SOURCE_TREE" ]] || { echo "Source tree changed during application assembly." >&2; exit 1; }
+FROZEN_SOURCE_TREE="$FROZEN_SOURCE_TREE" FROZEN_SOURCE_COMMIT="$FROZEN_SOURCE_COMMIT" \
+FROZEN_SOURCE_CLEAN="$FROZEN_SOURCE_CLEAN" FROZEN_COMPILER_PATH="$FROZEN_COMPILER_PATH" \
+FROZEN_COMPILER_VERSION="$FROZEN_COMPILER_VERSION" APP_DIR="$APP_DIR" DSYM_DIR="$DSYM_DIR" \
+  "$PROJECT_DIR/scripts/emit_candidate_manifest.sh"
+"$PROJECT_DIR/scripts/verify_candidate_manifest.sh"
 
 echo "Built and signed: $APP_DIR"
+echo "Retained symbols: $DSYM_DIR"
 echo "Architectures: $(/usr/bin/lipo -archs "$CONTENTS_DIR/MacOS/$EXECUTABLE_NAME")"
 
 case "$INSTALL_APP" in
 0) ;;
 1)
-  mkdir -p "$USER_APPLICATIONS_DIR"
-  rm -rf "$INSTALLED_APP_DIR"
-  /usr/bin/ditto "$APP_DIR" "$INSTALLED_APP_DIR"
-  /usr/bin/touch "$INSTALLED_APP_DIR"
-  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-    -f "$INSTALLED_APP_DIR"
-  /usr/bin/mdimport -i "$INSTALLED_APP_DIR" >/dev/null 2>&1 || true
-  echo "Installed and registered: $INSTALLED_APP_DIR"
+  "$PROJECT_DIR/scripts/install_local_candidate.sh" "$APP_DIR"
   ;;
 *)
   echo "INSTALL_APP must be 0 or 1." >&2

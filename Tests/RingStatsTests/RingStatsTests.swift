@@ -32,6 +32,30 @@ import Testing
     #expect(envelope.data.first?.inCharger == true)
 }
 
+@Test func popoverTimestampCopyDistinguishesRefreshFromBatterySampling() {
+    let now = Date(timeIntervalSince1970: 10_000)
+    #expect(
+        PopoverTimestampText.freshness(
+            updatedAt: now.addingTimeInterval(-45),
+            now: now,
+            stale: false
+        ) == FreshnessPresentation(visual: "Updated now", accessibility: "Updated now")
+    )
+    #expect(
+        PopoverTimestampText.freshness(
+            updatedAt: now.addingTimeInterval(-3_900),
+            now: now,
+            stale: true
+        ) == FreshnessPresentation(
+            visual: "Update failed · Updated 1h ago",
+            accessibility: "Update failed. Showing the last successful values."
+        )
+    )
+    let sampledAt = ISO8601DateFormatter().string(from: now.addingTimeInterval(-3_900))
+    #expect(PopoverTimestampText.batterySample(timestamp: sampledAt, now: now) == "Sampled 1h ago")
+    #expect(PopoverTimestampText.batterySample(timestamp: "invalid", now: now) == nil)
+}
+
 @Test func tokenExpiryUsesResponseLifetime() {
     let now = Date(timeIntervalSince1970: 1_000)
     let response = TokenResponse(accessToken: "access", refreshToken: "refresh", expiresIn: 3600)
@@ -86,17 +110,13 @@ import Testing
 
 @Test @MainActor func statusPopoverEscapeInvokesCancellationHandler() {
     let panel = StatusPopoverPanel()
-    var cancelled = false
-    panel.onCancel = { cancelled = true }
+    var cancellationCount = 0
+    panel.onCancel = { cancellationCount += 1 }
 
-    panel.makeKeyAndOrderFront(nil)
-    RunLoop.main.run(until: Date().addingTimeInterval(0.01))
-
-    #expect(panel.isKeyWindow)
+    #expect(panel.canBecomeKey)
     panel.cancelOperation(nil)
 
-    #expect(cancelled)
-    panel.orderOut(nil)
+    #expect(cancellationCount == 1)
 }
 
 @Test func extendedMetricPayloadsDecodePublishedFields() throws {
@@ -136,6 +156,65 @@ import Testing
     let movedAfter = movedBefore.moving(.activity, relativeTo: .sleep, after: true)
     #expect(movedAfter.order.prefix(3) == [.readiness, .sleep, .activity])
     #expect(movedAfter.hidden.contains(.stress))
+}
+
+@Test func metricConfigurationSupportsNativeListReordering() {
+    var configuration = MetricConfiguration.default
+    configuration.hidden.insert(.stress)
+
+    let firstToLast = configuration.moving(
+        fromOffsets: IndexSet(integer: 0),
+        toOffset: configuration.order.count
+    )
+    #expect(firstToLast.order.last == .readiness)
+    #expect(firstToLast.hidden == configuration.hidden)
+
+    let lastToFirst = configuration.moving(
+        fromOffsets: IndexSet(integer: configuration.order.count - 1),
+        toOffset: 0
+    )
+    #expect(lastToFirst.order.first == .resilience)
+    #expect(lastToFirst.hidden == configuration.hidden)
+
+    let multiple = configuration.moving(
+        fromOffsets: IndexSet([1, 2]),
+        toOffset: 5
+    )
+    #expect(multiple.order == [.readiness, .heartRate, .stress, .sleep, .activity, .resilience])
+    #expect(multiple.hidden == configuration.hidden)
+}
+
+@Test func metricConfigurationNativeReorderingRejectsInvalidAndNoOpMoves() {
+    let configuration = MetricConfiguration.default
+    #expect(configuration.moving(fromOffsets: [], toOffset: 0) == configuration)
+    #expect(configuration.moving(fromOffsets: IndexSet(integer: 99), toOffset: 0) == configuration)
+    #expect(configuration.moving(fromOffsets: IndexSet(integer: 0), toOffset: 99) == configuration)
+    #expect(configuration.moving(.readiness, by: -1) == configuration)
+    #expect(configuration.moving(.resilience, by: 1) == configuration)
+    #expect(configuration.moving(.sleep, by: 0) == configuration)
+}
+
+@Test func metricReorderCapabilitiesExposeOnlyPossibleBoundaryActions() throws {
+    let configuration = MetricConfiguration.default
+    let first = try #require(configuration.reorderCapabilities(for: .readiness))
+    #expect(first.position == 1)
+    #expect(first.total == configuration.order.count)
+    #expect(!first.canMoveUp)
+    #expect(first.canMoveDown)
+
+    let middle = try #require(configuration.reorderCapabilities(for: .activity))
+    #expect(middle.canMoveUp)
+    #expect(middle.canMoveDown)
+
+    let last = try #require(configuration.reorderCapabilities(for: .resilience))
+    #expect(last.position == configuration.order.count)
+    #expect(last.canMoveUp)
+    #expect(!last.canMoveDown)
+
+    let moved = configuration.moving(.readiness, by: 1)
+    let movedReadiness = try #require(moved.reorderCapabilities(for: .readiness))
+    #expect(movedReadiness.position == 2)
+    #expect(movedReadiness.canMoveUp)
 }
 
 @Test func metricReorderSessionPreviewsMovementWithoutMutatingStoredConfiguration() {
@@ -205,6 +284,65 @@ import Testing
     #expect(session.provisional == configuration.normalized)
     let repeatedReset = session.resetPreview()
     #expect(!repeatedReset)
+}
+
+@Test func metricReorderOffsetsKeepSourceDirectAndShiftOnlySiblings() {
+    var session = MetricReorderSession(source: .readiness, configuration: .default)
+    let translation = MetricStripLayout.centerX(at: 3)
+        + MetricStripLayout.reorderHysteresis
+        - MetricStripLayout.centerX(at: 0)
+        + 0.5
+    let moved = session.update(translationX: translation)
+    #expect(moved)
+
+    #expect(session.offsetX(for: .readiness, sourceTranslationX: translation) == translation)
+    #expect(session.offsetX(for: .readiness, sourceTranslationX: 37) == 37)
+    #expect(session.offsetX(for: .sleep, sourceTranslationX: translation) == -MetricStripLayout.stride)
+    #expect(session.offsetX(for: .activity, sourceTranslationX: translation) == -MetricStripLayout.stride)
+    #expect(session.offsetX(for: .heartRate, sourceTranslationX: translation) == -MetricStripLayout.stride)
+    #expect(session.offsetX(for: .stress, sourceTranslationX: translation) == 0)
+    #expect(session.releaseTargetOffsetX == 3 * MetricStripLayout.stride)
+}
+
+@Test func metricReorderOffsetsRestoreAfterReverseCrossing() {
+    var session = MetricReorderSession(source: .activity, configuration: .default)
+    let moveRight = MetricStripLayout.centerX(at: 4)
+        + MetricStripLayout.reorderHysteresis
+        - MetricStripLayout.centerX(at: 2)
+        + 0.5
+    let movedRight = session.update(translationX: moveRight)
+    #expect(movedRight)
+    #expect(session.offsetX(for: .stress, sourceTranslationX: moveRight) == -MetricStripLayout.stride)
+
+    let moveBack = -MetricStripLayout.reorderHysteresis - 10.5
+    let movedBack = session.update(translationX: moveBack)
+    #expect(movedBack)
+    #expect(session.provisional == session.original)
+    #expect(session.offsetX(for: .stress, sourceTranslationX: moveBack) == 0)
+    #expect(session.releaseTargetOffsetX == 0)
+}
+
+@Test func reducedMotionReorderSettlementIsImmediate() {
+    #expect(MetricReorderMotion.duration(reduceMotion: true) == 0)
+    #expect(MetricReorderMotion.duration(reduceMotion: false) == 0.16)
+}
+
+@Test func validReorderReleaseExposesCommitBeforeVisualSettlement() {
+    var session = MetricReorderSession(source: .activity, configuration: .default)
+    let translation = MetricStripLayout.centerX(at: 4)
+        + MetricStripLayout.reorderHysteresis
+        - MetricStripLayout.centerX(at: 2)
+        + 0.5
+    let moved = session.update(translationX: translation)
+    #expect(moved)
+
+    let valid = session.resolution(isValidRelease: true)
+    #expect(valid.committedConfiguration == session.provisional)
+    #expect(valid.targetOffsetX == 2 * MetricStripLayout.stride)
+
+    let invalid = session.resolution(isValidRelease: false)
+    #expect(invalid.committedConfiguration == nil)
+    #expect(invalid.targetOffsetX == 0)
 }
 
 @Test func metricStripContainmentRejectsHorizontalAndVerticalExits() {

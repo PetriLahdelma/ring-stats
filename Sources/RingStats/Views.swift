@@ -215,6 +215,19 @@ enum MetricStripLayout {
     }
 }
 
+enum MetricReorderMotion {
+    static let settleDuration: TimeInterval = 0.16
+
+    static func duration(reduceMotion: Bool) -> TimeInterval {
+        reduceMotion ? 0 : settleDuration
+    }
+}
+
+struct MetricReorderResolution: Equatable {
+    let committedConfiguration: MetricConfiguration?
+    let targetOffsetX: CGFloat
+}
+
 struct MetricReorderSession: Equatable {
     let source: Metric
     let original: MetricConfiguration
@@ -274,12 +287,27 @@ struct MetricReorderSession: Equatable {
         MetricStripLayout.centerX(at: originalSourceIndex) + translationX
     }
 
-    func sourceOffsetX(translationX: CGFloat) -> CGFloat {
-        guard let currentIndex = provisional.visibleMetrics.firstIndex(of: source) else {
-            return translationX
+    func offsetX(for metric: Metric, sourceTranslationX: CGFloat) -> CGFloat {
+        if metric == source { return sourceTranslationX }
+        guard let originalIndex = original.visibleMetrics.firstIndex(of: metric),
+              let provisionalIndex = provisional.visibleMetrics.firstIndex(of: metric) else {
+            return 0
         }
-        return draggedCenterX(translationX: translationX)
-            - MetricStripLayout.centerX(at: currentIndex)
+        return CGFloat(provisionalIndex - originalIndex) * MetricStripLayout.stride
+    }
+
+    var releaseTargetOffsetX: CGFloat {
+        guard let provisionalIndex = provisional.visibleMetrics.firstIndex(of: source) else {
+            return 0
+        }
+        return CGFloat(provisionalIndex - originalSourceIndex) * MetricStripLayout.stride
+    }
+
+    func resolution(isValidRelease: Bool) -> MetricReorderResolution {
+        MetricReorderResolution(
+            committedConfiguration: isValidRelease ? provisional : nil,
+            targetOffsetX: isValidRelease ? releaseTargetOffsetX : 0
+        )
     }
 
     @discardableResult
@@ -287,6 +315,39 @@ struct MetricReorderSession: Equatable {
         guard provisional != original else { return false }
         provisional = original
         return true
+    }
+}
+
+struct FreshnessPresentation: Equatable {
+    let visual: String
+    let accessibility: String
+}
+
+enum PopoverTimestampText {
+    static func freshness(updatedAt: Date, now: Date, stale: Bool) -> FreshnessPresentation {
+        let age = max(0, now.timeIntervalSince(updatedAt))
+        let updated: String
+        switch age {
+        case ..<60: updated = "Updated now"
+        case ..<3_600: updated = "Updated \(Int(age / 60))m ago"
+        default: updated = "Updated \(Int(age / 3_600))h ago"
+        }
+        return FreshnessPresentation(
+            visual: stale ? "Update failed · \(updated)" : updated,
+            accessibility: stale ? "Update failed. Showing the last successful values." : updated
+        )
+    }
+
+    static func batterySample(timestamp: String, now: Date) -> String? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let observedAt = fractional.date(from: timestamp)
+            ?? ISO8601DateFormatter().date(from: timestamp) else { return nil }
+        let age = max(0, now.timeIntervalSince(observedAt))
+        let value = age < 3_600
+            ? "\(max(1, Int(age / 60)))m ago"
+            : "\(Int(age / 3_600))h ago"
+        return "Sampled \(value)"
     }
 }
 
@@ -302,6 +363,8 @@ struct MenuPopoverView: View {
     @State private var reorderSession: MetricReorderSession?
     @State private var dragTranslationX: CGFloat = 0
     @State private var metricStripSize: CGSize = .zero
+    @State private var settlingSourceOffsetX: CGFloat?
+    @State private var settlementID: UUID?
 
     private var theme: AppTheme {
         AppTheme.resolve(selectedThemeRaw)
@@ -312,7 +375,7 @@ struct MenuPopoverView: View {
     }
 
     private var displayedMetrics: [Metric] {
-        reorderSession?.provisional.visibleMetrics ?? metricConfiguration.visibleMetrics
+        reorderSession?.original.visibleMetrics ?? metricConfiguration.visibleMetrics
     }
 
     private var reorderAnimation: Animation? {
@@ -356,6 +419,7 @@ struct MenuPopoverView: View {
         translationX: CGFloat,
         location: CGPoint
     ) {
+        guard settlementID == nil else { return }
         if reorderSession == nil {
             reorderSession = MetricReorderSession(
                 source: metric,
@@ -384,20 +448,62 @@ struct MenuPopoverView: View {
         translationX: CGFloat,
         location: CGPoint
     ) {
-        guard var completed = reorderSession, completed.source == metric else { return }
-        if MetricStripLayout.contains(location, in: metricStripSize) {
-            _ = completed.update(translationX: translationX)
+        guard var completed = reorderSession,
+              completed.source == metric,
+              settlementID == nil else { return }
+        dragTranslationX = translationX
+        let isValidRelease = MetricStripLayout.contains(location, in: metricStripSize)
+        if isValidRelease, completed.update(translationX: translationX) {
+            withAnimation(reorderAnimation) {
+                reorderSession = completed
+            }
+        } else if !isValidRelease, completed.resetPreview() {
+            withAnimation(reorderAnimation) {
+                reorderSession = completed
+            }
+        }
+
+        let resolution = completed.resolution(isValidRelease: isValidRelease)
+        if resolution.committedConfiguration != nil {
             commitReordering(completed)
         }
-        withAnimation(reorderAnimation) {
-            reorderSession = nil
-            dragTranslationX = 0
+        if reduceMotion {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                reorderSession = nil
+                dragTranslationX = 0
+                settlingSourceOffsetX = nil
+            }
+            return
+        }
+
+        let identifier = UUID()
+        settlementID = identifier
+        withAnimation(
+            .easeOut(duration: MetricReorderMotion.settleDuration),
+            completionCriteria: .logicallyComplete
+        ) {
+            settlingSourceOffsetX = resolution.targetOffsetX
+        } completion: {
+            guard settlementID == identifier else { return }
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                reorderSession = nil
+                dragTranslationX = 0
+                settlingSourceOffsetX = nil
+                settlementID = nil
+            }
         }
     }
 
-    private func sourceOffsetX(for metric: Metric) -> CGFloat {
-        guard let reorderSession, reorderSession.source == metric else { return 0 }
-        return reorderSession.sourceOffsetX(translationX: dragTranslationX)
+    private func metricOffsetX(for metric: Metric) -> CGFloat {
+        guard let reorderSession else { return 0 }
+        let translation = metric == reorderSession.source
+            ? settlingSourceOffsetX ?? dragTranslationX
+            : dragTranslationX
+        return reorderSession.offsetX(for: metric, sourceTranslationX: translation)
     }
 
     private var customizeMetric: some View {
@@ -474,10 +580,10 @@ struct MenuPopoverView: View {
                                 theme: theme
                             )
                             .contentShape(Rectangle())
-                            .offset(x: sourceOffsetX(for: metric))
                             .scaleEffect(isDragging ? 1.035 : 1)
-                            .zIndex(isDragging ? 1 : 0)
                             .animation(reorderAnimation, value: isDragging)
+                            .offset(x: metricOffsetX(for: metric))
+                            .zIndex(isDragging ? 1 : 0)
                             .gesture(
                                 DragGesture(
                                     minimumDistance: 4,
@@ -535,17 +641,6 @@ struct MenuPopoverView: View {
                 Divider().overlay(theme.divider)
                 HStack {
                     BatteryRow(battery: model.snapshot.battery, loading: model.loading, theme: theme)
-                    if let freshnessLabel {
-                        Text(freshnessLabel)
-                            .font(.system(size: 10))
-                            .foregroundStyle(
-                                model.isShowingStaleData
-                                    ? Palette.alert
-                                    : theme.secondaryContent
-                            )
-                            .lineLimit(1)
-                            .accessibilityLabel(freshnessAccessibilityLabel)
-                    }
                     Spacer()
                     optionsMenu
                 }
@@ -582,31 +677,46 @@ struct MenuPopoverView: View {
         .frame(minWidth: 420, maxWidth: .infinity)
         .foregroundStyle(theme.primaryContent)
         .preferredColorScheme(theme == .landscape ? .dark : .light)
+        .overlay(alignment: .topTrailing) {
+            if (model.connected || model.snapshot.hasData), let freshnessLabel {
+                Text(freshnessLabel)
+                    .font(.system(size: 10))
+                    .foregroundStyle(
+                        model.isShowingStaleData ? Palette.alert : theme.secondaryContent
+                    )
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: 280, alignment: .trailing)
+                    .padding(.top, 10)
+                    .padding(.trailing, 24)
+                    .accessibilityLabel(freshnessAccessibilityLabel)
+                    .accessibilitySortPriority(1)
+            }
+        }
         .onDisappear {
+            settlementID = nil
             reorderSession = nil
             dragTranslationX = 0
+            settlingSourceOffsetX = nil
         }
     }
 
     private var freshnessLabel: String? {
         guard let updatedAt = model.lastUpdatedAt else { return nil }
-        let age = max(0, Date().timeIntervalSince(updatedAt))
-        let value: String
-        switch age {
-        case ..<60:
-            value = "Updated now"
-        case ..<3_600:
-            value = "Updated \(Int(age / 60))m ago"
-        default:
-            value = "Updated \(Int(age / 3_600))h ago"
-        }
-        return model.isShowingStaleData ? "Update failed · \(value)" : value
+        return PopoverTimestampText.freshness(
+            updatedAt: updatedAt,
+            now: Date(),
+            stale: model.isShowingStaleData
+        ).visual
     }
 
     private var freshnessAccessibilityLabel: String {
-        model.isShowingStaleData
-            ? "Update failed. Showing the last successful values."
-            : freshnessLabel ?? ""
+        guard let updatedAt = model.lastUpdatedAt else { return "" }
+        return PopoverTimestampText.freshness(
+            updatedAt: updatedAt,
+            now: Date(),
+            stale: model.isShowingStaleData
+        ).accessibility
     }
 }
 
@@ -748,14 +858,7 @@ struct BatteryRow: View {
 
     private var sampleAge: String? {
         guard let timestamp = battery?.timestamp else { return nil }
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let observedAt = fractional.date(from: timestamp)
-            ?? ISO8601DateFormatter().date(from: timestamp) else { return nil }
-        let age = max(0, Date().timeIntervalSince(observedAt))
-        return age < 3_600
-            ? "\(max(1, Int(age / 60)))m ago"
-            : "\(Int(age / 3_600))h ago"
+        return PopoverTimestampText.batterySample(timestamp: timestamp, now: Date())
     }
 
     var body: some View {
@@ -823,6 +926,7 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var rawConfiguration = MetricConfiguration.default.encoded
     @State private var configuration: MetricConfiguration
+    @FocusState private var focusedReorderMetric: Metric?
 
     init() {
         let stored = UserDefaults.standard.string(forKey: MetricConfiguration.storageKey)
@@ -854,12 +958,8 @@ struct AppearanceSettingsView: View {
     }
 
     private func move(_ metric: Metric, offset: Int) {
-        guard let source = configuration.order.firstIndex(of: metric) else { return }
-        let destination = source + offset
-        guard configuration.order.indices.contains(destination) else { return }
-        var updated = configuration
-        updated.order.swapAt(source, destination)
-        apply(updated)
+        apply(configuration.moving(metric, by: offset))
+        focusedReorderMetric = metric
     }
 
     private func themeOption(_ theme: AppTheme) -> some View {
@@ -928,7 +1028,7 @@ struct AppearanceSettingsView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Stats")
                         .font(.headline)
-                    Text("Show, hide, or reorder the items in the popover.")
+                    Text("Show or hide stats, and drag rows to reorder them.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -940,6 +1040,7 @@ struct AppearanceSettingsView: View {
 
             List {
                 ForEach(configuration.order) { metric in
+                    let capabilities = configuration.reorderCapabilities(for: metric)
                     HStack(spacing: 10) {
                         Toggle(isOn: visibilityBinding(for: metric)) {
                             Label(metric.title, systemImage: metric.symbolName)
@@ -951,33 +1052,47 @@ struct AppearanceSettingsView: View {
                         )
 
                         Spacer()
-
-                        let index = configuration.order.firstIndex(of: metric) ?? 0
-                        Button {
-                            move(metric, offset: -1)
-                        } label: {
-                            Image(systemName: "chevron.up")
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(index == configuration.order.startIndex)
-                        .accessibilityLabel("Move \(metric.title) up")
-
-                        Button {
-                            move(metric, offset: 1)
-                        } label: {
-                            Image(systemName: "chevron.down")
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(index == configuration.order.index(before: configuration.order.endIndex))
-                        .accessibilityLabel("Move \(metric.title) down")
+                        Image(systemName: "line.3.horizontal")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.secondary.opacity(0.55))
+                            .frame(width: 24, height: 24)
+                            .contentShape(Rectangle())
+                            .focusable()
+                            .focused($focusedReorderMetric, equals: metric)
+                            .onMoveCommand { direction in
+                                switch direction {
+                                case .up where capabilities?.canMoveUp == true:
+                                    move(metric, offset: -1)
+                                case .down where capabilities?.canMoveDown == true:
+                                    move(metric, offset: 1)
+                                default:
+                                    break
+                                }
+                            }
+                            .accessibilityLabel("Reorder \(metric.title)")
+                            .accessibilityValue(
+                                "Position \(capabilities?.position ?? 1) of \(capabilities?.total ?? configuration.order.count)"
+                            )
+                            .accessibilityHint("Drag, or use the Up and Down Arrow keys, to move this stat")
+                            .accessibilityActions {
+                                if capabilities?.canMoveUp == true {
+                                    Button("Move Up") { move(metric, offset: -1) }
+                                }
+                                if capabilities?.canMoveDown == true {
+                                    Button("Move Down") { move(metric, offset: 1) }
+                                }
+                            }
                     }
                     .padding(.vertical, 3)
+                }
+                .onMove { offsets, destination in
+                    apply(configuration.moving(fromOffsets: offsets, toOffset: destination))
                 }
             }
             .frame(height: 260)
             .scrollContentBackground(.hidden)
 
-            Text("At least one stat must remain visible. You can also drag visible stats directly in the popover.")
+            Text("At least one stat must remain visible. Drag any row to reorder all stats, including hidden ones; visible stats can also be dragged in the popover.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

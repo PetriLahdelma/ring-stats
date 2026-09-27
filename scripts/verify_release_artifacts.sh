@@ -7,6 +7,8 @@ DMG_PATH="${DMG_PATH:-}"
 EXPECTED_BUNDLE_ID="${EXPECTED_BUNDLE_ID:-com.digitaltableteur.ringstats}"
 EXPECTED_ARCHS="${EXPECTED_ARCHS:-arm64 x86_64}"
 EXECUTABLE="$APP_DIR/Contents/MacOS/RingStats"
+DSYM_DIR="${DSYM_DIR:-$PROJECT_DIR/dist/Ring Stats.app.dSYM}"
+MANIFEST_PATH="${MANIFEST_PATH:-$PROJECT_DIR/dist/candidate-manifest.json}"
 
 fail() {
   echo "error: $*" >&2
@@ -43,6 +45,18 @@ actual_archs="$(/usr/bin/lipo -archs "$EXECUTABLE")"
 for architecture in $EXPECTED_ARCHS; do
   [[ " $actual_archs " == *" $architecture "* ]] || fail "Missing architecture $architecture ($actual_archs)"
 done
+
+[[ -d "$DSYM_DIR" ]] || fail "Missing dSYM bundle: $DSYM_DIR"
+executable_uuids="$(/usr/bin/dwarfdump --uuid "$EXECUTABLE" | /usr/bin/sed -E 's/^UUID: ([^ ]+) \(([^)]+)\).*/\2:\1/' | LC_ALL=C /usr/bin/sort)"
+dsym_uuids="$(/usr/bin/dwarfdump --uuid "$DSYM_DIR" | /usr/bin/sed -E 's/^UUID: ([^ ]+) \(([^)]+)\).*/\2:\1/' | LC_ALL=C /usr/bin/sort)"
+[[ "$executable_uuids" == "$dsym_uuids" ]] || fail "Executable and dSYM UUIDs differ"
+
+[[ -f "$MANIFEST_PATH" ]] || fail "Missing candidate manifest: $MANIFEST_PATH"
+"$PROJECT_DIR/scripts/verify_candidate_manifest.sh" "$MANIFEST_PATH" "$APP_DIR" "$DSYM_DIR"
+manifest_binary_hash="$(/usr/bin/plutil -extract app_binary_sha256 raw "$MANIFEST_PATH")"
+actual_binary_hash="$(/usr/bin/shasum -a 256 "$EXECUTABLE" | /usr/bin/awk '{print $1}')"
+[[ "$manifest_binary_hash" == "$actual_binary_hash" ]] || fail "Candidate manifest binary hash differs"
+[[ "$(/usr/bin/plutil -extract executable_uuids raw "$MANIFEST_PATH")" == "$(printf '%s\n' "$executable_uuids" | /usr/bin/paste -sd, -)" ]] || fail "Candidate manifest UUID evidence differs"
 
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 [[ -f "$APP_DIR/Contents/Resources/AppIcon.icns" ]] || fail "AppIcon.icns was not compiled into the bundle"

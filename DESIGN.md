@@ -91,7 +91,7 @@ Use tabular numerals for values. Sentence case only.
 
 ## Layout
 
-The popover defaults to 680pt wide and can be resized horizontally from 420pt to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt shortcut items with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, Stress, and Customize; Resilience is available through customization. Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery, freshness, and options row.
+The popover defaults to 680pt wide and can be resized horizontally from 420pt to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt shortcut items with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, Stress, and Customize; Resilience is available through customization. Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery and options row. Global refresh freshness sits quietly at the top trailing edge inside the existing top inset.
 
 The popover never resizes vertically: its fixed-height menu-bar composition expands only along the horizontal axis. Connection, Appearance, and About & Credits appear in separate compact windows.
 
@@ -134,15 +134,17 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 ### Stat Customization
 - The final shortcut opens Appearance at the shared stats configuration.
 - Every available metric can be shown or hidden; at least one remains visible.
-- Ordering persists and can be changed by drag reordering or explicit up/down controls.
+- Ordering persists and can be changed by native row dragging in Appearance or direct dragging in the popover; nonvisual Move Up/Down accessibility actions remain available.
 - Drag reordering is a contained move interaction: the active metric tracks the
-  pointer, neighboring metrics animate into provisional positions after their
-  centers are crossed, and the stored order changes only on a valid release.
+  pointer directly from a stable render slot, neighboring metrics animate into
+  provisional positions after their centers are crossed, and a valid release
+  produces one short source snap before the stored order commits without replay.
   Leaving the strip restores the original preview, and Reduced Motion removes
   the positional interpolation.
 
 ### Battery Row
 - A native macOS battery symbol followed by percentage and charging state.
+- Battery record age is prefixed with “Sampled” to distinguish Oura’s sample timestamp from app refresh freshness.
 - “Battery 92%” and “Not charging” are separate text elements with no middle dot; the primary battery text uses full emphasis and charging state uses 50% opacity.
 - In Landscape, the battery glyph and primary battery text are pure white.
 - In the Ring Stats theme, Alert is permitted on the battery icon only below 20% or when the reading is unavailable; text follows the theme’s foreground hierarchy.
@@ -156,7 +158,7 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 - Opens as its own fixed-size native window and contains theme plus stat configuration.
 - Uses two stacked full-width selection rows with persistent descriptions; the choices never compete for horizontal space.
 - Keeps both theme descriptions rendered at all times and uses a fixed 500×620pt content size, so switching themes or stats cannot resize the window.
-- Provides visibility toggles, explicit up/down ordering controls, and a reset action for every metric.
+- Provides visibility toggles, native row reordering with a focusable passive grip, keyboard Up/Down movement while that grip is focused, boundary-aware nonvisual Move Up/Down accessibility actions, and a reset action for every metric.
 - Contains nothing related to credits or OAuth.
 
 ### Connection
