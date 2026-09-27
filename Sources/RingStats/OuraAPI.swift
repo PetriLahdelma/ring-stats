@@ -56,6 +56,7 @@ actor OuraAPI: SnapshotFetching {
         var readings: [Metric: MetricReading] = [:]
         var metricFailures: [Metric: RingStatsError] = [:]
         var battery: BatteryRecord?
+        var batteryFailed = false
         var failures: [RingStatsError] = []
         var wasCancelled = false
 
@@ -142,7 +143,11 @@ actor OuraAPI: SnapshotFetching {
                     battery = value
                 case .failure(let metric, let error):
                     failures.append(error)
-                    if let metric { metricFailures[metric] = error }
+                    if let metric {
+                        metricFailures[metric] = error
+                    } else {
+                        batteryFailed = true
+                    }
                 case .cancelled:
                     wasCancelled = true
                 }
@@ -161,20 +166,34 @@ actor OuraAPI: SnapshotFetching {
         }
 
         for metric in metrics where readings[metric] == nil {
-            let error = metricFailures[metric]
-            readings[metric] = MetricReading(
-                value: "—",
-                detail: error == .insufficientScope ? "Permission required" : "Unavailable",
-                score: nil,
-                availability: error == .insufficientScope ? .permissionRequired : .unavailable
-            )
+            readings[metric] = Self.placeholder(for: metricFailures[metric])
         }
         return HealthSnapshot(
             readings: readings,
             battery: battery,
             fetchedAt: now,
-            coveredMetrics: metrics
+            coveredMetrics: metrics,
+            failedMetrics: metricFailures.filter { metrics.contains($0.key) },
+            batteryFailed: batteryFailed
         )
+    }
+
+    /// The reading shown when a metric has no value from this refresh. The view
+    /// model replaces transient-failure placeholders with the last known value.
+    static func placeholder(for failure: RingStatsError?) -> MetricReading {
+        switch failure {
+        case .none:
+            MetricReading(value: "—", detail: "No data yet", score: nil, availability: .noData)
+        case .some(.insufficientScope):
+            MetricReading(
+                value: "—",
+                detail: "Permission required",
+                score: nil,
+                availability: .permissionRequired
+            )
+        case .some:
+            MetricReading(value: "—", detail: "Unavailable", score: nil, availability: .unavailable)
+        }
     }
 
     private static func fetchPart(

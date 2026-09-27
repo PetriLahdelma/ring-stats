@@ -189,9 +189,17 @@ enum OuraScope: String, CaseIterable, Sendable {
 }
 
 enum MetricAvailability: Sendable, Equatable {
+    /// A value fetched during the latest refresh.
     case available
+    /// A previously fetched value retained because the latest request for this
+    /// metric failed transiently.
+    case stale
+    /// Oura denied the scope for this metric.
     case permissionRequired
+    /// The request failed and no earlier value exists.
     case unavailable
+    /// The request succeeded but Oura has no record for the range yet.
+    case noData
 }
 
 struct MetricReading: Sendable, Equatable {
@@ -216,6 +224,20 @@ struct MetricReading: Sendable, Equatable {
         self.observedAt = observedAt
         self.sourceDay = sourceDay
         self.availability = availability
+    }
+
+    /// Whether the value came from Oura at some point, as opposed to a placeholder.
+    var hasValue: Bool { availability == .available || availability == .stale }
+
+    func markedStale() -> MetricReading {
+        MetricReading(
+            value: value,
+            detail: detail,
+            score: score,
+            observedAt: observedAt,
+            sourceDay: sourceDay,
+            availability: .stale
+        )
     }
 }
 
@@ -321,17 +343,27 @@ struct HealthSnapshot: Sendable, Equatable {
     var battery: BatteryRecord?
     var fetchedAt: Date
     var coveredMetrics: Set<Metric>
+    /// Metrics whose latest request failed, keyed to the failure.
+    var failedMetrics: [Metric: RingStatsError]
+    var batteryFailed: Bool
+    var batteryIsStale: Bool
 
     init(
         readings: [Metric: MetricReading],
         battery: BatteryRecord?,
         fetchedAt: Date,
-        coveredMetrics: Set<Metric>? = nil
+        coveredMetrics: Set<Metric>? = nil,
+        failedMetrics: [Metric: RingStatsError] = [:],
+        batteryFailed: Bool = false,
+        batteryIsStale: Bool = false
     ) {
         self.readings = readings
         self.battery = battery
         self.fetchedAt = fetchedAt
         self.coveredMetrics = coveredMetrics ?? Set(readings.keys)
+        self.failedMetrics = failedMetrics
+        self.batteryFailed = batteryFailed
+        self.batteryIsStale = batteryIsStale
     }
 
     static let empty = HealthSnapshot(
@@ -341,7 +373,21 @@ struct HealthSnapshot: Sendable, Equatable {
         coveredMetrics: []
     )
 
-    var hasData: Bool { !readings.isEmpty || battery != nil }
+    var hasData: Bool {
+        readings.values.contains(where: \.hasValue) || battery != nil
+    }
+
+    /// Failures a later refresh may fix. Missing permission is excluded because
+    /// retrying cannot succeed until the user reauthorizes.
+    var transientFailures: Set<Metric> {
+        Set(failedMetrics.filter { $0.value != .insufficientScope }.keys)
+    }
+
+    var hasTransientFailures: Bool { !transientFailures.isEmpty || batteryFailed }
+
+    var staleMetrics: [Metric] {
+        readings.filter { $0.value.availability == .stale }.map(\.key)
+    }
 
     func isFresh(at date: Date, ttl: TimeInterval) -> Bool {
         hasData && date.timeIntervalSince(fetchedAt) < ttl
@@ -352,8 +398,35 @@ struct HealthSnapshot: Sendable, Equatable {
         at date: Date,
         ttl: TimeInterval
     ) -> Bool {
-        isFresh(at: date, ttl: ttl) && coveredMetrics.isSuperset(of: metrics)
+        isFresh(at: date, ttl: ttl)
+            && coveredMetrics.isSuperset(of: metrics)
+            && transientFailures.isDisjoint(with: metrics)
+            && !batteryFailed
     }
+
+    /// Combines a new refresh with the previous snapshot. A metric that failed
+    /// transiently keeps its last known value, marked stale, instead of being
+    /// replaced by a placeholder. Permission failures and genuine absence are
+    /// reported as they are, because an old value would misrepresent them.
+    func merging(previous: HealthSnapshot) -> HealthSnapshot {
+        var merged = self
+        for metric in transientFailures {
+            guard let earlier = previous.readings[metric], earlier.hasValue else { continue }
+            merged.readings[metric] = earlier.markedStale()
+        }
+        if batteryFailed, battery == nil, let earlierBattery = previous.battery {
+            merged.battery = earlierBattery
+            merged.batteryIsStale = true
+        }
+        return merged
+    }
+}
+
+enum RefreshOutcome: Sendable, Equatable {
+    case none
+    case succeeded(at: Date)
+    case partial(at: Date)
+    case failed(at: Date)
 }
 
 enum RefreshPolicy: Sendable, Equatable {

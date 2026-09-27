@@ -7,12 +7,20 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var snapshot = HealthSnapshot.empty
     @Published private(set) var state = AppState.unconfigured
     @Published var errorMessage: String?
+    @Published private(set) var lastRefreshOutcome = RefreshOutcome.none
+
+    static let partialRefreshMessage =
+        "Some stats could not be updated. Showing the last known values where available."
 
     var connected: Bool { state.isConnected }
     var configured: Bool { state.isConfigured }
     var loading: Bool { state.isLoading }
+    var isRefreshing: Bool { state == .refreshing }
     var lastUpdatedAt: Date? { snapshot.hasData ? snapshot.fetchedAt : nil }
-    var isShowingStaleData: Bool { snapshot.hasData && errorMessage != nil }
+    var isShowingStaleData: Bool {
+        snapshot.hasData
+            && (errorMessage != nil || !snapshot.staleMetrics.isEmpty || snapshot.batteryIsStale)
+    }
 
     private let auth: any OAuthServicing
     private let api: any SnapshotFetching
@@ -28,6 +36,9 @@ final class AppViewModel: ObservableObject {
     private var authorizationOperationID: UUID?
     private var isDisconnecting = false
     private var operationGeneration: UInt64 = 0
+    /// Operations currently waiting for another refresh or authorization to
+    /// finish. Tests use it to know a request is queued without sleeping.
+    private(set) var waitingOperationCount = 0
 
     init() {
         let auth = OAuthClient()
@@ -86,13 +97,13 @@ final class AppViewModel: ObservableObject {
         guard !isDisconnecting else { return }
         let generation = operationGeneration
         if let authorizationTask {
-            await authorizationTask.value
+            await waitFor(authorizationTask)
             guard operationIsCurrent(generation) else { return }
         }
         if let refreshTask {
             let coveredByActiveRefresh = activeRefreshMetrics.isSuperset(of: metrics)
                 && (policy == .ifStale || activeRefreshPolicy == .force)
-            await refreshTask.value
+            await waitFor(refreshTask)
             guard operationIsCurrent(generation) else { return }
             if coveredByActiveRefresh { return }
         }
@@ -143,18 +154,19 @@ final class AppViewModel: ObservableObject {
         do {
             let refreshedSnapshot = try await api.fetchSnapshot(metrics: metrics, now: now())
             guard operationIsCurrent(generation) else { return }
-            snapshot = refreshedSnapshot
-            errorMessage = nil
+            apply(refreshedSnapshot)
             state = .connected
         } catch let error as RingStatsError where error == .authenticationRequired || error == .notConnected {
             guard operationIsCurrent(generation) else { return }
             errorMessage = error.localizedDescription
+            lastRefreshOutcome = .failed(at: now())
             state = .authorizationExpired
         } catch {
             // Keep the last successful snapshot visible. Freshness and the error
             // state make it explicit that the values could not be updated.
             guard operationIsCurrent(generation) else { return }
             errorMessage = error.localizedDescription
+            lastRefreshOutcome = .failed(at: now())
             let configured = await auth.isConfigured
             guard operationIsCurrent(generation) else { return }
             let connected = await auth.isConnected
@@ -191,15 +203,15 @@ final class AppViewModel: ObservableObject {
         guard !isDisconnecting else { return }
         let generation = operationGeneration
         if let authorizationTask {
-            await authorizationTask.value
+            await waitFor(authorizationTask)
             return
         }
         if let refreshTask {
-            await refreshTask.value
+            await waitFor(refreshTask)
             guard operationIsCurrent(generation) else { return }
         }
         if let authorizationTask {
-            await authorizationTask.value
+            await waitFor(authorizationTask)
             return
         }
         guard operationIsCurrent(generation) else { return }
@@ -242,8 +254,7 @@ final class AppViewModel: ObservableObject {
             try Task.checkCancellation()
             let refreshedSnapshot = try await api.fetchSnapshot(metrics: metrics, now: now())
             guard operationIsCurrent(generation) else { return }
-            snapshot = refreshedSnapshot
-            errorMessage = nil
+            apply(refreshedSnapshot)
             state = .connected
         } catch {
             guard operationIsCurrent(generation) else { return }
@@ -258,6 +269,20 @@ final class AppViewModel: ObservableObject {
             state = connected
                 ? .failed(message: error.localizedDescription, connected: true, configured: configured)
                 : Self.connectionState(configured: configured, connected: false)
+        }
+    }
+
+    /// Accepts a fetched snapshot. Values that failed transiently keep their
+    /// previous reading, and a partial result is reported rather than hidden.
+    private func apply(_ refreshed: HealthSnapshot) {
+        let merged = refreshed.merging(previous: snapshot)
+        snapshot = merged
+        if merged.hasTransientFailures {
+            errorMessage = Self.partialRefreshMessage
+            lastRefreshOutcome = .partial(at: merged.fetchedAt)
+        } else {
+            errorMessage = nil
+            lastRefreshOutcome = .succeeded(at: merged.fetchedAt)
         }
     }
 
@@ -280,6 +305,7 @@ final class AppViewModel: ObservableObject {
         activeRefreshMetrics = []
         activeRefreshPolicy = nil
         snapshot = .empty
+        lastRefreshOutcome = .none
         do {
             try await auth.disconnect()
             errorMessage = nil
@@ -352,6 +378,12 @@ final class AppViewModel: ObservableObject {
         }
         try Task.checkCancellation()
         try await auth.exchange(code: code)
+    }
+
+    private func waitFor(_ task: Task<Void, Never>) async {
+        waitingOperationCount += 1
+        defer { waitingOperationCount -= 1 }
+        await task.value
     }
 
     private static func connectionState(configured: Bool, connected: Bool) -> AppState {
