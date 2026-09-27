@@ -215,6 +215,10 @@ struct MenuPopoverView: View {
         MetricConfiguration.decode(metricConfigurationRaw)
     }
 
+    private var customizeIconOffset: CGFloat {
+        theme == .landscape ? 15 : 0
+    }
+
     private var missingPermissionMetrics: [Metric] {
         metricConfiguration.visibleMetrics.filter {
             model.snapshot.readings[$0]?.availability == .permissionRequired
@@ -243,6 +247,7 @@ struct MenuPopoverView: View {
                 Image(systemName: "pencil")
                     .font(.system(size: 20, weight: .regular))
                     .frame(width: 84, height: 84)
+                    .offset(y: customizeIconOffset)
                 Text("Customize")
                     .font(.system(size: 12, weight: .semibold))
                     .padding(.top, 12)
@@ -434,6 +439,8 @@ struct MetricGauge: View {
     let pending: Bool
     let theme: AppTheme
 
+    private let scoreStrokeWidth: CGFloat = 8
+
     private var fraction: Double {
         Double(max(0, min(reading?.score ?? 0, 100))) / 100
     }
@@ -442,6 +449,10 @@ struct MetricGauge: View {
 
     private var valueFontSize: CGFloat {
         metric == .resilience ? 18 : 28
+    }
+
+    private var valueBaselineOffset: CGFloat {
+        theme == .landscape && metric == .resilience ? 4 : 0
     }
 
     private var shouldShowDetail: Bool {
@@ -475,13 +486,18 @@ struct MetricGauge: View {
                         Text(displayValue)
                             .font(.system(size: valueFontSize, weight: .medium, design: .rounded))
                             .monospacedDigit()
+                            .offset(y: valueBaselineOffset)
                     }
                     .foregroundStyle(theme.primaryContent)
                 } else {
                     if reading?.score != nil {
                         Circle()
+                            .inset(by: scoreStrokeWidth / 2)
                             .trim(from: 0, to: fraction)
-                            .stroke(theme.score, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                            .stroke(
+                                theme.score,
+                                style: StrokeStyle(lineWidth: scoreStrokeWidth, lineCap: .round)
+                            )
                             .rotationEffect(.degrees(-90))
                     }
                     Text(displayValue)

@@ -5,6 +5,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.1 — 2026-09-27
+
 ### Added
 
 - Five-minute refresh-on-open policy, manual refresh, footer freshness, and
@@ -31,6 +33,9 @@ versioned GitHub releases and annotated tags for new releases.
 
 ### Fixed
 
+- Landscape Resilience values and the Customize icon now align with the other
+  metric values.
+- Default-theme donut charts no longer clip at the top of their gauge bounds.
 - OAuth redirect/listener mismatch between `localhost` and IPv4 loopback.
 - Indefinite loading, stale-data ambiguity, case-sensitive SwiftPM test layout,
   callback fragmentation/cancellation, and full-screen/Escape popover behavior.
