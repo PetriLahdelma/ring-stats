@@ -39,9 +39,11 @@ dashboard.
 - Three-step guided connection ending on "Connected securely".
 - Privacy-safe diagnostics with a reviewable local report.
 - State gallery with geometry, parity, truncation, and contrast tests; gate-based
-  concurrency tests; 100 automated tests.
+  concurrency tests.
 - Threat model, accessibility evidence matrix, and a usability study protocol.
 - Signed-tag enforcement and a publishable provenance archive for releases.
+- Text size setting, keyboard access to the stats row, App Sandbox, AppKit
+  shell tests, a CycloneDX SBOM, and signed release attestations.
 
 ## P0: Before broader promotion
 
@@ -70,13 +72,6 @@ dashboard.
    time, duration, and number formatting.
 5. **Update discovery.** Provide a privacy-preserving way to learn that a newer
    signed release exists.
-
-## P1: Accessibility gaps
-
-1. **Keyboard path through the metric strip.** The strip cannot be scrolled
-   without a pointer today.
-2. **Text scaling.** Tiles use fixed sizes tuned to the 92pt tile; design a
-   scaled layout before localization lengthens copy.
 
 ## P2: Hardening
 

@@ -110,7 +110,8 @@ credential.
 ## Build and release boundaries
 
 `swift test -Xswiftc -warnings-as-errors` runs the automated suite, grouped by
-boundary, and renders the state gallery to `.build/state-gallery/` with
+boundary (including `AppShellTests`, which drive the real `AppDelegate` with a
+stubbed model), and renders the state gallery to `.build/state-gallery/` with
 geometry, parity, truncation, and contrast assertions.
 CI also assembles a universal app and ad-hoc DMG, verifies architecture, bundle
 metadata, signature, app icon, mountability, and scans artifacts for paths or

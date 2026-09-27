@@ -70,6 +70,8 @@ Ring Stats theme. Both present the same configurable metrics and battery state.
 - Two visual treatments that show the same information, including a
   project-owned landscape.
 - Guided three-step connection with a Keychain-only credential note.
+- Text size setting, full keyboard access to the stats row, and App Sandbox
+  confinement.
 - A local Diagnostics report you can review before sharing; it never contains
   health values, credentials, or tokens.
 - Bring-your-own OAuth application credentials; no shared Client Secret.

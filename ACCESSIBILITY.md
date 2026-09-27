@@ -28,10 +28,10 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 | Keyboard | Popover dismisses with Escape | Verified (automated) | `statusPopoverEscapeInvokesCancellationHandler` |
 | Keyboard | Onboarding completes without a pointer | Needs manual check | Default-action buttons on every step, focused Client ID field |
 | Keyboard | Stats can be reordered without a pointer | Needs manual check | Focusable grip with Up/Down keys and Move Up/Down actions in Appearance |
-| Keyboard | Metric strip scrolls without a pointer | Gap | The popover strip has no keyboard scroll; use Appearance to reorder or hide stats |
+| Keyboard | Metric strip is reachable, scrollable, and reorderable without a pointer | Verified (automated) for logic and focus path; Needs manual check in use | `arrowKeysMoveFocusAcrossVisibleStatsOnly`, `optionArrowMovesAStatPastItsVisibleNeighbor`; `openingThePopoverDoesNotFocusAStatTile` proves Tab reaches a tile while nothing is focused on open |
 | Focus | Focus is visible on every control | Needs manual check | Native controls only; custom grip uses system focus ring |
 | Increased contrast | Increase Contrast setting is respected | Needs manual check | Colors are fixed tokens; system controls adapt |
-| Text size | Text scales with the macOS text-size setting | Gap | Popover uses fixed point sizes sized to the 92 pt tile; macOS does not apply Dynamic Type to these views |
+| Text size | Text can be enlarged | Verified (automated) | Appearance > Text size (Standard, Large, Extra Large) scales type and tile geometry everywhere. `everyTextSizeRendersWithinBounds`, `everyTileDetailFitsTheTileWithoutTruncation` at every size, `popoverHeightDoesNotDependOnWidth` at every size, `windowsRenderAtExtraLargeText`. macOS does not apply Dynamic Type to SwiftUI text on the Mac, so the system setting cannot drive it |
 | Localization | Layout survives longer translations | Gap | English only; truncation tests cover current copy |
 
 ## Measured contrast
@@ -71,12 +71,17 @@ date, macOS version, and result in the log below.
    confirm "Callback URL copied".
 3. **Keyboard-only onboarding.** Disconnect, then complete all three
    Connection steps using only Tab, Space, and Return.
-4. **Reduced motion.** Enable Reduce Motion. Refresh and confirm the status
+4. **Keyboard strip.** Open the popover, press Tab to reach the first stat,
+   then Left and Right Arrow to move and scroll, and Option-Right to move a
+   stat. Confirm the new position is announced.
+5. **Text size.** Set Appearance > Text size to Extra Large and check the
+   popover at its narrowest width and every window for clipping.
+6. **Reduced motion.** Enable Reduce Motion. Refresh and confirm the status
    label and spinner do not animate; drag a stat and confirm it moves without
    interpolation.
-5. **Increase Contrast.** Enable Increase Contrast and check both themes for
+7. **Increase Contrast.** Enable Increase Contrast and check both themes for
    legibility of details and the footer.
-6. **Focus.** Tab through Appearance and Connection and confirm a visible focus
+8. **Focus.** Tab through Appearance and Connection and confirm a visible focus
    ring on every control.
 
 ## Manual check log

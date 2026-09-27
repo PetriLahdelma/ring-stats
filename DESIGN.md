@@ -93,6 +93,8 @@ Use tabular numerals for values. Sentence case only.
 
 ## Layout
 
+All type and tile geometry scale with Appearance > Text size (1, 1.15, or 1.3 times). The figures below are at Standard.
+
 The popover defaults to 680pt wide and can be resized horizontally from 420pt to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt metric tiles with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, and Stress; Resilience is available through customization. Customize is a footer button, not a tile, so it never competes with health data. When tiles continue past an edge, that edge fades over 28pt, and VoiceOver hears "More stats are available by scrolling". Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery and options row. The refresh status sits at the top trailing edge inside the existing top inset:
 
 - While fetching: a small spinner and "Refreshing…".
@@ -154,6 +156,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - The footer Customize button (`slider.horizontal.3`) opens Appearance at the shared stats configuration.
 - Every available metric can be shown or hidden; at least one remains visible.
 - Ordering persists and can be changed by native row dragging in Appearance or direct dragging in the popover; nonvisual Move Up/Down accessibility actions remain available.
+- Keyboard: Tab reaches the tiles; Left and Right Arrow move focus and scroll the tile into view; Option-Left and Option-Right move the focused stat and announce its position. Nothing is focused when the popover opens.
 - Drag reordering is a contained move interaction: the active metric tracks the
   pointer directly from a stable render slot, neighboring metrics animate into
   provisional positions after their centers are crossed, and a valid release
@@ -178,7 +181,8 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 ### Appearance
 - Opens as its own fixed-size native window and contains theme plus stat configuration.
 - Uses two stacked full-width selection rows with persistent descriptions; the choices never compete for horizontal space.
-- Keeps both theme descriptions rendered at all times and uses a fixed 500×620pt content size, so switching themes or stats cannot resize the window.
+- A segmented Text size control (Standard, Large, Extra Large) sits below the theme choices.
+- Keeps both theme descriptions rendered at all times and uses a fixed 500×690pt content size (scaled by Text size), so switching themes or stats cannot resize the window.
 - Provides visibility toggles, native row reordering with a focusable passive grip, keyboard Up/Down movement while that grip is focused, boundary-aware nonvisual Move Up/Down accessibility actions, and a reset action for every metric.
 - Contains nothing related to credits or OAuth.
 
