@@ -138,6 +138,85 @@ import Testing
     #expect(movedAfter.hidden.contains(.stress))
 }
 
+@Test func metricReorderSessionPreviewsMovementWithoutMutatingStoredConfiguration() {
+    let configuration = MetricConfiguration.default
+    var session = MetricReorderSession(source: .activity, configuration: configuration)
+    let translationPastHeartRate = MetricStripLayout.centerX(at: 3)
+        + MetricStripLayout.reorderHysteresis
+        - MetricStripLayout.centerX(at: 2)
+        + 0.5
+
+    let didMove = session.update(translationX: translationPastHeartRate)
+    #expect(didMove)
+    #expect(
+        session.provisional.visibleMetrics
+            == [.readiness, .sleep, .heartRate, .activity, .stress]
+    )
+    #expect(configuration.visibleMetrics == Metric.defaultVisible)
+    #expect(session.original == configuration.normalized)
+}
+
+@Test func metricReorderSessionMovesOnlyAfterCrossingANeighborCenter() {
+    let configuration = MetricConfiguration.default
+    let sourceCenter = MetricStripLayout.centerX(at: 1)
+    let leftThreshold = MetricStripLayout.centerX(at: 0)
+        - MetricStripLayout.reorderHysteresis
+    let beforeThreshold = leftThreshold - sourceCenter + 0.5
+    let afterThreshold = leftThreshold - sourceCenter - 0.5
+
+    var beforeMidpoint = MetricReorderSession(source: .sleep, configuration: configuration)
+    let movedBeforeMidpoint = beforeMidpoint.update(translationX: beforeThreshold)
+    #expect(!movedBeforeMidpoint)
+    #expect(beforeMidpoint.provisional == configuration.normalized)
+
+    var atMidpoint = MetricReorderSession(source: .sleep, configuration: configuration)
+    let movedAtMidpoint = atMidpoint.update(translationX: afterThreshold)
+    #expect(movedAtMidpoint)
+    #expect(atMidpoint.provisional.visibleMetrics.prefix(2) == [.sleep, .readiness])
+}
+
+@Test func metricReorderSessionCanMoveAcrossMultipleNeighborsWithoutJitter() {
+    let configuration = MetricConfiguration.default
+    var session = MetricReorderSession(source: .readiness, configuration: configuration)
+    let translationPastStress = MetricStripLayout.centerX(at: 4)
+        + MetricStripLayout.reorderHysteresis
+        - MetricStripLayout.centerX(at: 0)
+        + 0.5
+
+    let movedAcrossStrip = session.update(translationX: translationPastStress)
+    #expect(movedAcrossStrip)
+    #expect(session.provisional.visibleMetrics.last == .readiness)
+    let repeatedUpdateMoved = session.update(translationX: translationPastStress)
+    #expect(!repeatedUpdateMoved)
+}
+
+@Test func metricReorderSessionRestoresItsOriginalPreview() {
+    let configuration = MetricConfiguration.default
+    var session = MetricReorderSession(source: .activity, configuration: configuration)
+    let translationPastHeartRate = MetricStripLayout.centerX(at: 3)
+        + MetricStripLayout.reorderHysteresis
+        - MetricStripLayout.centerX(at: 2)
+        + 0.5
+
+    let didMove = session.update(translationX: translationPastHeartRate)
+    #expect(didMove)
+    let didReset = session.resetPreview()
+    #expect(didReset)
+    #expect(session.provisional == configuration.normalized)
+    let repeatedReset = session.resetPreview()
+    #expect(!repeatedReset)
+}
+
+@Test func metricStripContainmentRejectsHorizontalAndVerticalExits() {
+    let size = CGSize(width: 632, height: 126)
+
+    #expect(MetricStripLayout.contains(CGPoint(x: 316, y: 63), in: size))
+    #expect(!MetricStripLayout.contains(CGPoint(x: -1, y: 63), in: size))
+    #expect(!MetricStripLayout.contains(CGPoint(x: 633, y: 63), in: size))
+    #expect(!MetricStripLayout.contains(CGPoint(x: 316, y: -1), in: size))
+    #expect(!MetricStripLayout.contains(CGPoint(x: 316, y: 127), in: size))
+}
+
 @Test func appThemesHaveStablePersistenceValues() {
     #expect(AppTheme.ringStats.rawValue == "ring-stats")
     #expect(AppTheme.landscape.rawValue == "landscape")

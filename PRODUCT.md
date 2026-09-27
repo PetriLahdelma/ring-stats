@@ -53,7 +53,7 @@ Use an independent warm-neutral palette, original Ring Stats split-ring mark, na
 ## Evidence on Hand
 
 - Oura API V2 provides the three daily score collections and latest ring battery data.
-- The native Swift implementation and its 63 focused tests are the sole shipped application surface.
+- The native Swift implementation and its focused automated test suite are the sole shipped application surface.
 
 ## Product Principles
 

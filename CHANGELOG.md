@@ -5,6 +5,13 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.1.1 — 2026-09-27
+
+### Fixed
+
+- Metric reordering now uses a contained move interaction without a copy badge,
+  shifts neighboring metrics live, and cancels cleanly when released outside.
+
 ## 1.1 — 2026-09-27
 
 ### Added

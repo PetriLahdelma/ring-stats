@@ -135,6 +135,11 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 - The final shortcut opens Appearance at the shared stats configuration.
 - Every available metric can be shown or hidden; at least one remains visible.
 - Ordering persists and can be changed by drag reordering or explicit up/down controls.
+- Drag reordering is a contained move interaction: the active metric tracks the
+  pointer, neighboring metrics animate into provisional positions after their
+  centers are crossed, and the stored order changes only on a valid release.
+  Leaving the strip restores the original preview, and Reduced Motion removes
+  the positional interpolation.
 
 ### Battery Row
 - A native macOS battery symbol followed by percentage and charging state.

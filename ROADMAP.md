@@ -30,10 +30,7 @@ dashboard.
 - Connection and local deletion controls reachable from connected and
   disconnected states.
 - Keychain migration, callback socket tests, universal app/DMG verification,
-  and 63 automated tests.
-
-The hardening items above are implemented on `main`; users of an earlier
-release receive them when the next release is published.
+  and 68 automated tests.
 
 ## P0 — Before broader promotion
 
@@ -42,9 +39,7 @@ release receive them when the next release is published.
    agreement. Broad promotion and donations remain on hold until then.
 2. **Complete accessibility QA.** Verify VoiceOver order, full keyboard access,
    contrast, reduced motion, and larger text at every supported width.
-3. **Publish the hardened release.** Cut an annotated version tag, run the
-   authenticated release procedure, and publish its evidence and release notes.
-4. **Finish connection diagnostics.** Continue improving explanations for
+3. **Finish connection diagnostics.** Continue improving explanations for
    port conflicts, invalid credentials, delayed Oura processing, and recovery
    from unavailable services.
 

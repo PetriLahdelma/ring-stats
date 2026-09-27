@@ -8,7 +8,7 @@ ad-hoc signed test outputs, not public releases.
 - Apple Developer Program membership
 - A `Developer ID Application` certificate available to `security find-identity`
 - A `notarytool` profile stored in Keychain
-- A clean tree at an exact annotated `v*` tag
+- A clean tree at an exact annotated `v*` tag on the fetched `origin/main`
 - `native/Info.plist` version matching the tag without its `v` prefix
 
 Store a notary profile once:
@@ -30,15 +30,22 @@ repository or shell scripts.
 2. Move completed entries from **Unreleased** in `CHANGELOG.md` into a dated
    version section.
 3. Run the contributor verification commands.
-4. Commit the release preparation using the repository's Lore commit format.
-5. Create an annotated tag whose version matches the plist:
+4. Commit the release preparation using the repository's Lore commit format,
+   open a pull request, and merge it after required checks pass.
+5. Fast-forward the local branch to the reviewed remote commit, then create an
+   annotated tag whose version matches the plist:
 
    ```bash
-   git tag -a v1.1 -m "Release Ring Stats 1.1"
+   git switch main
+   git pull --ff-only origin main
+   version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' native/Info.plist)"
+   git tag -a "v$version" -m "Release Ring Stats $version"
    ```
 
-The release script rejects a lightweight tag, dirty tree, version mismatch, or
-non-Developer-ID signing identity.
+The release script rejects a lightweight tag, dirty tree, version mismatch,
+tag that is not the exact `origin/main` commit, or non-Developer-ID signing
+identity. Set `RELEASE_BRANCH_REF` only when the protected release branch is
+intentionally different.
 
 ## Build, sign, and notarize
 
