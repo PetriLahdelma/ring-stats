@@ -141,6 +141,19 @@ section, and upload:
 - `dist/release-metadata/Ring-Stats-<version>.dmg.sha256`
 - `dist/Ring-Stats-<version>-provenance.zip`
 - `dist/Ring-Stats-<version>-provenance.zip.sha256`
+- `dist/Ring-Stats-<version>.cdx.json` (CycloneDX SBOM)
+- `dist/Ring-Stats-<version>.intoto.json` and its `.sig` (or `.asc`)
+
+The release script generates the SBOM with `scripts/generate_sbom.sh`, writes
+an in-toto statement with a SLSA provenance predicate binding the DMG, SBOM,
+and provenance archive to the signed tag and commit
+(`scripts/create_release_attestation.sh`), and signs it with the same key as
+the tag (`scripts/sign_release_file.sh`). Publish the maintainer's
+allowed-signers line in `SECURITY.md` so anyone can verify.
+
+CI separately attests the unsigned artifacts it builds on `main` with GitHub
+artifact attestations. Those attestations describe CI builds, not the public
+notarized release.
 
 Download both public assets and verify the checksum again before announcing the
 release. Do not promote the Oura integration or enable donations until written

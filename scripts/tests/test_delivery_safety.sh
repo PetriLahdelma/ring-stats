@@ -332,4 +332,43 @@ expect_failure "$PROJECT_DIR/scripts/verify_release_tag.sh" "$tag_repo" 9.8 main
 /usr/bin/git -C "$tag_repo" checkout -q v9.9
 expect_failure verify_tag
 
+# The SBOM describes the built executable and is valid CycloneDX JSON.
+if [[ -x "$PROJECT_DIR/dist/Ring Stats.app/Contents/MacOS/RingStats" ]]; then
+  "$PROJECT_DIR/scripts/generate_sbom.sh" "$PROJECT_DIR/dist/Ring Stats.app" "$TEST_ROOT/sbom.json" >/dev/null
+  /usr/bin/python3 - "$TEST_ROOT/sbom.json" "$(/usr/bin/shasum -a 256 "$PROJECT_DIR/dist/Ring Stats.app/Contents/MacOS/RingStats" | /usr/bin/awk '{print $1}')" <<'PY' || fail "SBOM content is wrong"
+import json, sys
+bom = json.load(open(sys.argv[1]))
+assert bom["bomFormat"] == "CycloneDX" and bom["specVersion"] == "1.5"
+app = bom["metadata"]["component"]
+assert app["name"] == "Ring Stats"
+assert app["hashes"][0]["content"] == sys.argv[2]
+names = {component["name"] for component in bom["components"]}
+assert {"Foundation", "SwiftUI", "AppKit", "Security", "Network"} <= names, names
+assert all(c.get("supplier", {}).get("name") == "Apple Inc." for c in bom["components"]), "unexpected third-party component"
+PY
+fi
+
+# Release attestations are signed with the tag key and bind exact file digests.
+attest_files="$TEST_ROOT/attest"
+/bin/mkdir -p "$attest_files"
+printf 'disk image' > "$attest_files/Ring-Stats-9.9.dmg"
+printf '{}' > "$attest_files/Ring-Stats-9.9.cdx.json"
+"$PROJECT_DIR/scripts/create_release_attestation.sh" "$tag_repo" v9.9 "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$attest_files/Ring-Stats-9.9.dmg" "$attest_files/Ring-Stats-9.9.cdx.json" >/dev/null
+"$PROJECT_DIR/scripts/sign_release_file.sh" "$tag_repo" "$attest_files/Ring-Stats-9.9.intoto.json" >/dev/null
+"$PROJECT_DIR/scripts/verify_release_attestation.sh" "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$TEST_ROOT/allowed-signers" release-test@example.invalid \
+  "$attest_files/Ring-Stats-9.9.dmg" "$attest_files/Ring-Stats-9.9.cdx.json" >/dev/null \
+  || fail "a valid attestation was rejected"
+printf 'tampered' > "$attest_files/Ring-Stats-9.9.dmg"
+expect_failure "$PROJECT_DIR/scripts/verify_release_attestation.sh" "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$TEST_ROOT/allowed-signers" release-test@example.invalid "$attest_files/Ring-Stats-9.9.dmg"
+printf 'disk image' > "$attest_files/Ring-Stats-9.9.dmg"
+expect_failure "$PROJECT_DIR/scripts/verify_release_attestation.sh" "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$TEST_ROOT/allowed-signers" someone-else@example.invalid "$attest_files/Ring-Stats-9.9.dmg"
+/usr/bin/python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["subject"][0]["digest"]["sha256"]="0"*64; json.dump(d,open(p,"w"))' \
+  "$attest_files/Ring-Stats-9.9.intoto.json"
+expect_failure "$PROJECT_DIR/scripts/verify_release_attestation.sh" "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$TEST_ROOT/allowed-signers" release-test@example.invalid "$attest_files/Ring-Stats-9.9.dmg"
+
 echo "Delivery safety tests passed"

@@ -88,8 +88,10 @@ dashboard.
 
 1. **Voluntary support, only if approved.** Funding must unlock no
    Oura-connected feature, data, support, or download.
-2. **Release provenance.** Signed tags and a provenance archive are in place.
-   Add build attestations and an SBOM once CI can run release builds.
+2. **Release provenance.** Signed tags, a provenance archive, a CycloneDX SBOM,
+   and a signed in-toto attestation are in place, and CI attests its own
+   builds. Move notarized release builds to an isolated builder once CI is
+   dependable.
 3. **Measure without surveillance.** Use public repository and release signals,
    never in-app health-data analytics or user tracking.
 

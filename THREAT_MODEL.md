@@ -150,8 +150,13 @@ Ring Stats runs in the App Sandbox with the hardened runtime. Its entitlements
   build. Notarization, tag signatures, and published provenance make such a
   build detectable after the fact but cannot prevent it. There is no second
   maintainer or hardware-backed signing today.
-- **Residual risk:** CI does not produce signed builds or attestations; public
-  releases are built locally.
+- Each release publishes a CycloneDX SBOM and an in-toto/SLSA provenance
+  statement signed with the tag key, binding the DMG, SBOM, and provenance
+  archive to the tag and commit. `scripts/verify_release_attestation.sh`
+  checks the signature and every file digest.
+- **Residual risk:** public releases are built on the maintainer's Mac, so the
+  attestation proves who built and signed them, not that an isolated builder
+  did. CI attests only the unsigned artifacts it builds itself.
 
 ## Out of scope
 

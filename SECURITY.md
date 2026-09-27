@@ -66,7 +66,19 @@ spctl --assess --type open --context context:primary-signature --verbose=2 \
 After mounting the disk image, the enclosed application signature can be
 checked with `codesign --verify --deep --strict --verbose=2 "Ring Stats.app"`.
 
-Future releases also publish `Ring-Stats-<version>-provenance.zip`
+Future releases also publish a CycloneDX SBOM (`Ring-Stats-<version>.cdx.json`)
+and a signed in-toto attestation (`Ring-Stats-<version>.intoto.json` with
+`.sig`) that binds the DMG, SBOM, and provenance archive to the signed tag.
+With the maintainer's allowed-signers line saved as `allowed_signers`, verify
+the downloaded files in a clone of this repository:
+
+```bash
+scripts/verify_release_attestation.sh "Ring-Stats-<version>.intoto.json" \
+  allowed_signers <maintainer-email> \
+  "Ring-Stats-<version>.dmg" "Ring-Stats-<version>.cdx.json"
+```
+
+They also publish `Ring-Stats-<version>-provenance.zip`
 with its checksum. It contains the source commit, the tag signature, toolchain
 and dependency records, code-signature details, the candidate manifest, dSYM
 UUIDs and symbols, and the notarization result. Release tags are signed; verify
