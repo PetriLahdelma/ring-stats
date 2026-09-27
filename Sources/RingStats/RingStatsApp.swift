@@ -13,6 +13,57 @@ enum PopoverLayout {
     }
 }
 
+/// Where the popover panel goes for a status-item anchor. Pure so the
+/// geometry is testable without a menu bar.
+struct PopoverPlacement: Equatable {
+    static let horizontalMargin: CGFloat = 8
+
+    let size: NSSize
+    let origin: NSPoint
+    let maximumWidth: CGFloat
+    let arrowX: CGFloat
+
+    /// - Parameters:
+    ///   - anchor: The status-item button's frame in screen coordinates.
+    ///   - visibleFrame: The screen's visible frame, if known.
+    ///   - preferredWidth: The saved or default width.
+    ///   - height: The content height for a given width.
+    static func compute(
+        anchor: NSRect,
+        visibleFrame: NSRect?,
+        preferredWidth: CGFloat,
+        height: (CGFloat) -> CGFloat
+    ) -> PopoverPlacement {
+        let availableWidth = max(
+            PopoverLayout.minimumWidth,
+            (visibleFrame?.width ?? PopoverLayout.maximumWidth) - 2 * horizontalMargin
+        )
+        let width = PopoverLayout.clampedWidth(preferredWidth, availableWidth: availableWidth)
+        let size = NSSize(width: width, height: height(width))
+        let idealX = (anchor.midX - width / 2).rounded()
+        let originX = visibleFrame.map {
+            min(max(idealX, $0.minX + horizontalMargin), $0.maxX - width - horizontalMargin)
+        } ?? idealX
+        return PopoverPlacement(
+            size: size,
+            origin: NSPoint(x: originX, y: (anchor.minY - size.height + 1).rounded()),
+            maximumWidth: PopoverLayout.clampedWidth(PopoverLayout.maximumWidth, availableWidth: availableWidth),
+            arrowX: anchor.midX - originX
+        )
+    }
+}
+
+/// What a status-item click does: left-click toggles the popover; right-click
+/// or Control-click opens the native menu.
+enum StatusItemClickAction: Equatable {
+    case togglePopover
+    case showMenu
+
+    static func action(for type: NSEvent.EventType, modifiers: NSEvent.ModifierFlags) -> StatusItemClickAction {
+        type == .rightMouseUp || modifiers.contains(.control) ? .showMenu : .togglePopover
+    }
+}
+
 final class StatusPopoverPanel: NSPanel {
     var onCancel: (() -> Void)?
 
@@ -57,18 +108,31 @@ struct RingStatsApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    let model = AppViewModel()
+    let model: AppViewModel
 
-    private let popoverGeometry = PopoverGeometryModel()
+    override convenience init() {
+        self.init(model: AppViewModel())
+    }
+
+    /// - Parameter model: Injected so tests can drive the shell with stubs and
+    ///   never touch the real Keychain.
+    init(model: AppViewModel) {
+        self.model = model
+        super.init()
+    }
+
+    let popoverGeometry = PopoverGeometryModel()
+    /// The status-item frame the visible popover is anchored to.
+    private var popoverAnchor: NSRect?
     private var statusItem: NSStatusItem?
-    private var popoverPanel: StatusPopoverPanel?
+    private(set) var popoverPanel: StatusPopoverPanel?
     private var popoverSizeProvider: ((CGFloat) -> NSSize)?
     private var outsideClickMonitor: Any?
     private var localClickMonitor: Any?
-    private var connectionWindowController: NSWindowController?
-    private var appearanceWindowController: NSWindowController?
-    private var aboutWindowController: NSWindowController?
-    private var diagnosticsWindowController: NSWindowController?
+    private(set) var connectionWindowController: NSWindowController?
+    private(set) var appearanceWindowController: NSWindowController?
+    private(set) var aboutWindowController: NSWindowController?
+    private(set) var diagnosticsWindowController: NSWindowController?
     private var lastAppliedTextSize = UserDefaults.standard.string(forKey: TextSizePreference.storageKey) ?? ""
     private var defaultsObserver: NSObjectProtocol?
 
@@ -96,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         false
     }
 
-    private func configurePopover() {
+    func configurePopover() {
         popoverGeometry.isPresented = false
         let rootView = MenuPopoverShell(geometry: popoverGeometry) {
             MenuPopoverView(
@@ -149,9 +213,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func handleStatusItemClick(_ sender: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else { return }
-        if event.type == .rightMouseUp || event.modifierFlags.contains(.control) {
+        switch StatusItemClickAction.action(for: event.type, modifiers: event.modifierFlags) {
+        case .showMenu:
             showContextMenu(for: sender, event: event)
-        } else {
+        case .togglePopover:
             togglePopover(relativeTo: sender)
         }
     }
@@ -162,43 +227,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             closePopover()
             return
         }
-
+        let anchor = statusWindow.convertToScreen(button.convert(button.bounds, to: nil))
         let screen = statusWindow.screen ?? NSScreen.main
-        let availableWidth = max(
-            PopoverLayout.minimumWidth,
-            (screen?.visibleFrame.width ?? PopoverLayout.maximumWidth) - 16
-        )
+        showPopover(anchoredTo: anchor, visibleFrame: screen?.visibleFrame)
+    }
+
+    /// Sizes, places, and shows the popover under a status-item frame, then
+    /// refreshes if the data is stale.
+    func showPopover(anchoredTo anchor: NSRect, visibleFrame: NSRect?) {
+        guard let panel = popoverPanel else { return }
         let savedWidth = UserDefaults.standard.object(forKey: PopoverLayout.widthDefaultsKey)
             .map { _ in CGFloat(UserDefaults.standard.double(forKey: PopoverLayout.widthDefaultsKey)) }
             ?? PopoverLayout.defaultWidth
-        let width = PopoverLayout.clampedWidth(savedWidth, availableWidth: availableWidth)
-        let size = popoverSizeProvider?(width) ?? NSSize(width: width, height: 260)
-        let maximumWidth = PopoverLayout.clampedWidth(
-            PopoverLayout.maximumWidth,
-            availableWidth: availableWidth
-        )
-        panel.contentMinSize = NSSize(width: PopoverLayout.minimumWidth, height: size.height)
-        panel.contentMaxSize = NSSize(width: maximumWidth, height: size.height)
-        panel.setContentSize(size)
-
-        let buttonInWindow = button.convert(button.bounds, to: nil)
-        let buttonOnScreen = statusWindow.convertToScreen(buttonInWindow)
-        let idealX = round(buttonOnScreen.midX - size.width / 2)
-        let horizontalMargin: CGFloat = 8
-        let originX = screen.map {
-            min(
-                max(idealX, $0.visibleFrame.minX + horizontalMargin),
-                $0.visibleFrame.maxX - size.width - horizontalMargin
-            )
-        } ?? idealX
-        let origin = NSPoint(
-            x: originX,
-            y: round(buttonOnScreen.minY - size.height + 1)
-        )
-        panel.setFrameOrigin(origin)
+        let placement = PopoverPlacement.compute(
+            anchor: anchor,
+            visibleFrame: visibleFrame,
+            preferredWidth: savedWidth
+        ) { [popoverSizeProvider] width in
+            popoverSizeProvider?(width).height ?? 260
+        }
+        popoverAnchor = anchor
+        panel.contentMinSize = NSSize(width: PopoverLayout.minimumWidth, height: placement.size.height)
+        panel.contentMaxSize = NSSize(width: placement.maximumWidth, height: placement.size.height)
+        panel.setContentSize(placement.size)
+        panel.setFrameOrigin(placement.origin)
         updatePopoverArrowPosition()
         popoverGeometry.isPresented = true
         panel.makeKeyAndOrderFront(nil)
+        // Becoming key would otherwise focus the first stat tile and draw a
+        // focus ring on every open. Keyboard users reach the tiles with Tab.
+        panel.makeFirstResponder(nil)
         installOutsideClickMonitor()
         refreshPopover(force: false)
     }
@@ -233,11 +291,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func updatePopoverArrowPosition() {
-        guard let panel = popoverPanel,
-              let button = statusItem?.button,
-              let statusWindow = button.window else { return }
-        let buttonOnScreen = statusWindow.convertToScreen(button.convert(button.bounds, to: nil))
-        popoverGeometry.arrowX = buttonOnScreen.midX - panel.frame.minX
+        guard let panel = popoverPanel, let popoverAnchor else { return }
+        popoverGeometry.arrowX = popoverAnchor.midX - panel.frame.minX
     }
 
     private func installOutsideClickMonitor() {
@@ -261,7 +316,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func closePopover() {
+    func closePopover() {
         popoverPanel?.orderOut(nil)
         popoverGeometry.isPresented = false
         if let outsideClickMonitor {
@@ -276,6 +331,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func showContextMenu(for button: NSStatusBarButton, event: NSEvent) {
         closePopover()
+        NSMenu.popUpContextMenu(makeContextMenu(), with: event, for: button)
+    }
+
+    /// The status item's right-click menu for the current model state.
+    func makeContextMenu() -> NSMenu {
         let menu = NSMenu(title: "Ring Stats")
         menu.autoenablesItems = false
 
@@ -341,8 +401,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         quitItem.target = self
         quitItem.keyEquivalentModifierMask = .command
         menu.addItem(quitItem)
-
-        NSMenu.popUpContextMenu(menu, with: event, for: button)
+        return menu
     }
 
     private func prepareForWindowPresentation() {
@@ -361,14 +420,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// the window simply fits its content.
     private func makeWindow<Content: View>(title: String, content: Content) -> NSWindowController {
         let hostingController = NSHostingController(rootView: content.followsTextSizePreference())
+        let size = hostingController.sizeThatFits(
+            in: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        )
         let window = NSWindow(
-            contentRect: NSRect(origin: .zero, size: hostingController.view.fittingSize),
+            contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.title = title
+        // Assigning the controller resizes the window to its not-yet-laid-out
+        // view, so apply the measured size afterwards.
         window.contentViewController = hostingController
+        window.setContentSize(size)
         window.isReleasedWhenClosed = false
         window.center()
         return NSWindowController(window: window)
@@ -376,7 +441,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Resizes open windows after the Text Size preference changes, keeping
     /// each window's top edge in place.
-    private func refitWindowsForTextSize() {
+    func refitWindowsForTextSize() {
         let stored = UserDefaults.standard.string(forKey: TextSizePreference.storageKey) ?? ""
         guard stored != lastAppliedTextSize else { return }
         lastAppliedTextSize = stored
@@ -399,7 +464,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func showConnectionWindow() {
+    func showConnectionWindow() {
         prepareForWindowPresentation()
         if presentExistingWindow(connectionWindowController) { return }
 
@@ -426,7 +491,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func showAppearanceWindow() {
+    func showAppearanceWindow() {
         prepareForWindowPresentation()
         if presentExistingWindow(appearanceWindowController) { return }
 
@@ -439,7 +504,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controller.window?.makeKeyAndOrderFront(self)
     }
 
-    private func showAboutWindow() {
+    func showAboutWindow() {
         prepareForWindowPresentation()
         if presentExistingWindow(aboutWindowController) { return }
 
@@ -470,7 +535,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func showDiagnosticsWindow() {
+    func showDiagnosticsWindow() {
         prepareForWindowPresentation()
         if presentExistingWindow(diagnosticsWindowController) { return }
 
