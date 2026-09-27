@@ -47,14 +47,25 @@ let service = "com.digitaltableteur.ringstats.sandbox-probe.\(UUID().uuidString)
 let legacy = FileManager.default.temporaryDirectory.appendingPathComponent("probe-legacy", isDirectory: true)
 let store = KeychainCredentialStore(service: service, legacyDirectory: legacy)
 let value = ProbeValue(secret: UUID().uuidString)
+// Delete the probe item before any exit so a failure leaves nothing behind.
+func fail(_ message: String) -> Never {
+    try? store.delete(account: "probe")
+    print("FAIL: \(message)")
+    exit(1)
+}
 do {
     try store.save(value, account: "probe")
-    check(try store.load(ProbeValue.self, account: "probe") == value, "Keychain item saved and read back inside the sandbox")
+    guard try store.load(ProbeValue.self, account: "probe") == value else {
+        fail("Keychain item did not read back inside the sandbox")
+    }
+    print("ok: Keychain item saved and read back inside the sandbox")
     try store.delete(account: "probe")
-    check(try store.load(ProbeValue.self, account: "probe") == nil, "Keychain item deleted inside the sandbox")
+    guard try store.load(ProbeValue.self, account: "probe") == nil else {
+        fail("Keychain item survived deletion inside the sandbox")
+    }
+    print("ok: Keychain item deleted inside the sandbox")
 } catch {
-    print("FAIL: Keychain error inside the sandbox: \(error.localizedDescription)")
-    exit(1)
+    fail("Keychain error inside the sandbox: \(error.localizedDescription)")
 }
 
 let parameters = NWParameters.tcp
@@ -94,4 +105,18 @@ SWIFT
   || { echo "FAIL: probe is not signed with the sandbox entitlement" >&2; exit 1; }
 
 "$WORK/probe"
+
+# Control: without network.server the sandbox must refuse the listener, which
+# shows the check above depends on the entitlement rather than passing anyway.
+/usr/bin/sed '/network.server/d;/OAuth callback listener/d' \
+  "$PROJECT_DIR/native/RingStats.entitlements" > "$WORK/no-server.entitlements"
+/usr/bin/codesign --force --sign - --identifier "$PROBE_ID" \
+  --entitlements "$WORK/no-server.entitlements" "$WORK/probe" 2>/dev/null
+if control_output="$("$WORK/probe" 2>&1)"; then
+  echo "FAIL: the listener started without network.server" >&2
+  exit 1
+fi
+[[ "$control_output" == *"Operation not permitted"* ]] \
+  || { echo "FAIL: control failed for another reason: $control_output" >&2; exit 1; }
+echo "ok: without network.server the sandbox refuses the listener"
 echo "Sandbox Keychain tests passed"

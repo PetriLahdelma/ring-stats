@@ -68,6 +68,16 @@ struct AppShellTests {
         #expect(placement.origin.x >= narrow.minX + PopoverPlacement.horizontalMargin)
     }
 
+    @Test func windowsNeverExceedTheVisibleScreen() {
+        let laptop = NSRect(x: 0, y: 0, width: 1_440, height: 806)
+        let tall = NSSize(width: 650, height: 897)
+        let clamped = WindowSizing.clamped(tall, visibleFrame: laptop)
+        #expect(clamped.height == 806 - WindowSizing.titleBarAllowance)
+        #expect(clamped.width == 650)
+        let small = NSSize(width: 420, height: 262)
+        #expect(WindowSizing.clamped(small, visibleFrame: laptop) == small)
+    }
+
     // MARK: Click routing
 
     @Test func leftClickTogglesAndRightOrControlClickShowsTheMenu() {

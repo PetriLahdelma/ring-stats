@@ -21,7 +21,9 @@ trap '/bin/rm -rf "$work"' EXIT
 /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist" > "$work/bundle-id"
 /usr/bin/shasum -a 256 "$executable" | /usr/bin/awk '{print $1}' > "$work/sha256"
 /usr/bin/swift package --package-path "$PROJECT_DIR" show-dependencies --format json > "$work/dependencies.json"
-/usr/bin/otool -L -arch all "$executable" | /usr/bin/awk 'NF > 1 && $1 ~ /^\// {print $1}' | LC_ALL=C /usr/bin/sort -u > "$work/linked"
+# Dependency lines are tab-indented; the per-architecture header lines are not
+# and contain the build path, so they must be excluded.
+/usr/bin/otool -L -arch all "$executable" | /usr/bin/awk '/^\t\// {print $1}' | LC_ALL=C /usr/bin/sort -u > "$work/linked"
 /usr/bin/swift --version 2>&1 | /usr/bin/head -1 > "$work/swift"
 /usr/bin/xcodebuild -version | /usr/bin/head -1 > "$work/xcode"
 /usr/bin/git -C "$PROJECT_DIR" rev-parse HEAD > "$work/commit"

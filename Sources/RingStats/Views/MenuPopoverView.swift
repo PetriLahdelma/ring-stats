@@ -140,6 +140,9 @@ struct MenuPopoverView: View {
     @State private var settlingSourceOffsetX: CGFloat?
     @State private var settlementID: UUID?
     @FocusState private var focusedMetric: Metric?
+    /// Bumped to scroll a tile into view when focus itself does not change,
+    /// such as after a keyboard move of the focused tile.
+    @State private var scrollRequest = (metric: Metric?.none, id: 0)
 
     private var theme: AppTheme {
         AppTheme.resolve(selectedThemeRaw)
@@ -200,6 +203,8 @@ struct MenuPopoverView: View {
     }
 
     private func moveMetric(_ metric: Metric, _ direction: StripDirection) {
+        // A pointer drag owns the order until it settles.
+        guard reorderSession == nil, settlementID == nil else { return }
         guard let updated = MetricStripNavigation.moving(metric, direction, in: metricConfiguration) else {
             AccessibilityNotification.Announcement(
                 "\(metric.title) is already \(direction == .left ? "first" : "last")"
@@ -210,6 +215,7 @@ struct MenuPopoverView: View {
             metricConfigurationRaw = updated.encoded
         }
         focusedMetric = metric
+        scrollRequest = (metric, scrollRequest.id + 1)
         if let index = updated.visibleMetrics.firstIndex(of: metric) {
             AccessibilityNotification.Announcement("\(metric.title) moved to position \(index + 1)").post()
         }
@@ -233,6 +239,8 @@ struct MenuPopoverView: View {
     ) {
         guard settlementID == nil else { return }
         if reorderSession == nil {
+            // A pointer drag is not keyboard navigation; drop any focus ring.
+            focusedMetric = nil
             reorderSession = MetricReorderSession(
                 source: metric,
                 configuration: metricConfiguration,
@@ -485,6 +493,12 @@ struct MenuPopoverView: View {
                 .mask { overflowMask }
                 .onChange(of: focusedMetric) { _, metric in
                     guard let metric else { return }
+                    withAnimation(reorderAnimation) {
+                        scroller.scrollTo(metric)
+                    }
+                }
+                .onChange(of: scrollRequest.id) { _, _ in
+                    guard let metric = scrollRequest.metric else { return }
                     withAnimation(reorderAnimation) {
                         scroller.scrollTo(metric)
                     }

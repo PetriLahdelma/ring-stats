@@ -53,6 +53,20 @@ struct PopoverPlacement: Equatable {
     }
 }
 
+/// Keeps a window's content size within the screen, leaving room for its
+/// title bar. Content taller than that scrolls inside the window.
+enum WindowSizing {
+    static let titleBarAllowance: CGFloat = 40
+
+    static func clamped(_ content: NSSize, visibleFrame: NSRect?) -> NSSize {
+        guard let visibleFrame else { return content }
+        return NSSize(
+            width: min(content.width, visibleFrame.width),
+            height: min(content.height, visibleFrame.height - titleBarAllowance)
+        )
+    }
+}
+
 /// What a status-item click does: left-click toggles the popover; right-click
 /// or Control-click opens the native menu.
 enum StatusItemClickAction: Equatable {
@@ -135,6 +149,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private(set) var diagnosticsWindowController: NSWindowController?
     private var lastAppliedTextSize = UserDefaults.standard.string(forKey: TextSizePreference.storageKey) ?? ""
     private var defaultsObserver: NSObjectProtocol?
+    /// Re-measures each window's content at the current Text Size.
+    private var windowContentMeasurers: [ObjectIdentifier: () -> NSSize] = [:]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -419,10 +435,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Every window root sets its own frame from the Text Size preference, so
     /// the window simply fits its content.
     private func makeWindow<Content: View>(title: String, content: Content) -> NSWindowController {
-        let hostingController = NSHostingController(rootView: content.followsTextSizePreference())
-        let size = hostingController.sizeThatFits(
-            in: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        // Measure the content itself, then host it in a scroll view so a
+        // window clamped to a small screen can still reach everything.
+        let measure = {
+            NSHostingController(rootView: content.followsTextSizePreference()).sizeThatFits(
+                in: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+            )
+        }
+        let measured = measure()
+        let hostingController = NSHostingController(
+            rootView: ScrollView(.vertical) { content.followsTextSizePreference() }
+                .scrollBounceBehavior(.basedOnSize)
         )
+        let size = WindowSizing.clamped(measured, visibleFrame: NSScreen.main?.visibleFrame)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable],
@@ -436,6 +461,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.setContentSize(size)
         window.isReleasedWhenClosed = false
         window.center()
+        windowContentMeasurers[ObjectIdentifier(window)] = measure
         return NSWindowController(window: window)
     }
 
@@ -452,9 +478,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             diagnosticsWindowController,
         ]
         for window in controllers.compactMap({ $0?.window }) {
-            guard let content = window.contentViewController?.view else { continue }
-            content.layoutSubtreeIfNeeded()
-            let size = content.fittingSize
+            guard let measure = windowContentMeasurers[ObjectIdentifier(window)] else { continue }
+            let size = WindowSizing.clamped(measure(), visibleFrame: window.screen?.visibleFrame)
             let top = window.frame.maxY
             window.setContentSize(size)
             window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top - window.frame.height))

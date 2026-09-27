@@ -78,8 +78,8 @@ Git or GitHub commands are technically capable of bypassing the procedure.
    git verify-tag "v$version"
    ```
 
-One-time signing setup with an SSH key (a GPG key works the same way through
-`gpg.format openpgp`):
+One-time signing setup. Releases use an SSH signing key, so the tag and the
+release attestation share one key and one verification path:
 
 ```bash
 git config --global gpg.format ssh
@@ -142,7 +142,7 @@ section, and upload:
 - `dist/Ring-Stats-<version>-provenance.zip`
 - `dist/Ring-Stats-<version>-provenance.zip.sha256`
 - `dist/Ring-Stats-<version>.cdx.json` (CycloneDX SBOM)
-- `dist/Ring-Stats-<version>.intoto.json` and its `.sig` (or `.asc`)
+- `dist/Ring-Stats-<version>.intoto.json` and its `.sig`
 
 The release script generates the SBOM with `scripts/generate_sbom.sh`, writes
 an in-toto statement with a SLSA provenance predicate binding the DMG, SBOM,

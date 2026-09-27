@@ -345,8 +345,16 @@ assert app["hashes"][0]["content"] == sys.argv[2]
 names = {component["name"] for component in bom["components"]}
 assert {"Foundation", "SwiftUI", "AppKit", "Security", "Network"} <= names, names
 assert all(c.get("supplier", {}).get("name") == "Apple Inc." for c in bom["components"]), "unexpected third-party component"
+paths = [p["value"] for c in bom["components"] for p in c.get("properties", []) if p["name"] == "ringstats:path"]
+assert paths and all(p.startswith(("/System/", "/usr/lib/")) for p in paths), paths
 PY
 fi
+
+# The signing preflight passes with an SSH key and fails without SSH format.
+"$PROJECT_DIR/scripts/sign_release_file.sh" "$tag_repo" --check >/dev/null || fail "a usable SSH key failed the preflight"
+/usr/bin/git -C "$tag_repo" config gpg.format openpgp
+expect_failure "$PROJECT_DIR/scripts/sign_release_file.sh" "$tag_repo" --check
+/usr/bin/git -C "$tag_repo" config gpg.format ssh
 
 # Release attestations are signed with the tag key and bind exact file digests.
 attest_files="$TEST_ROOT/attest"

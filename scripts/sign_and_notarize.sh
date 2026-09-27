@@ -28,6 +28,9 @@ if [[ -n "$(/usr/bin/git -C "$PROJECT_DIR" status --porcelain --untracked-files=
 fi
 
 exact_tag="$("$PROJECT_DIR/scripts/verify_release_tag.sh" "$PROJECT_DIR" "$VERSION" "$RELEASE_BRANCH_REF")"
+# The attestation is signed at the very end; fail now rather than after
+# notarization if the release key is not usable.
+"$PROJECT_DIR/scripts/sign_release_file.sh" "$PROJECT_DIR" --check
 if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
   echo "CFBundleVersion must be a positive integer: $BUILD_NUMBER" >&2
   exit 1
@@ -61,7 +64,7 @@ fi
 /bin/rm -f \
   "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip" "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip.sha256" \
   "$OUTPUT_DIR/Ring-Stats-$VERSION.cdx.json" "$OUTPUT_DIR/Ring-Stats-$VERSION.intoto.json" \
-  "$OUTPUT_DIR/Ring-Stats-$VERSION.intoto.json.sig" "$OUTPUT_DIR/Ring-Stats-$VERSION.intoto.json.asc"
+  "$OUTPUT_DIR/Ring-Stats-$VERSION.intoto.json.sig"
 /usr/bin/git -C "$PROJECT_DIR" show -s --format=fuller HEAD > "$METADATA_DIR/source-commit.txt"
 /usr/bin/git -C "$PROJECT_DIR" for-each-ref "refs/tags/$exact_tag" \
   --format='tag=%(refname:short)%0atag_object=%(objectname)%0acreator=%(creator)%0asubject=%(subject)' \
