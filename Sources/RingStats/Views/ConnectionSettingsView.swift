@@ -95,6 +95,11 @@ struct ConnectionSettingsView: View {
             if model.state == .authorizing {
                 Task { await model.cancelAuthorization() }
             }
+            // The window is reused, so a closed confirmation must not greet the
+            // next visit; configured users should land on management.
+            if step == .connected {
+                step = nil
+            }
         }
     }
 

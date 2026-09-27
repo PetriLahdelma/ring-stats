@@ -37,6 +37,13 @@ struct MenuPopoverBackground: View {
 @MainActor
 final class PopoverGeometryModel: ObservableObject {
     @Published var arrowX: CGFloat = 210
+    /// Whether the panel is on screen. Timers inside the popover pause while it
+    /// is hidden, because the hosting view lives for the life of the app.
+    @Published var isPresented = true
+}
+
+extension EnvironmentValues {
+    @Entry var popoverIsPresented = true
 }
 
 struct MenuPopoverBubbleShape: Shape {
@@ -121,6 +128,7 @@ struct MenuPopoverShell<Content: View>: View {
             Color.clear.frame(height: 11)
             content
         }
+        .environment(\.popoverIsPresented, geometry.isPresented)
         .frame(minWidth: 420, maxWidth: .infinity)
         // Clip only the background. Clipping the whole popover to this custom
         // shape masks the content layer, which renders multi-layer SF Symbols

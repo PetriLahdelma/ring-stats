@@ -86,6 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func configurePopover() {
+        popoverGeometry.isPresented = false
         let rootView = MenuPopoverShell(geometry: popoverGeometry) {
             MenuPopoverView(
                 refresh: { [weak self] in self?.refreshPopover(force: true) },
@@ -185,6 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
         panel.setFrameOrigin(origin)
         updatePopoverArrowPosition()
+        popoverGeometry.isPresented = true
         panel.makeKeyAndOrderFront(nil)
         installOutsideClickMonitor()
         refreshPopover(force: false)
@@ -250,6 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func closePopover() {
         popoverPanel?.orderOut(nil)
+        popoverGeometry.isPresented = false
         if let outsideClickMonitor {
             NSEvent.removeMonitor(outsideClickMonitor)
             self.outsideClickMonitor = nil

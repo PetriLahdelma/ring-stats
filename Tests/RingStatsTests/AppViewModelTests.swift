@@ -350,7 +350,7 @@ struct AppViewModelTests {
             fetchedAt: now.value.addingTimeInterval(600),
             coveredMetrics: [.readiness, .activity],
             failedMetrics: [.activity: .timedOut],
-            batteryFailed: true
+            batteryFailure: .timedOut
         )
         let api = SnapshotStub(results: [.success(first), .success(partial)])
         let model = AppViewModel(auth: auth, api: api, now: { now.value }, checkConnectionOnInit: false)
@@ -423,7 +423,7 @@ struct AppViewModelTests {
         #expect(model.lastRefreshOutcome == .succeeded(at: denied.fetchedAt))
     }
 
-    @Test @MainActor func openingAgainRetriesTransientFailuresWithinTTL() async {
+    @Test @MainActor func failedStatsRetryAfterTheRetryIntervalNotOnEveryOpen() async {
         let now = LockedClock(Date(timeIntervalSince1970: 43_000))
         let auth = AuthStub(configured: true, connected: true)
         let partial = HealthSnapshot(
@@ -442,7 +442,7 @@ struct AppViewModelTests {
                 .activity: MetricReading(value: "81", detail: "Good", score: 81),
             ],
             battery: nil,
-            fetchedAt: now.value.addingTimeInterval(30),
+            fetchedAt: now.value.addingTimeInterval(61),
             coveredMetrics: [.readiness, .activity]
         )
         let api = SnapshotStub(results: [.success(partial), .success(complete)])
@@ -457,10 +457,106 @@ struct AppViewModelTests {
         await model.refreshOnOpen(metrics: [.readiness, .activity])
         now.value = now.value.addingTimeInterval(30)
         await model.refreshOnOpen(metrics: [.readiness, .activity])
+        #expect(await api.callCount == 1, "an open within the retry interval must not refetch")
+
+        now.value = now.value.addingTimeInterval(31)
+        await model.refreshOnOpen(metrics: [.readiness, .activity])
 
         #expect(await api.callCount == 2)
         #expect(model.snapshot.readings[.activity]?.value == "81")
         #expect(model.errorMessage == nil)
         #expect(model.lastRefreshOutcome == .succeeded(at: complete.fetchedAt))
+    }
+
+    @Test @MainActor func batteryPermissionFailureIsNotAPartialRefresh() async {
+        let now = LockedClock(Date(timeIntervalSince1970: 44_000))
+        let snapshot = HealthSnapshot(
+            readings: [.readiness: MetricReading(value: "75", detail: "Good", score: 75)],
+            battery: nil,
+            fetchedAt: now.value,
+            coveredMetrics: [.readiness],
+            batteryFailure: .insufficientScope
+        )
+        let api = SnapshotStub(results: [.success(snapshot)])
+        let model = AppViewModel(
+            auth: AuthStub(configured: true, connected: true),
+            api: api,
+            refreshTTL: 300,
+            now: { now.value },
+            checkConnectionOnInit: false
+        )
+
+        await model.refreshOnOpen(metrics: [.readiness])
+        now.value = now.value.addingTimeInterval(120)
+        await model.refreshOnOpen(metrics: [.readiness])
+
+        #expect(await api.callCount == 1, "missing permission must not force a refetch on every open")
+        #expect(model.lastRefreshOutcome == .succeeded(at: snapshot.fetchedAt))
+        #expect(model.snapshot.batteryNeedsPermission)
+    }
+
+    @Test @MainActor func failedFetchAfterAuthorizationIsRecordedAsFailed() async {
+        let now = Date(timeIntervalSince1970: 45_000)
+        let auth = AuthStub(configured: true, connected: false)
+        let api = SnapshotStub(results: [.failure(.timedOut)])
+        let model = AppViewModel(
+            auth: auth,
+            api: api,
+            now: { now },
+            authorizationHandler: { _ in await auth.markConnected() },
+            checkConnectionOnInit: false
+        )
+
+        await model.reauthorize(metrics: [.readiness])
+
+        #expect(model.lastRefreshOutcome == .failed(at: now))
+        #expect(model.errorMessage != nil)
+    }
+}
+
+/// Retry and retention rules on the snapshot itself.
+struct SnapshotFreshnessTests {
+    private func partial(failure: RingStatsError, at date: Date) -> HealthSnapshot {
+        HealthSnapshot(
+            readings: [
+                .readiness: MetricReading(value: "75", detail: "Good", score: 75),
+                .sleep: OuraAPI.placeholder(for: failure),
+            ],
+            battery: nil,
+            fetchedAt: date,
+            coveredMetrics: [.readiness, .sleep],
+            failedMetrics: [.sleep: failure]
+        )
+    }
+
+    @Test func rateLimitedFailuresWaitForRetryAfter() {
+        let start = Date(timeIntervalSince1970: 60_000)
+        let limited = partial(failure: .rateLimited(retryAfter: 120), at: start)
+        let metrics: Set<Metric> = [.readiness, .sleep]
+        #expect(limited.isFresh(for: metrics, at: start.addingTimeInterval(90), ttl: 300))
+        #expect(!limited.isFresh(for: metrics, at: start.addingTimeInterval(121), ttl: 300))
+
+        let timedOut = partial(failure: .timedOut, at: start)
+        #expect(timedOut.isFresh(for: metrics, at: start.addingTimeInterval(59), ttl: 300))
+        #expect(!timedOut.isFresh(for: metrics, at: start.addingTimeInterval(61), ttl: 300))
+    }
+
+    @Test func staleValuesAreDroppedAfterTheRetentionLimit() {
+        let start = Date(timeIntervalSince1970: 70_000)
+        let original = HealthSnapshot(
+            readings: [.sleep: MetricReading(value: "80", detail: "Good", score: 80)],
+            battery: nil,
+            fetchedAt: start
+        )
+        let hourLater = partial(failure: .timedOut, at: start.addingTimeInterval(3_600))
+        let kept = hourLater.merging(previous: original)
+        #expect(kept.readings[.sleep]?.availability == .stale)
+        #expect(kept.readings[.sleep]?.lastFetchedAt == start)
+
+        // Still failing a day later: the retained value keeps its original
+        // fetch time and is now too old to show.
+        let dayLater = partial(failure: .timedOut, at: start.addingTimeInterval(25 * 3_600))
+        let dropped = dayLater.merging(previous: kept)
+        #expect(dropped.readings[.sleep]?.availability == .unavailable)
     }
 }

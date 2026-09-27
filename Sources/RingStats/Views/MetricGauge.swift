@@ -91,7 +91,10 @@ struct MetricGauge: View {
         guard let reading else { return "\(metric.title), no data" }
         let detail = reading.detail.map { ", \($0)" } ?? ""
         if reading.availability == .stale {
-            return "\(metric.title), \(reading.value)\(detail). Not updated; showing the last known value."
+            let since = reading.lastFetchedAt.map {
+                " from \(PopoverTimestampText.relativeAge(since: $0, now: now))"
+            } ?? ""
+            return "\(metric.title), \(reading.value)\(detail). Not updated; showing the last known value\(since)."
         }
         if let earlier = earlierDayLabel(sourceDay: reading.sourceDay, now: now) {
             return "\(metric.title), \(reading.value)\(detail), from \(earlier)"
@@ -197,6 +200,7 @@ struct BatteryRow: View {
     let battery: BatteryRecord?
     let loading: Bool
     var stale = false
+    var needsPermission = false
     let theme: AppTheme
 
     private var batteryStatus: String {
@@ -205,7 +209,10 @@ struct BatteryRow: View {
     }
 
     private var chargingStatus: String {
-        guard let battery else { return loading ? "Updating…" : "Unavailable" }
+        guard let battery else {
+            if needsPermission { return "Needs access" }
+            return loading ? "Updating…" : "Unavailable"
+        }
         return battery.charging == true || battery.inCharger == true ? "Charging" : "Not charging"
     }
 

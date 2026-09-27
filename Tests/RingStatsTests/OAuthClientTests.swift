@@ -130,7 +130,9 @@ extension HTTPStubbedTests {
             let first = Task { try await client.accessToken(forceRefresh: false) }
             await eventually("first refresh to reach the token endpoint") { hold.entered == 1 }
             let second = Task { try await client.accessToken(forceRefresh: false) }
-            await Task.yield()
+            await eventually("second caller to join the in-flight refresh") {
+                await client.refreshWaiterCount == 1
+            }
             hold.release()
             let values = try await [first.value, second.value]
 
@@ -198,6 +200,7 @@ extension HTTPStubbedTests {
                     account: "oauth-authorization"
                 )?.pendingRevocationAccessTokens.isEmpty == true
             }
+            await client.waitForRevocationRetries()
 
             #expect(revocations.value == 2)
         }
@@ -254,6 +257,7 @@ extension HTTPStubbedTests {
                 )?.pendingRevocationAccessTokens.isEmpty == true
             )
 
+            await client.waitForRevocationRetries()
             let revokedTokens: Set<String> = Set(recorder.requests.compactMap { request -> String? in
                 guard request.url?.path == "/oauth/revoke" else { return nil }
                 return URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
@@ -297,7 +301,7 @@ extension HTTPStubbedTests {
             await eventually("revocation retry to start") { hold.entered >= 1 }
             try await client.exchange(code: "second")
             hold.release()
-            await eventually("in-flight revocations to finish") { hold.active == 0 }
+            await client.waitForRevocationRetries()
 
             #expect(
                 try store.load(

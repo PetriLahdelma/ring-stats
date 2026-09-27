@@ -166,6 +166,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Battery record age is prefixed with “Sampled” to distinguish Oura’s sample timestamp from app refresh freshness.
 - “Battery 92%” and “Not charging” are separate text elements with no middle dot; the primary battery text uses full emphasis, charging state 68% ink, and sample age 62% ink (both at least 4.5:1).
 - When the battery request fails, the last reading stays and the sample age is replaced by “Not updated” in Alert Text.
+- When the battery permission is missing, the row reads “Needs access” and the popover offers Enable Battery Access.
 - In Landscape, the battery glyph and primary battery text are pure white.
 - In the Ring Stats theme, Alert is permitted on the battery icon only below 20% or when the reading is unavailable; text follows the theme’s foreground hierarchy.
 

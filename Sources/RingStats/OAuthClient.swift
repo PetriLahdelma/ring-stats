@@ -45,6 +45,9 @@ actor OAuthClient: OAuthServicing {
     private var refreshTask: Task<OAuthToken, any Error>?
     private var revocationRetryTask: Task<Void, Never>?
     private var revocationRetryRequested = false
+    /// Callers currently waiting on another caller's token refresh. Tests use
+    /// it to prove concurrent callers share one refresh.
+    private(set) var refreshWaiterCount = 0
 
     init(
         store: any CredentialStoring = KeychainCredentialStore(),
@@ -157,6 +160,8 @@ actor OAuthClient: OAuthServicing {
         if current.needsRefresh || forceRefresh {
             guard let credentials else { throw RingStatsError.notConfigured }
             if let refreshTask {
+                refreshWaiterCount += 1
+                defer { refreshWaiterCount -= 1 }
                 current = try await refreshTask.value
                 var updatedAuthorization = authorization
                 updatedAuthorization.token = current
@@ -185,9 +190,11 @@ actor OAuthClient: OAuthServicing {
                 DiagnosticsLog.shared.record(.tokenRefreshed)
             } catch {
                 refreshTask = nil
-                DiagnosticsLog.shared.record(
-                    .tokenRefreshFailed((error as? RingStatsError) ?? .transport(""))
-                )
+                if !(error is CancellationError) {
+                    DiagnosticsLog.shared.record(
+                        .tokenRefreshFailed((error as? RingStatsError) ?? .transport(""))
+                    )
+                }
                 if error as? RingStatsError == .authenticationRequired {
                     var updatedAuthorization = authorization
                     updatedAuthorization.token = nil
@@ -341,6 +348,14 @@ actor OAuthClient: OAuthServicing {
             guard let self else { return }
             await self.retryPendingRevocations()
             await self.clearFinishedRevocationRetry()
+        }
+    }
+
+    /// Returns once no revocation retry is running or queued. Tests call it so
+    /// background retries cannot outlive the test that started them.
+    func waitForRevocationRetries() async {
+        while let task = revocationRetryTask {
+            await task.value
         }
     }
 

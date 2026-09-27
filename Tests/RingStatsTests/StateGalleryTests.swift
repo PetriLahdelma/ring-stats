@@ -161,7 +161,7 @@ struct GalleryFixture {
             partial.readings[.sleep] = OuraAPI.placeholder(for: .timedOut)
             partial.failedMetrics = [.sleep: .timedOut]
             partial.battery = nil
-            partial.batteryFailed = true
+            partial.batteryFailure = .timedOut
             model = try await Self.connected(results: [.success(earlier), .success(partial)], metrics: metrics, now: now)
         case .failed:
             model = try await Self.connected(

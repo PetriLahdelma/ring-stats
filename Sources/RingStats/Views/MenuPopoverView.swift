@@ -144,11 +144,18 @@ struct MenuPopoverView: View {
         }
     }
 
+    private var batteryNeedsAccess: Bool { model.snapshot.batteryNeedsPermission }
+
+    private var hasMissingPermissions: Bool {
+        !missingPermissionMetrics.isEmpty || batteryNeedsAccess
+    }
+
     private var permissionActionTitle: String {
-        if missingPermissionMetrics.count == 1, let metric = missingPermissionMetrics.first {
-            return "Enable \(metric.title) Access"
+        switch (missingPermissionMetrics.count, batteryNeedsAccess) {
+        case (0, true): "Enable Battery Access"
+        case (1, false): "Enable \(missingPermissionMetrics[0].title) Access"
+        default: "Enable Missing Permissions"
         }
-        return "Enable Missing Permissions"
     }
 
     static func metricIsPending(reading: MetricReading?, loading: Bool) -> Bool {
@@ -410,7 +417,7 @@ struct MenuPopoverView: View {
                 }
                 .mask { overflowMask }
                 .accessibilityHint(overflowEdges.trailing ? "More stats are available by scrolling" : "")
-                if !missingPermissionMetrics.isEmpty {
+                if hasMissingPermissions {
                     Button {
                         Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
                     } label: {
@@ -438,6 +445,7 @@ struct MenuPopoverView: View {
                         battery: model.snapshot.battery,
                         loading: model.loading,
                         stale: model.snapshot.batteryIsStale,
+                        needsPermission: batteryNeedsAccess,
                         theme: theme
                     )
                     Spacer()
@@ -499,10 +507,11 @@ struct MenuPopoverView: View {
 struct RefreshStatusView: View {
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.popoverIsPresented) private var isPresented
     let theme: AppTheme
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(.animation(minimumInterval: 1, paused: !isPresented)) { context in
             if let status = PopoverTimestampText.refreshStatus(
                 isRefreshing: model.isRefreshing,
                 outcome: model.lastRefreshOutcome,

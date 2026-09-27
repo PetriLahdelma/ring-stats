@@ -53,7 +53,24 @@ extension HTTPStubbedTests {
             #expect(snapshot.readings[.activity]?.availability == .unavailable)
             #expect(snapshot.failedMetrics.keys.contains(.activity))
             #expect(!snapshot.failedMetrics.keys.contains(.readiness))
-            #expect(!snapshot.batteryFailed)
+            #expect(snapshot.batteryFailure == nil)
+        }
+
+        @Test func batteryPermissionFailureIsClassifiedAsPermission() async throws {
+            let auth = AccessTokenStub(tokens: ["access"])
+            let recorder = HTTPStubRecorder { request in
+                if request.url?.lastPathComponent == "ring_battery_level" {
+                    return stubResponse(request, 403, #"{"detail":"scope"}"#)
+                }
+                return stubResponse(request, 200, #"{"data":[{"day":"2026-09-26","score":72}]}"#)
+            }
+            let api = OuraAPI(auth: auth, session: recorder.session)
+
+            let snapshot = try await api.fetchSnapshot(metrics: [.readiness], now: Date())
+
+            #expect(snapshot.batteryFailure == .insufficientScope)
+            #expect(snapshot.batteryNeedsPermission)
+            #expect(!snapshot.hasTransientFailures)
         }
 
         @Test func emptyEndpointIsNoDataRatherThanFailure() async throws {
@@ -77,7 +94,7 @@ extension HTTPStubbedTests {
             #expect(snapshot.readings[.sleep]?.availability == .noData)
             #expect(snapshot.readings[.sleep]?.detail == "No data yet")
             #expect(snapshot.failedMetrics.isEmpty)
-            #expect(snapshot.batteryFailed)
+            #expect(snapshot.batteryFailure != nil)
         }
 
         @Test func malformedPayloadIsReportedWhenNoUsableDataExists() async {
@@ -173,6 +190,7 @@ extension HTTPStubbedTests {
 
             #expect(snapshot.battery?.level == 80)
             #expect(snapshot.readings[.stress]?.detail == "Needs access")
+            #expect(snapshot.batteryFailure == nil)
             #expect(snapshot.readings[.stress]?.availability == .permissionRequired)
         }
 

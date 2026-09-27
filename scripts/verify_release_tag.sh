@@ -4,9 +4,11 @@
 # Usage: verify_release_tag.sh <repo-dir> <expected-version> <release-branch-ref>
 #
 # The tag must be an exact v<version> tag on HEAD, annotated, pointing at the
-# fetched protected branch commit, and cryptographically signed. Signature
-# verification uses the repository's configured GPG or SSH verifier
-# (gpg.ssh.allowedSignersFile for SSH keys). ALLOW_UNSIGNED_TAG=1 skips only the
+# fetched protected branch commit, and signed by a trusted key. For SSH
+# signatures, trust comes from gpg.ssh.allowedSignersFile, which pins the
+# release key. For GPG signatures, the key must be at least fully trusted in
+# the local keyring (gpg.minTrustLevel=fully), so a valid signature from an
+# arbitrary imported key is not enough. ALLOW_UNSIGNED_TAG=1 skips only the
 # signature check, for a documented exception.
 set -euo pipefail
 
@@ -39,8 +41,9 @@ if [[ "$tag_commit" != "$branch_commit" ]]; then
 fi
 if [[ "${ALLOW_UNSIGNED_TAG:-0}" == "1" ]]; then
   echo "warning: signature verification skipped for $exact_tag (ALLOW_UNSIGNED_TAG=1)." >&2
-elif ! /usr/bin/git -C "$repo_dir" verify-tag "$exact_tag" >/dev/null 2>&1; then
-  echo "Release tag $exact_tag has no valid signature. Create it with 'git tag -s'." >&2
+elif ! /usr/bin/git -C "$repo_dir" -c gpg.minTrustLevel=fully verify-tag "$exact_tag" >/dev/null 2>&1; then
+  echo "Release tag $exact_tag has no valid signature from a trusted release key." >&2
+  echo "Create it with 'git tag -s' using the pinned release key." >&2
   echo "See RELEASING.md for signing-key setup." >&2
   exit 1
 fi

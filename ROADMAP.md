@@ -31,7 +31,7 @@ dashboard.
   disconnected states.
 - Keychain migration, callback socket tests, and universal app/DMG verification.
 - Per-metric freshness: a stat that fails transiently keeps its last value
-  marked "Not updated" and is retried on the next open.
+  marked "Not updated" and is retried after a minute or Oura's Retry-After.
 - Refresh status with progress, a brief success confirmation, and persistent
   old/partial/failed states.
 - Theme parity, a formal tile anatomy, Customize in the footer, and overflow

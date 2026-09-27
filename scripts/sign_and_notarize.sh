@@ -58,6 +58,7 @@ if [[ -d "$METADATA_DIR" ]]; then
   /bin/rm -rf "$METADATA_DIR"
 fi
 /bin/mkdir -p "$METADATA_DIR"
+/bin/rm -f "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip" "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip.sha256"
 /usr/bin/git -C "$PROJECT_DIR" show -s --format=fuller HEAD > "$METADATA_DIR/source-commit.txt"
 /usr/bin/git -C "$PROJECT_DIR" for-each-ref "refs/tags/$exact_tag" \
   --format='tag=%(refname:short)%0atag_object=%(objectname)%0acreator=%(creator)%0asubject=%(subject)' \
@@ -108,14 +109,15 @@ echo "Signed, notarized, and stapled: $DMG_PATH"
 /usr/bin/shasum -a 256 "$APP_DIR/Contents/MacOS/RingStats" > "$METADATA_DIR/RingStats-binary.sha256"
 /usr/bin/git -C "$PROJECT_DIR" verify-tag --raw "$exact_tag" > "$METADATA_DIR/source-tag-signature.txt" 2>&1 || true
 
-# One public archive of the provenance evidence: source commit and signed tag,
-# toolchain, dependencies, signatures, candidate manifest, dSYM UUIDs and
-# symbols, notarization result, and checksums. It contains no secrets.
+DMG_PATH="$DMG_PATH" "$PROJECT_DIR/scripts/verify_release_artifacts.sh"
+# Built only after verification passes: one public archive of the provenance
+# evidence (source commit and signed tag, toolchain, dependencies, signatures,
+# candidate manifest, dSYM UUIDs and symbols, notarization result, and
+# checksums). It contains no secrets.
 provenance_zip="$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip"
 /bin/rm -f "$provenance_zip"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$METADATA_DIR" "$provenance_zip"
 (cd "$OUTPUT_DIR" && /usr/bin/shasum -a 256 "Ring-Stats-$VERSION-provenance.zip") \
   > "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip.sha256"
 echo "Provenance archive: $provenance_zip"
-DMG_PATH="$DMG_PATH" "$PROJECT_DIR/scripts/verify_release_artifacts.sh"
 echo "Release evidence retained in: $METADATA_DIR"

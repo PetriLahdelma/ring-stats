@@ -271,6 +271,11 @@ final class AppViewModel: ObservableObject {
             DiagnosticsLog.shared.record(.authorizationFailed(Self.classified(error)))
             let configured = await auth.isConfigured
             let connected = await auth.isConnected
+            if connected {
+                // Authorization succeeded but the first fetch did not; the
+                // status must not keep claiming an earlier success.
+                lastRefreshOutcome = .failed(at: now())
+            }
             state = connected
                 ? .failed(message: error.localizedDescription, connected: true, configured: configured)
                 : Self.connectionState(configured: configured, connected: false)
@@ -287,7 +292,7 @@ final class AppViewModel: ObservableObject {
         if merged.hasTransientFailures {
             lastRefreshOutcome = .partial(at: merged.fetchedAt)
             DiagnosticsLog.shared.record(
-                .refreshPartial(failed: merged.failedMetrics, batteryFailed: merged.batteryFailed)
+                .refreshPartial(failed: merged.failedMetrics, batteryFailed: merged.batteryFailure != nil)
             )
         } else {
             lastRefreshOutcome = .succeeded(at: merged.fetchedAt)

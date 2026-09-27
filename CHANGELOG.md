@@ -9,7 +9,11 @@ versioned GitHub releases and annotated tags for new releases.
 
 - A stat that fails to refresh keeps its last known value, dimmed and marked
   "Not updated", instead of turning into "Unavailable" while the refresh
-  reports success. Failed stats are retried the next time the popover opens.
+  reports success. Failed stats are retried on the next open after a minute,
+  or after Oura's Retry-After, and a value older than a day is no longer shown.
+- A missing battery permission is shown as "Needs access" with an Enable
+  Battery Access action instead of an endless partial refresh.
+- The OAuth listener no longer waits forever when its port is already taken.
 - The battery gauge rendered white in the default theme; it is signal blue
   again, and the options menu now uses the theme color.
 - "Updated now" no longer freezes while the popover stays open.

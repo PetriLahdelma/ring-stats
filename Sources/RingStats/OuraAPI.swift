@@ -56,7 +56,7 @@ actor OuraAPI: SnapshotFetching {
         var readings: [Metric: MetricReading] = [:]
         var metricFailures: [Metric: RingStatsError] = [:]
         var battery: BatteryRecord?
-        var batteryFailed = false
+        var batteryFailure: RingStatsError?
         var failures: [RingStatsError] = []
         var wasCancelled = false
 
@@ -142,7 +142,7 @@ actor OuraAPI: SnapshotFetching {
                     if let metric {
                         metricFailures[metric] = error
                     } else {
-                        batteryFailed = true
+                        batteryFailure = error
                     }
                 case .cancelled:
                     wasCancelled = true
@@ -170,7 +170,7 @@ actor OuraAPI: SnapshotFetching {
             fetchedAt: now,
             coveredMetrics: metrics,
             failedMetrics: metricFailures.filter { metrics.contains($0.key) },
-            batteryFailed: batteryFailed
+            batteryFailure: batteryFailure
         )
     }
 

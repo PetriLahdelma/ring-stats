@@ -62,12 +62,14 @@ NSStatusItem / AppDelegate
 4. `OuraAPI` requests only enabled metrics plus battery. Results become one
    in-memory `HealthSnapshot`; health responses are not written to a database.
 5. Reopening the popover refreshes data when the snapshot is at least five
-   minutes old or any stat failed last time. A manual refresh always requests
+   minutes old, or at least a minute old (longer if Oura sent Retry-After)
+   when a stat failed transiently last time. A manual refresh always requests
    data. Each refresh is merged with the previous snapshot per metric: a stat
-   whose request failed transiently keeps its last value marked stale, the
-   battery does the same, missing permission and "no data yet" are shown as
-   they are, and the outcome (succeeded, partial, failed) drives the status
-   line. A whole-refresh failure keeps the previous snapshot.
+   whose request failed transiently keeps its last value marked stale for up
+   to 24 hours, the battery does the same, missing permission (including for
+   the battery) and "no data yet" are shown as they are, and the outcome
+   (succeeded, partial, failed) drives the status line. A whole-refresh
+   failure keeps the previous snapshot.
 6. Disconnect attempts remote revocation and deletes local credentials and
    tokens even when revocation cannot complete.
 
