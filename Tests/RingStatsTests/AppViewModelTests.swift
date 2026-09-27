@@ -365,7 +365,7 @@ struct AppViewModelTests {
         #expect(model.snapshot.readings[.activity]?.availability == .stale)
         #expect(model.snapshot.battery?.level == 64)
         #expect(model.snapshot.batteryIsStale)
-        #expect(model.errorMessage == AppViewModel.partialRefreshMessage)
+        #expect(model.errorMessage == nil)
         #expect(model.lastRefreshOutcome == .partial(at: partial.fetchedAt))
         #expect(model.isShowingStaleData)
         #expect(model.state == .connected)

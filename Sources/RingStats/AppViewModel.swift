@@ -9,13 +9,11 @@ final class AppViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var lastRefreshOutcome = RefreshOutcome.none
 
-    static let partialRefreshMessage =
-        "Some stats could not be updated. Showing the last known values where available."
-
     var connected: Bool { state.isConnected }
     var configured: Bool { state.isConfigured }
     var loading: Bool { state.isLoading }
     var isRefreshing: Bool { state == .refreshing }
+    var refreshInterval: TimeInterval { refreshTTL }
     var lastUpdatedAt: Date? { snapshot.hasData ? snapshot.fetchedAt : nil }
     var isShowingStaleData: Bool {
         snapshot.hasData
@@ -273,17 +271,15 @@ final class AppViewModel: ObservableObject {
     }
 
     /// Accepts a fetched snapshot. Values that failed transiently keep their
-    /// previous reading, and a partial result is reported rather than hidden.
+    /// previous reading. A partial result is reported through
+    /// `lastRefreshOutcome` and each affected tile, not a second error line.
     private func apply(_ refreshed: HealthSnapshot) {
         let merged = refreshed.merging(previous: snapshot)
         snapshot = merged
-        if merged.hasTransientFailures {
-            errorMessage = Self.partialRefreshMessage
-            lastRefreshOutcome = .partial(at: merged.fetchedAt)
-        } else {
-            errorMessage = nil
-            lastRefreshOutcome = .succeeded(at: merged.fetchedAt)
-        }
+        errorMessage = nil
+        lastRefreshOutcome = merged.hasTransientFailures
+            ? .partial(at: merged.fetchedAt)
+            : .succeeded(at: merged.fetchedAt)
     }
 
     func disconnect() async {

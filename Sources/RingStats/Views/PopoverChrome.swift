@@ -1,13 +1,22 @@
+import AppKit
 import SwiftUI
 
 struct MenuPopoverBackground: View {
+    /// Lets the state gallery supply the photograph, which lives in the app's
+    /// compiled asset catalog and is not visible to the test process.
+    @MainActor static var landscapeImageOverride: NSImage?
+
     let theme: AppTheme
+
+    private var landscapeImage: Image {
+        Self.landscapeImageOverride.map(Image.init(nsImage:)) ?? Image("LandscapeBackground")
+    }
 
     var body: some View {
         if theme == .landscape {
             GeometryReader { geometry in
                 ZStack {
-                    Image("LandscapeBackground")
+                    landscapeImage
                         .resizable()
                         .scaledToFill()
                         .frame(width: geometry.size.width, height: geometry.size.height)
@@ -113,8 +122,13 @@ struct MenuPopoverShell<Content: View>: View {
             content
         }
         .frame(minWidth: 420, maxWidth: .infinity)
-        .background { MenuPopoverBackground(theme: theme) }
-        .clipShape(MenuPopoverBubbleShape(arrowX: geometry.arrowX))
+        // Clip only the background. Clipping the whole popover to this custom
+        // shape masks the content layer, which renders multi-layer SF Symbols
+        // such as the battery gauge white instead of their foreground color.
+        .background {
+            MenuPopoverBackground(theme: theme)
+                .clipShape(MenuPopoverBubbleShape(arrowX: geometry.arrowX))
+        }
         .overlay {
             MenuPopoverBubbleShape(arrowX: geometry.arrowX)
                 .stroke(

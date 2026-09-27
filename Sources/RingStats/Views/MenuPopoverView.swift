@@ -1,24 +1,94 @@
 import AppKit
 import SwiftUI
 
-struct FreshnessPresentation: Equatable {
-    let visual: String
+/// What the top-right status shows. `label` stays populated while hidden so
+/// the text can fade out instead of vanishing, and `accessibility` is always
+/// available to VoiceOver even when nothing is drawn.
+struct RefreshStatusPresentation: Equatable {
+    enum Tone: Equatable {
+        case neutral
+        case alert
+    }
+
+    let label: String
     let accessibility: String
+    let isVisible: Bool
+    let showsSpinner: Bool
+    let tone: Tone
 }
 
 enum PopoverTimestampText {
-    static func freshness(updatedAt: Date, now: Date, stale: Bool) -> FreshnessPresentation {
-        let age = max(0, now.timeIntervalSince(updatedAt))
-        let updated: String
-        switch age {
-        case ..<60: updated = "Updated now"
-        case ..<3_600: updated = "Updated \(Int(age / 60))m ago"
-        default: updated = "Updated \(Int(age / 3_600))h ago"
+    /// How long "Updated just now" stays after a successful refresh.
+    static let confirmationDuration: TimeInterval = 3
+
+    static func refreshStatus(
+        isRefreshing: Bool,
+        outcome: RefreshOutcome,
+        lastUpdatedAt: Date?,
+        now: Date,
+        refreshInterval: TimeInterval
+    ) -> RefreshStatusPresentation? {
+        if isRefreshing {
+            return RefreshStatusPresentation(
+                label: "Refreshing…",
+                accessibility: "Refreshing Oura data",
+                isVisible: true,
+                showsSpinner: true,
+                tone: .neutral
+            )
         }
-        return FreshnessPresentation(
-            visual: stale ? "Update failed · \(updated)" : updated,
-            accessibility: stale ? "Update failed. Showing the last successful values." : updated
-        )
+        switch outcome {
+        case .none:
+            return nil
+        case .failed:
+            guard let lastUpdatedAt else {
+                return RefreshStatusPresentation(
+                    label: "Update failed",
+                    accessibility: "Update failed",
+                    isVisible: true,
+                    showsSpinner: false,
+                    tone: .alert
+                )
+            }
+            let age = relativeAge(since: lastUpdatedAt, now: now)
+            return RefreshStatusPresentation(
+                label: "Update failed · \(age)",
+                accessibility: "Update failed. Showing values from \(age).",
+                isVisible: true,
+                showsSpinner: false,
+                tone: .alert
+            )
+        case .partial(let at):
+            let age = relativeAge(since: at, now: now)
+            return RefreshStatusPresentation(
+                label: "Some stats not updated",
+                accessibility: "Updated \(age). Some stats could not be updated and show their last known values.",
+                isVisible: true,
+                showsSpinner: false,
+                tone: .alert
+            )
+        case .succeeded(let at):
+            let sinceRefresh = max(0, now.timeIntervalSince(at))
+            let label = "Updated \(relativeAge(since: at, now: now))"
+            let isVisible = sinceRefresh < confirmationDuration || sinceRefresh >= refreshInterval
+            return RefreshStatusPresentation(
+                label: label,
+                accessibility: label,
+                isVisible: isVisible,
+                showsSpinner: false,
+                tone: .neutral
+            )
+        }
+    }
+
+    static func relativeAge(since date: Date, now: Date) -> String {
+        let age = max(0, now.timeIntervalSince(date))
+        return switch age {
+        case ..<60: "just now"
+        case ..<3_600: "\(Int(age / 60))m ago"
+        case ..<86_400: "\(Int(age / 3_600))h ago"
+        default: "\(Int(age / 86_400))d ago"
+        }
     }
 
     static func batterySample(timestamp: String, now: Date) -> String? {
@@ -46,6 +116,8 @@ struct MenuPopoverView: View {
     @State private var reorderSession: MetricReorderSession?
     @State private var dragTranslationX: CGFloat = 0
     @State private var metricStripSize: CGSize = .zero
+    @State private var stripViewportWidth: CGFloat = 0
+    @State private var stripContentMinX: CGFloat = 0
     @State private var settlingSourceOffsetX: CGFloat?
     @State private var settlementID: UUID?
 
@@ -63,10 +135,6 @@ struct MenuPopoverView: View {
 
     private var reorderAnimation: Animation? {
         reduceMotion ? nil : .easeOut(duration: 0.16)
-    }
-
-    private var customizeIconOffset: CGFloat {
-        theme == .landscape ? 15 : 0
     }
 
     private var missingPermissionMetrics: [Metric] {
@@ -181,6 +249,34 @@ struct MenuPopoverView: View {
         }
     }
 
+    private var overflowEdges: MetricStripOverflow {
+        MetricStripLayout.overflow(
+            contentWidth: metricStripSize.width,
+            viewportWidth: stripViewportWidth,
+            contentMinX: stripContentMinX
+        )
+    }
+
+    /// Fades an edge only where stats continue past it, so overflow is visible
+    /// without a scroll bar.
+    private var overflowMask: some View {
+        HStack(spacing: 0) {
+            LinearGradient(
+                colors: [.black.opacity(overflowEdges.leading ? 0 : 1), .black],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: MetricStripLayout.edgeFadeWidth)
+            Rectangle().fill(.black)
+            LinearGradient(
+                colors: [.black, .black.opacity(overflowEdges.trailing ? 0 : 1)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(width: MetricStripLayout.edgeFadeWidth)
+        }
+    }
+
     private func metricOffsetX(for metric: Metric) -> CGFloat {
         guard let reorderSession else { return 0 }
         let translation = metric == reorderSession.source
@@ -189,22 +285,18 @@ struct MenuPopoverView: View {
         return reorderSession.offsetX(for: metric, sourceTranslationX: translation)
     }
 
-    private var customizeMetric: some View {
+    /// Customize lives in the footer so it never competes with health data
+    /// for a place in the metric sequence.
+    private var customizeButton: some View {
         Button(action: showAppearance) {
-            VStack(spacing: 0) {
-                Image(systemName: "pencil")
-                    .font(.system(size: 20, weight: .regular))
-                    .frame(width: 84, height: 84)
-                    .offset(y: customizeIconOffset)
-                Text("Customize")
-                    .font(.system(size: 12, weight: .semibold))
-                    .padding(.top, 12)
-            }
-            .frame(width: MetricStripLayout.itemWidth)
-            .foregroundStyle(theme.primaryContent)
-            .contentShape(Rectangle())
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .foregroundStyle(theme.action)
+        .help("Customize stats")
         .accessibilityLabel("Customize stats")
         .accessibilityHint("Choose which stats appear and change their order")
     }
@@ -240,7 +332,10 @@ struct MenuPopoverView: View {
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
+        // A plain-styled button menu draws its label with SwiftUI, so it takes
+        // the theme color like the Customize button beside it.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
         .foregroundStyle(theme.action)
@@ -289,7 +384,6 @@ struct MenuPopoverView: View {
                             )
                             .accessibilityHint("Drag to reorder. The same order appears in Appearance.")
                         }
-                        customizeMetric
                     }
                     .coordinateSpace(name: MetricStripLayout.coordinateSpaceName)
                     .onGeometryChange(for: CGSize.self) { geometry in
@@ -297,8 +391,21 @@ struct MenuPopoverView: View {
                     } action: { size in
                         metricStripSize = size
                     }
+                    .onGeometryChange(for: CGFloat.self) { geometry in
+                        geometry.frame(in: .named(MetricStripLayout.viewportSpaceName)).minX
+                    } action: { minX in
+                        stripContentMinX = minX
+                    }
                 }
                 .scrollIndicators(.hidden)
+                .coordinateSpace(name: MetricStripLayout.viewportSpaceName)
+                .onGeometryChange(for: CGFloat.self) { geometry in
+                    geometry.size.width
+                } action: { width in
+                    stripViewportWidth = width
+                }
+                .mask { overflowMask }
+                .accessibilityHint(overflowEdges.trailing ? "More stats are available by scrolling" : "")
                 if !missingPermissionMetrics.isEmpty {
                     Button {
                         Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
@@ -323,8 +430,14 @@ struct MenuPopoverView: View {
                 }
                 Divider().overlay(theme.divider)
                 HStack {
-                    BatteryRow(battery: model.snapshot.battery, loading: model.loading, theme: theme)
+                    BatteryRow(
+                        battery: model.snapshot.battery,
+                        loading: model.loading,
+                        stale: model.snapshot.batteryIsStale,
+                        theme: theme
+                    )
                     Spacer()
+                    customizeButton
                     optionsMenu
                 }
             } else {
@@ -361,19 +474,10 @@ struct MenuPopoverView: View {
         .foregroundStyle(theme.primaryContent)
         .preferredColorScheme(theme == .landscape ? .dark : .light)
         .overlay(alignment: .topTrailing) {
-            if (model.connected || model.snapshot.hasData), let freshnessLabel {
-                Text(freshnessLabel)
-                    .font(.system(size: 10))
-                    .foregroundStyle(
-                        model.isShowingStaleData ? Palette.alert : theme.secondaryContent
-                    )
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: 280, alignment: .trailing)
+            if model.connected || model.snapshot.hasData {
+                RefreshStatusView(theme: theme)
                     .padding(.top, 10)
                     .padding(.trailing, 24)
-                    .accessibilityLabel(freshnessAccessibilityLabel)
-                    .accessibilitySortPriority(1)
             }
         }
         .onDisappear {
@@ -384,21 +488,48 @@ struct MenuPopoverView: View {
         }
     }
 
-    private var freshnessLabel: String? {
-        guard let updatedAt = model.lastUpdatedAt else { return nil }
-        return PopoverTimestampText.freshness(
-            updatedAt: updatedAt,
-            now: Date(),
-            stale: model.isShowingStaleData
-        ).visual
-    }
+}
 
-    private var freshnessAccessibilityLabel: String {
-        guard let updatedAt = model.lastUpdatedAt else { return "" }
-        return PopoverTimestampText.freshness(
-            updatedAt: updatedAt,
-            now: Date(),
-            stale: model.isShowingStaleData
-        ).accessibility
+/// The top-right refresh status. It redraws every second so relative ages
+/// stay truthful while the popover is open.
+struct RefreshStatusView: View {
+    @EnvironmentObject private var model: AppViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let theme: AppTheme
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            if let status = PopoverTimestampText.refreshStatus(
+                isRefreshing: model.isRefreshing,
+                outcome: model.lastRefreshOutcome,
+                lastUpdatedAt: model.lastUpdatedAt,
+                now: context.date,
+                refreshInterval: model.refreshInterval
+            ) {
+                ZStack(alignment: .trailing) {
+                    HStack(spacing: 5) {
+                        if status.showsSpinner {
+                            ScoreLoadingSpinner(theme: theme, diameter: 9, lineWidth: 1.5)
+                        }
+                        Text(status.label)
+                            .font(.system(size: 10))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .foregroundStyle(status.tone == .alert ? theme.alert : theme.secondaryContent)
+                    .frame(maxWidth: 280, alignment: .trailing)
+                    .opacity(status.isVisible ? 1 : 0)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: status.isVisible)
+                    .accessibilityHidden(true)
+
+                    // Stays readable to VoiceOver while the visual label is faded out.
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        .accessibilityElement()
+                        .accessibilityLabel(status.accessibility)
+                        .accessibilitySortPriority(1)
+                }
+            }
+        }
     }
 }

@@ -172,7 +172,7 @@ extension HTTPStubbedTests {
             let snapshot = try await api.fetchSnapshot(metrics: [.stress], now: Date())
 
             #expect(snapshot.battery?.level == 80)
-            #expect(snapshot.readings[.stress]?.detail == "Permission required")
+            #expect(snapshot.readings[.stress]?.detail == "Needs access")
             #expect(snapshot.readings[.stress]?.availability == .permissionRequired)
         }
 
@@ -233,7 +233,7 @@ extension HTTPStubbedTests {
             )
 
             #expect(snapshot.readings[.readiness]?.sourceDay == "2026-09-25")
-            #expect(snapshot.readings[.readiness]?.detail?.contains("2026-09-25") == true)
+            #expect(snapshot.readings[.readiness]?.detail == "Good")
             #expect(snapshot.readings[.heartRate]?.value == "80")
             #expect(snapshot.readings[.heartRate]?.observedAt == ISO8601DateFormatter().date(from: "2026-09-26T10:00:00Z"))
             #expect(snapshot.readings[.stress]?.sourceDay == "2026-09-25")

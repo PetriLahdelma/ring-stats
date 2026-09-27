@@ -1,12 +1,36 @@
 import SwiftUI
 
+/// Fixed geometry for one metric tile. Every tile has the same zones in the
+/// same order, so themes and metrics vary content, never layout:
+///
+/// 1. Visual zone (`visualSize` square): score ring, or icon above the value.
+/// 2. Value baseline: every value sits on the baseline of a `valueFontSize`
+///    reference line, whatever its own size, so mixed sizes still line up.
+/// 3. Title line, `labelTopSpacing` below the visual zone.
+/// 4. Detail line: score band, source day, sample age, or failure state.
+enum MetricTileAnatomy {
+    static let width = MetricStripLayout.itemWidth
+    static let visualSize: CGFloat = 84
+    static let scoreStrokeWidth: CGFloat = 8
+    static let iconFontSize: CGFloat = 18
+    static let iconValueSpacing: CGFloat = 3
+    static let valueFontSize: CGFloat = 28
+    static let compactValueFontSize: CGFloat = 18
+    static let labelTopSpacing: CGFloat = 12
+    static let titleDetailSpacing: CGFloat = 2
+    static let titleFontSize: CGFloat = 12
+    static let detailFontSize: CGFloat = 11
+
+    static func valueFontSize(for metric: Metric) -> CGFloat {
+        metric == .resilience ? compactValueFontSize : valueFontSize
+    }
+}
+
 struct MetricGauge: View {
     let metric: Metric
     let reading: MetricReading?
     let pending: Bool
     let theme: AppTheme
-
-    private let scoreStrokeWidth: CGFloat = 8
 
     private var fraction: Double {
         Double(max(0, min(reading?.score ?? 0, 100))) / 100
@@ -14,30 +38,84 @@ struct MetricGauge: View {
 
     private var displayValue: String { reading?.value ?? "—" }
 
-    private var valueFontSize: CGFloat {
-        metric == .resilience ? 18 : 28
-    }
+    private var isStale: Bool { reading?.availability == .stale }
 
-    private var valueBaselineOffset: CGFloat {
-        theme == .landscape && metric == .resilience ? 4 : 0
-    }
-
-    private var shouldShowDetail: Bool {
-        guard theme == .landscape else { return true }
-        guard !pending, reading?.availability == .available else { return true }
-        if reading?.observedAt != nil { return true }
-        guard let sourceDay = reading?.sourceDay else { return false }
-        return sourceDay != QueryDates.dayString(for: Date())
-    }
-
-    private var detailText: String {
+    /// The detail line. Both themes show the same text so neither loses meaning.
+    /// A value from an earlier day says so instead of showing its band, because
+    /// the date matters more than the label and both do not fit the tile.
+    nonisolated static func detailText(
+        reading: MetricReading?,
+        pending: Bool,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> String {
         guard let reading else { return pending ? "Updating…" : "No data" }
+        if reading.availability == .stale { return "Not updated" }
+        if let earlier = earlierDayLabel(sourceDay: reading.sourceDay, now: now, calendar: calendar) {
+            return "From \(earlier)"
+        }
         guard let observedAt = reading.observedAt else { return reading.detail ?? "No data" }
-        let age = max(0, Date().timeIntervalSince(observedAt))
+        let age = max(0, now.timeIntervalSince(observedAt))
         let compactAge = age < 3_600
             ? "\(max(1, Int(age / 60)))m ago"
             : "\(Int(age / 3_600))h ago"
         return [reading.detail, compactAge].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// "yesterday" or a short date for a source day before today; nil for today.
+    nonisolated static func earlierDayLabel(sourceDay: String?, now: Date, calendar: Calendar = .current) -> String? {
+        guard let sourceDay, sourceDay != QueryDates.dayString(for: now, calendar: calendar) else { return nil }
+        let parser = DateFormatter()
+        parser.calendar = calendar
+        parser.timeZone = calendar.timeZone
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.dateFormat = "yyyy-MM-dd"
+        guard let day = parser.date(from: sourceDay) else { return sourceDay }
+        if calendar.isDate(day, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: now) ?? now) {
+            return "yesterday"
+        }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter.string(from: day)
+    }
+
+    nonisolated static func accessibilityLabel(
+        metric: Metric,
+        reading: MetricReading?,
+        pending: Bool,
+        now: Date = Date()
+    ) -> String {
+        if pending { return "\(metric.title) updating" }
+        guard let reading else { return "\(metric.title), no data" }
+        let detail = reading.detail.map { ", \($0)" } ?? ""
+        if reading.availability == .stale {
+            return "\(metric.title), \(reading.value)\(detail). Not updated; showing the last known value."
+        }
+        if let earlier = earlierDayLabel(sourceDay: reading.sourceDay, now: now) {
+            return "\(metric.title), \(reading.value)\(detail), from \(earlier)"
+        }
+        return "\(metric.title), \(reading.value)\(detail)"
+    }
+
+    /// A value on the shared tile baseline. The hidden reference sets the
+    /// baseline for every size, replacing per-metric offsets.
+    private var baselineAlignedValue: some View {
+        ZStack(alignment: Alignment(horizontal: .center, vertical: .lastTextBaseline)) {
+            Text("0")
+                .font(.system(size: MetricTileAnatomy.valueFontSize, weight: .medium, design: .rounded))
+                .hidden()
+            Text(displayValue)
+                .font(
+                    .system(
+                        size: MetricTileAnatomy.valueFontSize(for: metric),
+                        weight: .medium,
+                        design: .rounded
+                    )
+                )
+                .monospacedDigit()
+        }
     }
 
     var body: some View {
@@ -45,61 +123,55 @@ struct MetricGauge: View {
             ZStack {
                 if pending {
                     ScoreLoadingSpinner(theme: theme)
-                        .accessibilityLabel("\(metric.title) updating")
                 } else if theme == .landscape || !metric.isDailyScore {
-                    VStack(spacing: 3) {
+                    VStack(spacing: MetricTileAnatomy.iconValueSpacing) {
                         Image(systemName: metric.symbolName)
-                            .font(.system(size: 18, weight: .regular))
-                        Text(displayValue)
-                            .font(.system(size: valueFontSize, weight: .medium, design: .rounded))
-                            .monospacedDigit()
-                            .offset(y: valueBaselineOffset)
+                            .font(.system(size: MetricTileAnatomy.iconFontSize, weight: .regular))
+                        baselineAlignedValue
                     }
                     .foregroundStyle(theme.primaryContent)
                 } else {
                     if reading?.score != nil {
                         Circle()
-                            .inset(by: scoreStrokeWidth / 2)
+                            .inset(by: MetricTileAnatomy.scoreStrokeWidth / 2)
                             .trim(from: 0, to: fraction)
                             .stroke(
                                 theme.score,
-                                style: StrokeStyle(lineWidth: scoreStrokeWidth, lineCap: .round)
+                                style: StrokeStyle(
+                                    lineWidth: MetricTileAnatomy.scoreStrokeWidth,
+                                    lineCap: .round
+                                )
                             )
                             .rotationEffect(.degrees(-90))
                     }
-                    Text(displayValue)
-                        .font(.system(size: 28, weight: .medium, design: .rounded))
-                        .monospacedDigit()
+                    baselineAlignedValue
                         .foregroundStyle(theme.primaryContent)
                 }
             }
-            .frame(width: 84, height: 84)
+            .opacity(isStale ? 0.62 : 1)
+            .frame(width: MetricTileAnatomy.visualSize, height: MetricTileAnatomy.visualSize)
             .accessibilityHidden(true)
-            VStack(spacing: 2) {
+            VStack(spacing: MetricTileAnatomy.titleDetailSpacing) {
                 Text(metric.title)
-                    .font(.system(size: 12, weight: .semibold))
-                if shouldShowDetail {
-                    Text(detailText)
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.secondaryContent)
+                    .font(.system(size: MetricTileAnatomy.titleFontSize, weight: .semibold))
+                Text(Self.detailText(reading: reading, pending: pending, now: Date()))
+                    .font(.system(size: MetricTileAnatomy.detailFontSize))
+                    .foregroundStyle(isStale ? theme.alert : theme.secondaryContent)
                     .lineLimit(1)
                     .contentTransition(.opacity)
-                }
             }
-            .padding(.top, 12)
+            .padding(.top, MetricTileAnatomy.labelTopSpacing)
         }
-        .frame(width: MetricStripLayout.itemWidth)
+        .frame(width: MetricTileAnatomy.width)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            pending
-                ? "\(metric.title) updating"
-                : "\(metric.title), \(reading?.value ?? "no data"), \(reading?.detail ?? "")"
-        )
+        .accessibilityLabel(Self.accessibilityLabel(metric: metric, reading: reading, pending: pending))
     }
 }
 
 struct ScoreLoadingSpinner: View {
     let theme: AppTheme
+    var diameter: CGFloat = 18
+    var lineWidth: CGFloat = 2.5
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var rotating = false
 
@@ -108,9 +180,9 @@ struct ScoreLoadingSpinner: View {
             .trim(from: 0.08, to: 0.72)
             .stroke(
                 theme.primaryContent.opacity(theme == .landscape ? 0.72 : 0.56),
-                style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
             )
-            .frame(width: 18, height: 18)
+            .frame(width: diameter, height: diameter)
             .rotationEffect(.degrees(rotating ? 360 : 0))
             .onAppear {
                 guard !reduceMotion else { return }
@@ -124,6 +196,7 @@ struct ScoreLoadingSpinner: View {
 struct BatteryRow: View {
     let battery: BatteryRecord?
     let loading: Bool
+    var stale = false
     let theme: AppTheme
 
     private var batteryStatus: String {
@@ -154,9 +227,12 @@ struct BatteryRow: View {
                     .foregroundStyle(theme.primaryContent)
                 Text(chargingStatus)
                     .foregroundStyle(theme.primaryContent.opacity(0.68))
-                if let sampleAge {
+                if stale {
+                    Text("Not updated")
+                        .foregroundStyle(theme.alert)
+                } else if let sampleAge {
                     Text(sampleAge)
-                        .foregroundStyle(theme.primaryContent.opacity(0.5))
+                        .foregroundStyle(theme.secondaryContent)
                 }
             }
         }

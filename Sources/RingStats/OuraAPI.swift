@@ -102,7 +102,7 @@ actor OuraAPI: SnapshotFetching {
                         let baseDetail = ScoreBand.label(for: value)
                         readings[metric] = MetricReading(
                             value: String(value),
-                            detail: Self.freshnessDetail(baseDetail, sourceDay: record.day, now: now),
+                            detail: baseDetail,
                             score: value,
                             sourceDay: record.day
                         )
@@ -121,11 +121,7 @@ actor OuraAPI: SnapshotFetching {
                         let minutes = value.stressHigh.map { max(0, ($0 + 30) / 60) }
                         readings[.stress] = MetricReading(
                             value: minutes.map { "\($0)m" } ?? "—",
-                            detail: Self.freshnessDetail(
-                                value.daySummary?.capitalized ?? "High stress",
-                                sourceDay: value.day,
-                                now: now
-                            ),
+                            detail: value.daySummary?.capitalized ?? "High stress",
                             score: nil,
                             sourceDay: value.day
                         )
@@ -134,7 +130,7 @@ actor OuraAPI: SnapshotFetching {
                     if let value, let level = value.level {
                         readings[.resilience] = MetricReading(
                             value: level.capitalized,
-                            detail: Self.freshnessDetail("Long-term", sourceDay: value.day, now: now),
+                            detail: "Long-term",
                             score: nil,
                             sourceDay: value.day
                         )
@@ -187,7 +183,7 @@ actor OuraAPI: SnapshotFetching {
         case .some(.insufficientScope):
             MetricReading(
                 value: "—",
-                detail: "Permission required",
+                detail: "Needs access",
                 score: nil,
                 availability: .permissionRequired
             )
@@ -230,9 +226,6 @@ actor OuraAPI: SnapshotFetching {
             ?? errors.first
     }
 
-    private static func freshnessDetail(_ detail: String, sourceDay: String, now: Date) -> String {
-        sourceDay == QueryDates.dayString(for: now) ? detail : "\(detail) · \(sourceDay)"
-    }
 
     private static func fetchScore(
         _ metric: Metric,

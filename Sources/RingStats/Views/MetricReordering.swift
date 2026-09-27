@@ -1,7 +1,14 @@
 import SwiftUI
 
+struct MetricStripOverflow: Equatable {
+    let leading: Bool
+    let trailing: Bool
+}
+
 enum MetricStripLayout {
     static let coordinateSpaceName = "metric-strip"
+    static let viewportSpaceName = "metric-strip-viewport"
+    static let edgeFadeWidth: CGFloat = 28
     static let itemWidth: CGFloat = 92
     static let spacing: CGFloat = 16
     static let reorderHysteresis: CGFloat = 4
@@ -10,6 +17,22 @@ enum MetricStripLayout {
 
     static func centerX(at index: Int) -> CGFloat {
         itemWidth / 2 + CGFloat(index) * stride
+    }
+
+    /// Which edges have stats scrolled past them. A one-point tolerance keeps
+    /// rounding from flickering a fade on or off.
+    static func overflow(
+        contentWidth: CGFloat,
+        viewportWidth: CGFloat,
+        contentMinX: CGFloat
+    ) -> MetricStripOverflow {
+        guard contentWidth > 0, viewportWidth > 0 else {
+            return MetricStripOverflow(leading: false, trailing: false)
+        }
+        return MetricStripOverflow(
+            leading: contentMinX < -1,
+            trailing: contentMinX + contentWidth > viewportWidth + 1
+        )
     }
 
     static func contains(_ point: CGPoint, in size: CGSize) -> Bool {

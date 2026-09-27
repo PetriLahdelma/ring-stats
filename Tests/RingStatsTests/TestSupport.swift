@@ -37,23 +37,28 @@ final class LockedClock: @unchecked Sendable {
 
 actor SnapshotStub: SnapshotFetching {
     private var results: [Result<HealthSnapshot, RingStatsError>]
-    private let holdsFirstCall: Bool
+    private let heldCall: Int?
     private(set) var requestedMetrics: [Set<Metric>] = []
-    /// Opens when the first call arrives. Only meaningful with `holdsFirstCall`.
+    /// Opens when the held call arrives.
     nonisolated let started = Gate()
-    /// Lets a held first call continue. Cancelling the caller also ends the hold.
+    /// Lets the held call continue. Cancelling the caller also ends the hold.
     nonisolated let release = Gate()
 
-    init(results: [Result<HealthSnapshot, RingStatsError>], holdsFirstCall: Bool = false) {
+    /// - Parameter heldCall: The 1-based call number to hold open until `release`.
+    init(
+        results: [Result<HealthSnapshot, RingStatsError>],
+        holdsFirstCall: Bool = false,
+        heldCall: Int? = nil
+    ) {
         self.results = results
-        self.holdsFirstCall = holdsFirstCall
+        self.heldCall = heldCall ?? (holdsFirstCall ? 1 : nil)
     }
 
     var callCount: Int { requestedMetrics.count }
 
     func fetchSnapshot(metrics: Set<Metric>, now: Date) async throws -> HealthSnapshot {
         requestedMetrics.append(metrics)
-        if holdsFirstCall, requestedMetrics.count == 1 {
+        if requestedMetrics.count == heldCall {
             started.open()
             await release.wait()
             try Task.checkCancellation()

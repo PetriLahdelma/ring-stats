@@ -364,18 +364,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let view = ConnectionSettingsView(onConnected: { [weak self] in
             self?.connectionWindowController?.close()
+            self?.showPopoverAfterConnecting()
         })
         .environmentObject(model)
         let controller = makeWindow(
             title: "Oura Connection",
-            width: 460,
-            minimumHeight: 260,
-            maximumHeight: 560,
+            width: ConnectionSettingsView.windowWidth,
+            minimumHeight: ConnectionSettingsView.windowHeight,
+            maximumHeight: ConnectionSettingsView.windowHeight,
             content: view
         )
         connectionWindowController = controller
         controller.showWindow(self)
         controller.window?.makeKeyAndOrderFront(self)
+    }
+
+    /// Opens the popover under the status item so a new connection ends on
+    /// the user's first populated glance rather than a closed window.
+    private func showPopoverAfterConnecting() {
+        guard let button = statusItem?.button, popoverPanel?.isVisible == false else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.togglePopover(relativeTo: button)
+        }
     }
 
     private func showAppearanceWindow() {
@@ -449,15 +459,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         updatePopoverArrowPosition()
     }
 
-    func windowDidMove(_ notification: Notification) {
-        guard notification.object as? NSWindow === popoverPanel else { return }
-        updatePopoverArrowPosition()
-    }
-
     func windowDidEndLiveResize(_ notification: Notification) {
         guard let panel = notification.object as? NSWindow,
               panel === popoverPanel else { return }
         UserDefaults.standard.set(panel.contentLayoutRect.width, forKey: PopoverLayout.widthDefaultsKey)
+        // Text can wrap differently at the new width; refit so nothing clips.
+        resizeVisiblePopoverToFit()
+        updatePopoverArrowPosition()
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard notification.object as? NSWindow === popoverPanel else { return }
         updatePopoverArrowPosition()
     }
 }
