@@ -29,6 +29,7 @@ struct ConnectionSettingsView: View {
 
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.textScale) private var textScale
     let onConnected: () -> Void
     @State private var step: ConnectionStep?
     @State private var clientID = ""
@@ -65,9 +66,10 @@ struct ConnectionSettingsView: View {
             }
         }
         .padding(24)
+        .scaledFont(.body)
         .frame(
-            width: Self.windowWidth,
-            height: Self.windowHeight,
+            width: (Self.windowWidth * textScale).rounded(),
+            height: (Self.windowHeight * textScale).rounded(),
             alignment: .topLeading
         )
         .background(Palette.canvasWarm)
@@ -125,7 +127,7 @@ struct ConnectionSettingsView: View {
     private var createApplicationStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Create your Oura application")
-                .font(.title2.weight(.semibold))
+                .scaledFont(.title)
             Text("Oura gives personal API access through a developer application that you own. Ring Stats has no server of its own, so it connects with your application instead of a shared one.")
                 .fixedSize(horizontal: false, vertical: true)
             Text("It takes about two minutes and needs no special settings beyond the callback in the next step.")
@@ -143,12 +145,12 @@ struct ConnectionSettingsView: View {
     private var registerCallbackStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Add the callback URL")
-                .font(.title2.weight(.semibold))
+                .scaledFont(.title)
             Text("In your application’s settings, add this exact redirect URI. Oura returns you to Ring Stats through it after you approve access.")
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 Text(OAuthClient.callbackURL)
-                    .font(.system(.body, design: .monospaced))
+                    .scaledFont(.body, design: .monospaced)
                     .textSelection(.enabled)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 10)
@@ -161,7 +163,7 @@ struct ConnectionSettingsView: View {
                 .accessibilityLabel(callbackCopied ? "Callback URL copied" : "Copy callback URL")
             }
             Text("It uses 127.0.0.1 rather than localhost so the callback can only reach this Mac’s IPv4 loopback address.")
-                .font(.caption)
+                .scaledFont(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -172,7 +174,7 @@ struct ConnectionSettingsView: View {
     private var enterCredentialsStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Enter your credentials")
-                .font(.title2.weight(.semibold))
+                .scaledFont(.title)
             Text("Copy the Client ID and Client Secret from the same application.")
                 .fixedSize(horizontal: false, vertical: true)
             TextField("Client ID", text: $clientID)
@@ -187,18 +189,18 @@ struct ConnectionSettingsView: View {
             } icon: {
                 Image(systemName: "lock.fill")
             }
-            .font(.caption)
+            .scaledFont(.caption)
             .foregroundStyle(.secondary)
             if model.state == .authorizing {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text("Waiting for you to approve access in your browser…")
-                        .font(.callout)
+                        .scaledFont(.callout)
                 }
                 .accessibilityElement(children: .combine)
             } else if let error = model.errorMessage {
                 Text(error)
-                    .font(.caption)
+                    .scaledFont(.caption)
                     .foregroundStyle(Palette.alertText)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -234,15 +236,15 @@ struct ConnectionSettingsView: View {
     private var connectedStep: some View {
         VStack(alignment: .leading, spacing: 14) {
             Image(systemName: "checkmark.shield.fill")
-                .font(.system(size: 34, weight: .regular))
+                .scaledFont(size: 34, weight: .regular)
                 .foregroundStyle(Palette.signalBlue)
                 .accessibilityHidden(true)
             Text("Connected securely")
-                .font(.title2.weight(.semibold))
+                .scaledFont(.title)
             Text("Ring Stats can now read the stats you chose. Your credentials and tokens stay in this Mac’s Keychain, and health data stays in memory only.")
                 .fixedSize(horizontal: false, vertical: true)
             Text("Change permissions or disconnect at any time from Connection in the Ring Stats menu.")
-                .font(.caption)
+                .scaledFont(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -289,15 +291,15 @@ struct ConnectionSettingsView: View {
     private var management: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Oura Connection")
-                .font(.title2.weight(.semibold))
+                .scaledFont(.title)
             Label(
                 model.connected ? "Oura account connected" : "Oura authorization required",
                 systemImage: model.connected ? "checkmark.circle" : "exclamationmark.circle"
             )
-            .font(.callout.weight(.medium))
+            .scaledFont(.callout, weight: .medium)
             if let error = model.errorMessage {
                 Text(error)
-                    .font(.caption)
+                    .scaledFont(.caption)
                     .foregroundStyle(Palette.alertText)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
@@ -312,7 +314,7 @@ struct ConnectionSettingsView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Disconnecting revokes the current token and deletes the saved client credentials from this Mac.")
-                    .font(.caption)
+                    .scaledFont(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Disconnect & Delete Local Data", role: .destructive) {
@@ -339,7 +341,7 @@ private struct StepIndicator: View {
                 }
             }
             Text("Step \(current) of \(total)")
-                .font(.caption.weight(.medium))
+                .scaledFont(.caption, weight: .medium)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .ignore)

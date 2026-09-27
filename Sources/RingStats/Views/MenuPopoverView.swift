@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+struct BatterySyncPresentation: Equatable {
+    /// Shown in the footer only when the reading is old enough to matter.
+    let label: String?
+    /// Always available as a tooltip and to VoiceOver.
+    let description: String
+}
+
 /// What the top-right status shows. `label` stays populated while hidden so
 /// the text can fade out instead of vanishing, and `accessibility` is always
 /// available to VoiceOver even when nothing is drawn.
@@ -91,22 +98,33 @@ enum PopoverTimestampText {
         }
     }
 
-    static func batterySample(timestamp: String, now: Date) -> String? {
+    /// How old a battery reading must be before its age is shown. Oura only
+    /// receives a new reading when the ring syncs through the Oura phone app,
+    /// and a ring loses roughly 0.5 to 1% an hour, so a reading under two
+    /// hours old is effectively current.
+    static let batterySyncAgeVisibleAfter: TimeInterval = 2 * 3_600
+
+    /// Describes when Oura last received a battery reading from the ring.
+    static func batterySync(timestamp: String, now: Date) -> BatterySyncPresentation? {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let observedAt = fractional.date(from: timestamp)
+        guard let syncedAt = fractional.date(from: timestamp)
             ?? ISO8601DateFormatter().date(from: timestamp) else { return nil }
-        let age = max(0, now.timeIntervalSince(observedAt))
+        let age = max(0, now.timeIntervalSince(syncedAt))
         let value = age < 3_600
             ? "\(max(1, Int(age / 60)))m ago"
             : "\(Int(age / 3_600))h ago"
-        return "Sampled \(value)"
+        return BatterySyncPresentation(
+            label: age >= batterySyncAgeVisibleAfter ? "Synced \(value)" : nil,
+            description: "Ring last synced \(value)"
+        )
     }
 }
 
 struct MenuPopoverView: View {
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.textScale) private var textScale
     let refresh: () -> Void
     let showConnection: () -> Void
     let showAppearance: () -> Void
@@ -125,6 +143,8 @@ struct MenuPopoverView: View {
     private var theme: AppTheme {
         AppTheme.resolve(selectedThemeRaw)
     }
+
+    private var stripLayout: MetricStripLayout { MetricStripLayout(scale: textScale) }
 
     private var metricConfiguration: MetricConfiguration {
         MetricConfiguration.decode(metricConfigurationRaw)
@@ -182,7 +202,8 @@ struct MenuPopoverView: View {
         if reorderSession == nil {
             reorderSession = MetricReorderSession(
                 source: metric,
-                configuration: metricConfiguration
+                configuration: metricConfiguration,
+                layout: stripLayout
             )
         }
         guard var updated = reorderSession, updated.source == metric else { return }
@@ -298,8 +319,8 @@ struct MenuPopoverView: View {
     private var customizeButton: some View {
         Button(action: showAppearance) {
             Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 14, weight: .medium))
-                .frame(width: 28, height: 28)
+                .scaledFont(size: 14, weight: .medium)
+                .frame(width: (28 * textScale).rounded(), height: (28 * textScale).rounded())
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -339,8 +360,8 @@ struct MenuPopoverView: View {
             .keyboardShortcut("q")
         } label: {
             Image(systemName: "line.3.horizontal")
-                .font(.system(size: 16, weight: .medium))
-                .frame(width: 28, height: 28)
+                .scaledFont(size: 16, weight: .medium)
+                .frame(width: (28 * textScale).rounded(), height: (28 * textScale).rounded())
                 .contentShape(Rectangle())
         }
         // A plain-styled button menu draws its label with SwiftUI, so it takes
@@ -358,7 +379,7 @@ struct MenuPopoverView: View {
         VStack(spacing: 20) {
             if model.connected || model.snapshot.hasData {
                 ScrollView(.horizontal) {
-                    HStack(alignment: .top, spacing: MetricStripLayout.spacing) {
+                    HStack(alignment: .top, spacing: stripLayout.spacing) {
                         ForEach(displayedMetrics) { metric in
                             let reading = model.snapshot.readings[metric]
                             let isDragging = reorderSession?.source == metric
@@ -425,7 +446,7 @@ struct MenuPopoverView: View {
                             model.loading ? "Opening Oura…" : permissionActionTitle,
                             systemImage: "exclamationmark.circle"
                         )
-                        .font(.system(size: 12, weight: .semibold))
+                        .scaledFont(size: 12, weight: .semibold)
                     }
                     .buttonStyle(.bordered)
                     .tint(theme.action)
@@ -434,7 +455,7 @@ struct MenuPopoverView: View {
                 }
                 if let error = model.errorMessage {
                     Text(error)
-                        .font(.caption)
+                        .scaledFont(.caption)
                         .foregroundStyle(theme.secondaryContent)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
@@ -456,7 +477,7 @@ struct MenuPopoverView: View {
                 VStack(spacing: 10) {
                     RingStatsLogoView(size: 30, color: theme.action)
                     Text("Connect Oura to see today’s scores")
-                        .font(.system(size: 14, weight: .medium))
+                        .scaledFont(size: 14, weight: .medium)
                     if theme == .landscape {
                         Button("Connect", action: showConnection)
                             .buttonStyle(.bordered)
@@ -506,6 +527,7 @@ struct MenuPopoverView: View {
 /// stay truthful while the popover is open.
 struct RefreshStatusView: View {
     @EnvironmentObject private var model: AppViewModel
+    @Environment(\.textScale) private var textScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.popoverIsPresented) private var isPresented
     let theme: AppTheme
@@ -522,10 +544,10 @@ struct RefreshStatusView: View {
                 ZStack(alignment: .trailing) {
                     HStack(spacing: 5) {
                         if status.showsSpinner {
-                            ScoreLoadingSpinner(theme: theme, diameter: 9, lineWidth: 1.5)
+                            ScoreLoadingSpinner(theme: theme, diameter: (9 * textScale).rounded(), lineWidth: 1.5)
                         }
                         Text(status.label)
-                            .font(.system(size: 10))
+                            .scaledFont(size: 10)
                             .lineLimit(1)
                             .truncationMode(.tail)
                     }

@@ -48,7 +48,9 @@ struct RingStatsApp: App {
 
     var body: some Scene {
         Settings {
-            ConnectionSettingsView().environmentObject(appDelegate.model)
+            ConnectionSettingsView()
+                .environmentObject(appDelegate.model)
+                .followsTextSizePreference()
         }
     }
 }
@@ -67,9 +69,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var appearanceWindowController: NSWindowController?
     private var aboutWindowController: NSWindowController?
     private var diagnosticsWindowController: NSWindowController?
+    private var lastAppliedTextSize = UserDefaults.standard.string(forKey: TextSizePreference.storageKey) ?? ""
+    private var defaultsObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        defaultsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refitWindowsForTextSize() }
+        }
         configurePopover()
         configureStatusItem()
         Task { [weak self] in
@@ -346,20 +357,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return true
     }
 
-    private func makeWindow<Content: View>(
-        title: String,
-        width: CGFloat,
-        minimumHeight: CGFloat,
-        maximumHeight: CGFloat,
-        content: Content
-    ) -> NSWindowController {
-        let hostingController = NSHostingController(rootView: content)
-        let fittingSize = hostingController.sizeThatFits(
-            in: NSSize(width: width, height: CGFloat.greatestFiniteMagnitude)
-        )
-        let contentHeight = max(minimumHeight, min(fittingSize.height, maximumHeight))
+    /// Every window root sets its own frame from the Text Size preference, so
+    /// the window simply fits its content.
+    private func makeWindow<Content: View>(title: String, content: Content) -> NSWindowController {
+        let hostingController = NSHostingController(rootView: content.followsTextSizePreference())
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: width, height: contentHeight),
+            contentRect: NSRect(origin: .zero, size: hostingController.view.fittingSize),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -369,6 +372,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.center()
         return NSWindowController(window: window)
+    }
+
+    /// Resizes open windows after the Text Size preference changes, keeping
+    /// each window's top edge in place.
+    private func refitWindowsForTextSize() {
+        let stored = UserDefaults.standard.string(forKey: TextSizePreference.storageKey) ?? ""
+        guard stored != lastAppliedTextSize else { return }
+        lastAppliedTextSize = stored
+        let controllers = [
+            connectionWindowController,
+            appearanceWindowController,
+            aboutWindowController,
+            diagnosticsWindowController,
+        ]
+        for window in controllers.compactMap({ $0?.window }) {
+            guard let content = window.contentViewController?.view else { continue }
+            content.layoutSubtreeIfNeeded()
+            let size = content.fittingSize
+            let top = window.frame.maxY
+            window.setContentSize(size)
+            window.setFrameOrigin(NSPoint(x: window.frame.minX, y: top - window.frame.height))
+        }
+        if popoverPanel?.isVisible == true {
+            resizeVisiblePopoverToFit()
+        }
     }
 
     private func showConnectionWindow() {
@@ -382,9 +410,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         .environmentObject(model)
         let controller = makeWindow(
             title: "Oura Connection",
-            width: ConnectionSettingsView.windowWidth,
-            minimumHeight: ConnectionSettingsView.windowHeight,
-            maximumHeight: ConnectionSettingsView.windowHeight,
             content: view
         )
         connectionWindowController = controller
@@ -407,9 +432,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let controller = makeWindow(
             title: "Ring Stats Appearance",
-            width: 500,
-            minimumHeight: 620,
-            maximumHeight: 620,
             content: AppearanceSettingsView()
         )
         appearanceWindowController = controller
@@ -423,9 +445,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let controller = makeWindow(
             title: "About Ring Stats",
-            width: 420,
-            minimumHeight: 260,
-            maximumHeight: 420,
             content: AboutCreditsView()
         )
         aboutWindowController = controller
@@ -457,9 +476,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let controller = makeWindow(
             title: "Ring Stats Diagnostics",
-            width: 560,
-            minimumHeight: 520,
-            maximumHeight: 520,
             content: DiagnosticsView().environmentObject(model)
         )
         diagnosticsWindowController = controller

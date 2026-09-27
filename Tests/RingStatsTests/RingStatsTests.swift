@@ -32,11 +32,19 @@ import Testing
     #expect(envelope.data.first?.inCharger == true)
 }
 
-@Test func batterySampleAgeIsSeparateFromRefreshTime() {
-    let now = Date(timeIntervalSince1970: 10_000)
-    let sampledAt = ISO8601DateFormatter().string(from: now.addingTimeInterval(-3_900))
-    #expect(PopoverTimestampText.batterySample(timestamp: sampledAt, now: now) == "Sampled 1h ago")
-    #expect(PopoverTimestampText.batterySample(timestamp: "invalid", now: now) == nil)
+@Test func batterySyncAgeAppearsOnlyOnceItMatters() {
+    let now = Date(timeIntervalSince1970: 100_000)
+    func sync(hoursAgo: Double) -> BatterySyncPresentation? {
+        let syncedAt = ISO8601DateFormatter().string(from: now.addingTimeInterval(-hoursAgo * 3_600))
+        return PopoverTimestampText.batterySync(timestamp: syncedAt, now: now)
+    }
+    // Recent: nothing drawn, but the age stays available.
+    #expect(sync(hoursAgo: 1.1)?.label == nil)
+    #expect(sync(hoursAgo: 1.1)?.description == "Ring last synced 1h ago")
+    // Old enough that level or charging may have changed.
+    #expect(sync(hoursAgo: 2)?.label == "Synced 2h ago")
+    #expect(sync(hoursAgo: 5.5)?.label == "Synced 5h ago")
+    #expect(PopoverTimestampText.batterySync(timestamp: "invalid", now: now) == nil)
 }
 
 @Test func refreshStatusShowsSpinnerWhileRefreshing() throws {
@@ -470,10 +478,13 @@ import Testing
     #expect(AppTheme.allCases.map(\.title) == ["Ring Stats", "Landscape"])
 }
 
-@Test @MainActor func everyTileDetailFitsTheTileWithoutTruncation() {
+@Test(arguments: TextSizePreference.allCases)
+@MainActor func everyTileDetailFitsTheTileWithoutTruncation(textSize: TextSizePreference) {
     // The detail line is limited to one line, so anything wider than the tile
-    // is silently cut off. Measure every string the app can put there.
-    let font = NSFont.systemFont(ofSize: MetricTileAnatomy.detailFontSize)
+    // is silently cut off. Measure every string the app can put there, at
+    // every text size.
+    let anatomy = MetricTileAnatomy(scale: textSize.scale)
+    let font = NSFont.systemFont(ofSize: anatomy.detailFontSize)
     let now = Date(timeIntervalSince1970: 1_790_467_200)
     var details: [String] = [60, 70, 85, 40].map { ScoreBand.label(for: $0) }
     details += ["Updating…", "No data", "Not updated", "Long-term", "High stress"]
@@ -496,7 +507,7 @@ import Testing
     }
     for detail in details {
         let width = (detail as NSString).size(withAttributes: [.font: font]).width
-        #expect(width <= MetricTileAnatomy.width, "\"\(detail)\" is \(width) pt wide")
+        #expect(width <= anatomy.width, "\"\(detail)\" is \(width) pt wide at \(textSize)")
     }
 }
 

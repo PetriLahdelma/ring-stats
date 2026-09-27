@@ -5,18 +5,31 @@ struct MetricStripOverflow: Equatable {
     let trailing: Bool
 }
 
-enum MetricStripLayout {
+/// Horizontal geometry of the metric strip at a given text scale. The static
+/// members describe the standard scale.
+struct MetricStripLayout: Equatable, Sendable {
     static let coordinateSpaceName = "metric-strip"
     static let viewportSpaceName = "metric-strip-viewport"
     static let edgeFadeWidth: CGFloat = 28
-    static let itemWidth: CGFloat = 92
-    static let spacing: CGFloat = 16
     static let reorderHysteresis: CGFloat = 4
+    static let standard = MetricStripLayout(scale: 1)
 
-    static var stride: CGFloat { itemWidth + spacing }
+    let scale: CGFloat
+
+    var itemWidth: CGFloat { (92 * scale).rounded() }
+    var spacing: CGFloat { (16 * scale).rounded() }
+    var stride: CGFloat { itemWidth + spacing }
+
+    func centerX(at index: Int) -> CGFloat {
+        itemWidth / 2 + CGFloat(index) * stride
+    }
+
+    static var itemWidth: CGFloat { standard.itemWidth }
+    static var spacing: CGFloat { standard.spacing }
+    static var stride: CGFloat { standard.stride }
 
     static func centerX(at index: Int) -> CGFloat {
-        itemWidth / 2 + CGFloat(index) * stride
+        standard.centerX(at: index)
     }
 
     /// Which edges have stats scrolled past them. A one-point tolerance keeps
@@ -57,11 +70,13 @@ struct MetricReorderResolution: Equatable {
 struct MetricReorderSession: Equatable {
     let source: Metric
     let original: MetricConfiguration
+    let layout: MetricStripLayout
     private let originalSourceIndex: Int
     private(set) var provisional: MetricConfiguration
 
-    init(source: Metric, configuration: MetricConfiguration) {
+    init(source: Metric, configuration: MetricConfiguration, layout: MetricStripLayout = .standard) {
         self.source = source
+        self.layout = layout
         self.original = configuration.normalized
         self.provisional = configuration.normalized
         self.originalSourceIndex = configuration.normalized.visibleMetrics.firstIndex(of: source) ?? 0
@@ -76,7 +91,7 @@ struct MetricReorderSession: Equatable {
             let visibleMetrics = provisional.visibleMetrics
             if sourceIndex > 0 {
                 let leftIndex = sourceIndex - 1
-                let leftThreshold = MetricStripLayout.centerX(at: leftIndex)
+                let leftThreshold = layout.centerX(at: leftIndex)
                     - MetricStripLayout.reorderHysteresis
                 if draggedCenterX < leftThreshold {
                     provisional = provisional.moving(
@@ -91,7 +106,7 @@ struct MetricReorderSession: Equatable {
 
             if sourceIndex < visibleMetrics.count - 1 {
                 let rightIndex = sourceIndex + 1
-                let rightThreshold = MetricStripLayout.centerX(at: rightIndex)
+                let rightThreshold = layout.centerX(at: rightIndex)
                     + MetricStripLayout.reorderHysteresis
                 if draggedCenterX > rightThreshold {
                     provisional = provisional.moving(
@@ -110,7 +125,7 @@ struct MetricReorderSession: Equatable {
     }
 
     func draggedCenterX(translationX: CGFloat) -> CGFloat {
-        MetricStripLayout.centerX(at: originalSourceIndex) + translationX
+        layout.centerX(at: originalSourceIndex) + translationX
     }
 
     func offsetX(for metric: Metric, sourceTranslationX: CGFloat) -> CGFloat {
@@ -119,14 +134,14 @@ struct MetricReorderSession: Equatable {
               let provisionalIndex = provisional.visibleMetrics.firstIndex(of: metric) else {
             return 0
         }
-        return CGFloat(provisionalIndex - originalIndex) * MetricStripLayout.stride
+        return CGFloat(provisionalIndex - originalIndex) * layout.stride
     }
 
     var releaseTargetOffsetX: CGFloat {
         guard let provisionalIndex = provisional.visibleMetrics.firstIndex(of: source) else {
             return 0
         }
-        return CGFloat(provisionalIndex - originalSourceIndex) * MetricStripLayout.stride
+        return CGFloat(provisionalIndex - originalSourceIndex) * layout.stride
     }
 
     func resolution(isValidRelease: Bool) -> MetricReorderResolution {

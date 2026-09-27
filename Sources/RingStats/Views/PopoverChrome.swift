@@ -129,6 +129,7 @@ struct MenuPopoverShell<Content: View>: View {
             content
         }
         .environment(\.popoverIsPresented, geometry.isPresented)
+        .followsTextSizePreference()
         .frame(minWidth: 420, maxWidth: .infinity)
         // Clip only the background. Clipping the whole popover to this custom
         // shape masks the content layer, which renders multi-layer SF Symbols

@@ -38,6 +38,67 @@ struct StateGalleryTests {
         try gallery.writeIndex()
     }
 
+    @Test func everyTextSizeRendersWithinBounds() async throws {
+        let gallery = try GalleryWriter(subdirectory: "text-size")
+        for textSize in TextSizePreference.allCases {
+            for state in [GalleryState.connected, .partialFailure, .resilienceAndLowBattery] {
+                for theme in AppTheme.allCases {
+                    for width in [PopoverLayout.minimumWidth, PopoverLayout.maximumWidth] {
+                        let render = try await GalleryFixture(state: state, theme: theme, textSize: textSize)
+                            .renderPopover(width: width)
+                        try gallery.add(render, name: "\(textSize.rawValue)-\(state.rawValue)-\(theme.rawValue)-\(Int(width))")
+                        #expect(render.size.width == width)
+                        #expect(render.size.height <= 800, "\(textSize) \(state) exceeds the panel limit")
+                    }
+                }
+            }
+        }
+        try gallery.writeIndex()
+    }
+
+    @Test func largerTextMakesThePopoverTaller() async throws {
+        var heights: [CGFloat] = []
+        for textSize in TextSizePreference.allCases {
+            let render = try await GalleryFixture(state: .connected, theme: .ringStats, textSize: textSize)
+                .renderPopover(width: PopoverLayout.defaultWidth)
+            heights.append(render.size.height)
+        }
+        #expect(heights == heights.sorted() && Set(heights).count == heights.count, "\(heights)")
+    }
+
+    /// Renders every window at Extra Large for review. Fixed-height roots pin
+    /// their own height, so overflow is checked by eye in the gallery rather
+    /// than by measurement.
+    @Test func windowsRenderAtExtraLargeText() async throws {
+        let gallery = try GalleryWriter(subdirectory: "windows")
+        let model = AppViewModel(
+            auth: AuthStub(configured: false, connected: false),
+            api: SnapshotStub(results: []),
+            checkConnectionOnInit: false
+        )
+        await model.updateConnectionState()
+        let scale = TextSizePreference.extraLarge.scale
+        let windows: [(String, AnyView, CGFloat?)] = [
+            ("appearance", AnyView(AppearanceSettingsView()), AppearanceSettingsView.baseSize.height),
+            ("about", AnyView(AboutCreditsView()), nil),
+            ("diagnostics", AnyView(DiagnosticsView().environmentObject(model)), DiagnosticsView.baseSize.height),
+        ] + ConnectionStep.allCases.map { step in
+            ("connection-\(step.rawValue)",
+             AnyView(ConnectionSettingsView(initialStep: step).environmentObject(model)),
+             ConnectionSettingsView.windowHeight)
+        }
+        for (name, view, fixedHeight) in windows {
+            let scaled = view.environment(\.textScale, scale)
+            let hosting = NSHostingView(rootView: scaled)
+            let fitted = hosting.fittingSize
+            let render = try GalleryRender(view: scaled, width: fitted.width)
+            try gallery.add(render, name: "extra-large-\(name)")
+            #expect(render.hasVisibleContent, "\(name) rendered blank")
+            _ = fixedHeight
+        }
+        try gallery.writeIndex()
+    }
+
     @Test func themesKeepTheSameLayoutForEveryState() async throws {
         // Semantic parity: Landscape may change color and imagery, but not
         // which lines exist. Equal heights mean neither theme drops a row.
@@ -53,13 +114,18 @@ struct StateGalleryTests {
     @Test func popoverHeightDoesNotDependOnWidth() async throws {
         // The panel resizes horizontally only; its height must not change
         // when the user drags it wider or narrower.
-        for state in GalleryState.allCases {
-            var heights: [CGFloat] = []
-            for width in Self.widths {
-                let fixture = try await GalleryFixture(state: state, theme: .ringStats)
-                heights.append(try fixture.renderPopover(width: width).size.height)
+        // At every text size, so wrapped text at a narrow width is caught.
+        // The failed state is excluded: its error sentence may wrap by design
+        // to stay readable, and the panel refits its height after a resize.
+        for textSize in TextSizePreference.allCases {
+            for state in GalleryState.allCases where state != .failed {
+                var heights: [CGFloat] = []
+                for width in Self.widths {
+                    let fixture = try await GalleryFixture(state: state, theme: .landscape, textSize: textSize)
+                    heights.append(try fixture.renderPopover(width: width).size.height)
+                }
+                #expect(Set(heights).count == 1, "\(textSize) \(state): \(heights)")
             }
-            #expect(Set(heights).count == 1, "\(state): \(heights)")
         }
     }
 
@@ -119,12 +185,13 @@ struct GalleryFixture {
     /// Ends any operation the fixture holds open.
     private(set) var release: @Sendable () -> Void = {}
 
-    init(state: GalleryState, theme: AppTheme) async throws {
+    init(state: GalleryState, theme: AppTheme, textSize: TextSizePreference = .standard) async throws {
         Self.loadLandscapePhoto()
         self.theme = theme
         let suite = "ring-stats-gallery-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.set(theme.rawValue, forKey: AppTheme.storageKey)
+        defaults.set(textSize.rawValue, forKey: TextSizePreference.storageKey)
         var configuration = MetricConfiguration.default
         if state == .resilienceAndLowBattery {
             configuration.hidden = []
@@ -251,7 +318,8 @@ struct GalleryFixture {
                 level: lowBattery ? 12 : 76,
                 charging: false,
                 inCharger: false,
-                timestamp: formatter.string(from: date.addingTimeInterval(-900))
+                // The low-battery state also shows an old ring sync.
+                timestamp: formatter.string(from: date.addingTimeInterval(lowBattery ? -5 * 3_600 : -900))
             ),
             fetchedAt: date,
             coveredMetrics: metrics

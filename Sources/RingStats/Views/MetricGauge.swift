@@ -8,22 +8,32 @@ import SwiftUI
 ///    reference line, whatever its own size, so mixed sizes still line up.
 /// 3. Title line, `labelTopSpacing` below the visual zone.
 /// 4. Detail line: score band, source day, sample age, or failure state.
-enum MetricTileAnatomy {
-    static let width = MetricStripLayout.itemWidth
-    static let visualSize: CGFloat = 84
-    static let scoreStrokeWidth: CGFloat = 8
-    static let iconFontSize: CGFloat = 18
-    static let iconValueSpacing: CGFloat = 3
-    static let valueFontSize: CGFloat = 28
-    static let compactValueFontSize: CGFloat = 18
-    static let labelTopSpacing: CGFloat = 12
-    static let titleDetailSpacing: CGFloat = 2
-    static let titleFontSize: CGFloat = 12
-    static let detailFontSize: CGFloat = 11
+struct MetricTileAnatomy: Equatable, Sendable {
+    static let standard = MetricTileAnatomy(scale: 1)
 
-    static func valueFontSize(for metric: Metric) -> CGFloat {
+    let scale: CGFloat
+
+    private func scaled(_ value: CGFloat) -> CGFloat { (value * scale).rounded() }
+
+    var width: CGFloat { MetricStripLayout(scale: scale).itemWidth }
+    var visualSize: CGFloat { scaled(84) }
+    var scoreStrokeWidth: CGFloat { scaled(8) }
+    var iconFontSize: CGFloat { scaled(18) }
+    var iconValueSpacing: CGFloat { scaled(3) }
+    var valueFontSize: CGFloat { scaled(28) }
+    var compactValueFontSize: CGFloat { scaled(18) }
+    var labelTopSpacing: CGFloat { scaled(12) }
+    var titleDetailSpacing: CGFloat { scaled(2) }
+    var titleFontSize: CGFloat { scaled(12) }
+    var detailFontSize: CGFloat { scaled(11) }
+
+    func valueFontSize(for metric: Metric) -> CGFloat {
         metric == .resilience ? compactValueFontSize : valueFontSize
     }
+
+    static var width: CGFloat { standard.width }
+    static var detailFontSize: CGFloat { standard.detailFontSize }
+    static var valueFontSize: CGFloat { standard.valueFontSize }
 }
 
 struct MetricGauge: View {
@@ -31,6 +41,9 @@ struct MetricGauge: View {
     let reading: MetricReading?
     let pending: Bool
     let theme: AppTheme
+    @Environment(\.textScale) private var textScale
+
+    private var anatomy: MetricTileAnatomy { MetricTileAnatomy(scale: textScale) }
 
     private var fraction: Double {
         Double(max(0, min(reading?.score ?? 0, 100))) / 100
@@ -107,12 +120,12 @@ struct MetricGauge: View {
     private var baselineAlignedValue: some View {
         ZStack(alignment: Alignment(horizontal: .center, vertical: .lastTextBaseline)) {
             Text("0")
-                .font(.system(size: MetricTileAnatomy.valueFontSize, weight: .medium, design: .rounded))
+                .font(.system(size: anatomy.valueFontSize, weight: .medium, design: .rounded))
                 .hidden()
             Text(displayValue)
                 .font(
                     .system(
-                        size: MetricTileAnatomy.valueFontSize(for: metric),
+                        size: anatomy.valueFontSize(for: metric),
                         weight: .medium,
                         design: .rounded
                     )
@@ -125,23 +138,23 @@ struct MetricGauge: View {
         VStack(spacing: 0) {
             ZStack {
                 if pending {
-                    ScoreLoadingSpinner(theme: theme)
+                    ScoreLoadingSpinner(theme: theme, diameter: (18 * textScale).rounded())
                 } else if theme == .landscape || !metric.isDailyScore {
-                    VStack(spacing: MetricTileAnatomy.iconValueSpacing) {
+                    VStack(spacing: anatomy.iconValueSpacing) {
                         Image(systemName: metric.symbolName)
-                            .font(.system(size: MetricTileAnatomy.iconFontSize, weight: .regular))
+                            .font(.system(size: anatomy.iconFontSize, weight: .regular))
                         baselineAlignedValue
                     }
                     .foregroundStyle(theme.primaryContent)
                 } else {
                     if reading?.score != nil {
                         Circle()
-                            .inset(by: MetricTileAnatomy.scoreStrokeWidth / 2)
+                            .inset(by: anatomy.scoreStrokeWidth / 2)
                             .trim(from: 0, to: fraction)
                             .stroke(
                                 theme.score,
                                 style: StrokeStyle(
-                                    lineWidth: MetricTileAnatomy.scoreStrokeWidth,
+                                    lineWidth: anatomy.scoreStrokeWidth,
                                     lineCap: .round
                                 )
                             )
@@ -152,20 +165,20 @@ struct MetricGauge: View {
                 }
             }
             .opacity(isStale ? 0.62 : 1)
-            .frame(width: MetricTileAnatomy.visualSize, height: MetricTileAnatomy.visualSize)
+            .frame(width: anatomy.visualSize, height: anatomy.visualSize)
             .accessibilityHidden(true)
-            VStack(spacing: MetricTileAnatomy.titleDetailSpacing) {
+            VStack(spacing: anatomy.titleDetailSpacing) {
                 Text(metric.title)
-                    .font(.system(size: MetricTileAnatomy.titleFontSize, weight: .semibold))
+                    .font(.system(size: anatomy.titleFontSize, weight: .semibold))
                 Text(Self.detailText(reading: reading, pending: pending, now: Date()))
-                    .font(.system(size: MetricTileAnatomy.detailFontSize))
+                    .font(.system(size: anatomy.detailFontSize))
                     .foregroundStyle(isStale ? theme.alert : theme.secondaryContent)
                     .lineLimit(1)
                     .contentTransition(.opacity)
             }
-            .padding(.top, MetricTileAnatomy.labelTopSpacing)
+            .padding(.top, anatomy.labelTopSpacing)
         }
-        .frame(width: MetricTileAnatomy.width)
+        .frame(width: anatomy.width)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.accessibilityLabel(metric: metric, reading: reading, pending: pending))
     }
@@ -216,9 +229,42 @@ struct BatteryRow: View {
         return battery.charging == true || battery.inCharger == true ? "Charging" : "Not charging"
     }
 
-    private var sampleAge: String? {
+    private var sync: BatterySyncPresentation? {
         guard let timestamp = battery?.timestamp else { return nil }
-        return PopoverTimestampText.batterySample(timestamp: timestamp, now: Date())
+        return PopoverTimestampText.batterySync(timestamp: timestamp, now: Date())
+    }
+
+    private var accessibilityDescription: String {
+        var parts = [batteryStatus, chargingStatus]
+        if stale {
+            parts.append("Not updated")
+        } else if let sync {
+            parts.append(sync.description)
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private func statusLine(showsCharging: Bool, showsTrailing: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text(batteryStatus)
+                .monospacedDigit()
+                .foregroundStyle(theme.primaryContent)
+            if showsCharging {
+                Text(chargingStatus)
+                    .foregroundStyle(theme.primaryContent.opacity(0.68))
+            }
+            if showsTrailing {
+                if stale {
+                    Text("Not updated")
+                        .foregroundStyle(theme.alert)
+                } else if let label = sync?.label {
+                    Text(label)
+                        .foregroundStyle(theme.secondaryContent)
+                }
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
     }
 
     var body: some View {
@@ -228,23 +274,18 @@ struct BatteryRow: View {
                 charging: battery?.charging == true || battery?.inCharger == true,
                 theme: theme
             )
-            HStack(spacing: 8) {
-                Text(batteryStatus)
-                    .monospacedDigit()
-                    .foregroundStyle(theme.primaryContent)
-                Text(chargingStatus)
-                    .foregroundStyle(theme.primaryContent.opacity(0.68))
-                if stale {
-                    Text("Not updated")
-                        .foregroundStyle(theme.alert)
-                } else if let sampleAge {
-                    Text(sampleAge)
-                        .foregroundStyle(theme.secondaryContent)
-                }
+            // Never wrap: drop the least important text when space is tight.
+            // VoiceOver still hears everything through the label below.
+            ViewThatFits(in: .horizontal) {
+                statusLine(showsCharging: true, showsTrailing: true)
+                statusLine(showsCharging: true, showsTrailing: false)
+                statusLine(showsCharging: false, showsTrailing: false)
             }
         }
-        .font(.system(size: 12, weight: .medium))
-        .accessibilityElement(children: .combine)
+        .scaledFont(size: 12, weight: .medium)
+        .help(sync?.description ?? "")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityDescription)
     }
 }
 
@@ -252,6 +293,7 @@ struct BatteryStatusIcon: View {
     let level: Int?
     let charging: Bool
     let theme: AppTheme
+    @Environment(\.textScale) private var textScale
 
     private var symbolName: String {
         guard let level else { return "battery.0" }
@@ -273,13 +315,13 @@ struct BatteryStatusIcon: View {
     var body: some View {
         ZStack {
             Image(systemName: symbolName)
-                .font(.system(size: 17, weight: .medium))
+                .scaledFont(size: 17, weight: .medium)
             if charging {
                 Image(systemName: "bolt.fill")
-                    .font(.system(size: 7, weight: .bold))
+                    .scaledFont(size: 7, weight: .bold)
             }
         }
-        .frame(width: 22, height: 20)
+        .frame(width: (22 * textScale).rounded(), height: (20 * textScale).rounded())
         .foregroundStyle(tint)
         .accessibilityHidden(true)
     }

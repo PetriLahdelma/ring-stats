@@ -8,17 +8,20 @@ struct DiagnosticsView: View {
     @EnvironmentObject private var model: AppViewModel
     @State private var report = ""
     @State private var copied = false
+    @Environment(\.textScale) private var textScale
+
+    static let baseSize = CGSize(width: 560, height: 520)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Diagnostics")
-                .font(.title2.weight(.semibold))
+                .scaledFont(.title)
             Text("Review this report before sharing it. It lists app state and recent events, and never includes health values, credentials, tokens, or account identifiers.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             ScrollView {
                 Text(report)
-                    .font(.system(.caption, design: .monospaced))
+                    .scaledFont(.caption, design: .monospaced)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
@@ -41,7 +44,12 @@ struct DiagnosticsView: View {
             }
         }
         .padding(24)
-        .frame(width: 560, height: 520, alignment: .topLeading)
+        .scaledFont(.body)
+        .frame(
+            width: (Self.baseSize.width * textScale).rounded(),
+            height: (Self.baseSize.height * textScale).rounded(),
+            alignment: .topLeading
+        )
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
         .preferredColorScheme(.light)

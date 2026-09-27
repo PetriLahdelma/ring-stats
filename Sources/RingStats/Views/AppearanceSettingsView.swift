@@ -3,6 +3,10 @@ import SwiftUI
 struct AppearanceSettingsView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var rawConfiguration = MetricConfiguration.default.encoded
+    @AppStorage(TextSizePreference.storageKey) private var textSizeRaw = TextSizePreference.standard.rawValue
+    @Environment(\.textScale) private var textScale
+
+    static let baseSize = CGSize(width: 500, height: 690)
     @State private var configuration: MetricConfiguration
     @FocusState private var focusedReorderMetric: Metric?
 
@@ -47,16 +51,16 @@ struct AppearanceSettingsView: View {
         } label: {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 16, weight: .medium))
+                    .scaledFont(size: 16, weight: .medium)
                     .foregroundStyle(selected ? Palette.signalBlue : Palette.ink.opacity(0.36))
                     .frame(width: 20, height: 20)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(theme.title)
-                        .font(.system(size: 14, weight: .medium))
+                        .scaledFont(size: 14, weight: .medium)
                         .foregroundStyle(Palette.ink)
                     Text(theme.summary)
-                        .font(.caption)
+                        .scaledFont(.caption)
                         .foregroundStyle(Palette.ink.opacity(0.62))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -76,12 +80,12 @@ struct AppearanceSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Appearance")
-                .font(.title2.weight(.semibold))
+                .scaledFont(.title)
             Text("Choose the popover theme, visible stats, and their order.")
                 .foregroundStyle(.secondary)
 
             Text("Theme")
-                .font(.headline)
+                .scaledFont(.headline)
                 .padding(.top, 6)
 
             VStack(spacing: 0) {
@@ -98,6 +102,23 @@ struct AppearanceSettingsView: View {
                     .stroke(Palette.separator, lineWidth: 1)
             }
 
+            HStack(alignment: .firstTextBaseline) {
+                Text("Text size")
+                    .scaledFont(.headline)
+                Spacer()
+                Picker("Text size", selection: $textSizeRaw) {
+                    ForEach(TextSizePreference.allCases) { size in
+                        Text(size.title).tag(size.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityLabel("Text size")
+                .accessibilityHint("Scales the text and stats in the popover and every Ring Stats window")
+            }
+            .padding(.top, 4)
+
             Divider()
                 .overlay(Palette.separator)
                 .padding(.vertical, 6)
@@ -105,9 +126,9 @@ struct AppearanceSettingsView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Stats")
-                        .font(.headline)
+                        .scaledFont(.headline)
                     Text("Show or hide stats, and drag rows to reorder them.")
-                        .font(.caption)
+                        .scaledFont(.caption)
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -122,6 +143,7 @@ struct AppearanceSettingsView: View {
                     HStack(spacing: 10) {
                         Toggle(isOn: visibilityBinding(for: metric)) {
                             Label(metric.title, systemImage: metric.symbolName)
+                                .scaledFont(.body)
                         }
                         .toggleStyle(.checkbox)
                         .disabled(
@@ -131,7 +153,7 @@ struct AppearanceSettingsView: View {
 
                         Spacer()
                         Image(systemName: "line.3.horizontal")
-                            .font(.system(size: 12, weight: .medium))
+                            .scaledFont(size: 12, weight: .medium)
                             .foregroundStyle(.secondary.opacity(0.55))
                             .frame(width: 24, height: 24)
                             .contentShape(Rectangle())
@@ -167,15 +189,20 @@ struct AppearanceSettingsView: View {
                     apply(configuration.moving(fromOffsets: offsets, toOffset: destination))
                 }
             }
-            .frame(height: 260)
+            .frame(height: (260 * textScale).rounded())
             .scrollContentBackground(.hidden)
 
             Text("At least one stat must remain visible. Drag any row to reorder all stats, including hidden ones; visible stats can also be dragged in the popover.")
-                .font(.caption)
+                .scaledFont(.caption)
                 .foregroundStyle(.secondary)
         }
         .padding(24)
-        .frame(width: 500, height: 620, alignment: .topLeading)
+        .scaledFont(.body)
+        .frame(
+            width: (Self.baseSize.width * textScale).rounded(),
+            height: (Self.baseSize.height * textScale).rounded(),
+            alignment: .topLeading
+        )
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
         .preferredColorScheme(.light)
