@@ -1,5 +1,37 @@
 import SwiftUI
 
+enum StripDirection: Sendable {
+    case left
+    case right
+}
+
+/// Keyboard movement through the visible stats. Pure so it can be tested.
+enum MetricStripNavigation {
+    /// The tile focus should move to, or nil at either end.
+    static func neighbor(
+        of metric: Metric,
+        in visible: [Metric],
+        direction: StripDirection
+    ) -> Metric? {
+        guard let index = visible.firstIndex(of: metric) else { return visible.first }
+        let target = direction == .left ? index - 1 : index + 1
+        return visible.indices.contains(target) ? visible[target] : nil
+    }
+
+    /// Moves a visible stat one place past its visible neighbor, or returns
+    /// nil when it is already at that end.
+    static func moving(
+        _ metric: Metric,
+        _ direction: StripDirection,
+        in configuration: MetricConfiguration
+    ) -> MetricConfiguration? {
+        let visible = configuration.visibleMetrics
+        guard let neighbor = neighbor(of: metric, in: visible, direction: direction),
+              visible.contains(metric) else { return nil }
+        return configuration.moving(metric, relativeTo: neighbor, after: direction == .right)
+    }
+}
+
 struct MetricStripOverflow: Equatable {
     let leading: Bool
     let trailing: Bool

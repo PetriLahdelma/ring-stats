@@ -559,3 +559,23 @@ import Testing
         #expect(ratio >= 4.5, "\(name) is \(ratio):1")
     }
 }
+
+@Test func arrowKeysMoveFocusAcrossVisibleStatsOnly() {
+    let visible: [Metric] = [.readiness, .sleep, .heartRate]
+    #expect(MetricStripNavigation.neighbor(of: .sleep, in: visible, direction: .right) == .heartRate)
+    #expect(MetricStripNavigation.neighbor(of: .sleep, in: visible, direction: .left) == .readiness)
+    #expect(MetricStripNavigation.neighbor(of: .readiness, in: visible, direction: .left) == nil)
+    #expect(MetricStripNavigation.neighbor(of: .heartRate, in: visible, direction: .right) == nil)
+}
+
+@Test func optionArrowMovesAStatPastItsVisibleNeighbor() throws {
+    // Activity is hidden, so moving Sleep right must pass Heart Rate, not Activity.
+    let configuration = MetricConfiguration(
+        order: [.readiness, .sleep, .activity, .heartRate, .stress, .resilience],
+        hidden: [.activity, .resilience]
+    )
+    let moved = try #require(MetricStripNavigation.moving(.sleep, .right, in: configuration))
+    #expect(moved.visibleMetrics == [.readiness, .heartRate, .sleep, .stress])
+    #expect(MetricStripNavigation.moving(.readiness, .left, in: configuration) == nil)
+    #expect(MetricStripNavigation.moving(.stress, .right, in: configuration) == nil)
+}

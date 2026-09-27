@@ -139,6 +139,7 @@ struct MenuPopoverView: View {
     @State private var stripContentMinX: CGFloat = 0
     @State private var settlingSourceOffsetX: CGFloat?
     @State private var settlementID: UUID?
+    @FocusState private var focusedMetric: Metric?
 
     private var theme: AppTheme {
         AppTheme.resolve(selectedThemeRaw)
@@ -180,6 +181,38 @@ struct MenuPopoverView: View {
 
     static func metricIsPending(reading: MetricReading?, loading: Bool) -> Bool {
         reading == nil && loading
+    }
+
+    /// Handles arrow keys on a focused tile: arrows move focus, Option-arrows
+    /// move the stat itself.
+    private func handleArrow(_ press: KeyPress, on metric: Metric) -> KeyPress.Result {
+        let direction: StripDirection = press.key == .leftArrow ? .left : .right
+        if press.modifiers.contains(.option) {
+            moveMetric(metric, direction)
+        } else if let next = MetricStripNavigation.neighbor(
+            of: metric,
+            in: metricConfiguration.visibleMetrics,
+            direction: direction
+        ) {
+            focusedMetric = next
+        }
+        return .handled
+    }
+
+    private func moveMetric(_ metric: Metric, _ direction: StripDirection) {
+        guard let updated = MetricStripNavigation.moving(metric, direction, in: metricConfiguration) else {
+            AccessibilityNotification.Announcement(
+                "\(metric.title) is already \(direction == .left ? "first" : "last")"
+            ).post()
+            return
+        }
+        withAnimation(reorderAnimation) {
+            metricConfigurationRaw = updated.encoded
+        }
+        focusedMetric = metric
+        if let index = updated.visibleMetrics.firstIndex(of: metric) {
+            AccessibilityNotification.Announcement("\(metric.title) moved to position \(index + 1)").post()
+        }
     }
 
     private func commitReordering(_ completed: MetricReorderSession) {
@@ -378,6 +411,7 @@ struct MenuPopoverView: View {
     var body: some View {
         VStack(spacing: 20) {
             if model.connected || model.snapshot.hasData {
+                ScrollViewReader { scroller in
                 ScrollView(.horizontal) {
                     HStack(alignment: .top, spacing: stripLayout.spacing) {
                         ForEach(displayedMetrics) { metric in
@@ -414,7 +448,19 @@ struct MenuPopoverView: View {
                                         )
                                     }
                             )
-                            .accessibilityHint("Drag to reorder. The same order appears in Appearance.")
+                            .id(metric)
+                            .focusable()
+                            .focused($focusedMetric, equals: metric)
+                            .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in
+                                handleArrow(press, on: metric)
+                            }
+                            .accessibilityHint(
+                                "Drag, or press Option with the Left or Right Arrow key, to reorder. The same order appears in Appearance."
+                            )
+                            .accessibilityActions {
+                                Button("Move Left") { moveMetric(metric, .left) }
+                                Button("Move Right") { moveMetric(metric, .right) }
+                            }
                         }
                     }
                     .coordinateSpace(name: MetricStripLayout.coordinateSpaceName)
@@ -437,6 +483,13 @@ struct MenuPopoverView: View {
                     stripViewportWidth = width
                 }
                 .mask { overflowMask }
+                .onChange(of: focusedMetric) { _, metric in
+                    guard let metric else { return }
+                    withAnimation(reorderAnimation) {
+                        scroller.scrollTo(metric)
+                    }
+                }
+                }
                 .accessibilityHint(overflowEdges.trailing ? "More stats are available by scrolling" : "")
                 if hasMissingPermissions {
                     Button {
