@@ -111,6 +111,7 @@ struct MenuPopoverView: View {
     let showConnection: () -> Void
     let showAppearance: () -> Void
     let showAbout: () -> Void
+    var showDiagnostics: () -> Void = {}
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var metricConfigurationRaw = MetricConfiguration.default.encoded
     @State private var reorderSession: MetricReorderSession?
@@ -312,6 +313,9 @@ struct MenuPopoverView: View {
             Button(action: showAbout) {
                 Label("About & Credits", systemImage: "info.circle")
             }
+            Button(action: showDiagnostics) {
+                Label("Diagnostics…", systemImage: "stethoscope")
+            }
             Divider()
             Button(action: refresh) {
                 Label(model.loading ? "Refreshing…" : "Refresh Now", systemImage: "arrow.clockwise")
@@ -340,7 +344,7 @@ struct MenuPopoverView: View {
         .fixedSize()
         .foregroundStyle(theme.action)
         .accessibilityLabel("Ring Stats menu")
-        .accessibilityHint("Contains appearance, About and Credits, reauthorization, and quit actions")
+        .accessibilityHint("Contains appearance, connection, About and Credits, diagnostics, refresh, reauthorization, and quit actions")
     }
 
     var body: some View {

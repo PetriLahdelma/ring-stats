@@ -360,6 +360,7 @@ actor OuraAPI: SnapshotFetching {
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let endpoint = OuraEndpoint(path: url.path)
         let data: Data
         let response: URLResponse
         do {
@@ -367,14 +368,18 @@ actor OuraAPI: SnapshotFetching {
         } catch let error as URLError where error.code == .cancelled {
             throw CancellationError()
         } catch let error as URLError where error.code == .timedOut {
+            DiagnosticsLog.shared.record(.endpointUnreachable(endpoint: endpoint, error: .timedOut))
             throw RingStatsError.timedOut
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            throw RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
+            let failure = RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
+            DiagnosticsLog.shared.record(.endpointUnreachable(endpoint: endpoint, error: failure))
+            throw failure
         }
         guard let http = response as? HTTPURLResponse else {
             throw RingStatsError.invalidResponse
         }
+        DiagnosticsLog.shared.record(.endpointResponse(endpoint: endpoint, status: http.statusCode))
         guard (200..<300).contains(http.statusCode) else {
             switch http.statusCode {
             case 401:

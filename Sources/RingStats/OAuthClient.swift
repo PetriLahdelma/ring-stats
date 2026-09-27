@@ -182,8 +182,12 @@ actor OAuthClient: OAuthServicing {
                 updatedAuthorization.token = current
                 try persistAuthorization(updatedAuthorization)
                 refreshTask = nil
+                DiagnosticsLog.shared.record(.tokenRefreshed)
             } catch {
                 refreshTask = nil
+                DiagnosticsLog.shared.record(
+                    .tokenRefreshFailed((error as? RingStatsError) ?? .transport(""))
+                )
                 if error as? RingStatsError == .authenticationRequired {
                     var updatedAuthorization = authorization
                     updatedAuthorization.token = nil

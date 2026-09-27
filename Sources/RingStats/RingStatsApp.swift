@@ -66,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var connectionWindowController: NSWindowController?
     private var appearanceWindowController: NSWindowController?
     private var aboutWindowController: NSWindowController?
+    private var diagnosticsWindowController: NSWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -90,7 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 refresh: { [weak self] in self?.refreshPopover(force: true) },
                 showConnection: { [weak self] in self?.showConnectionWindow() },
                 showAppearance: { [weak self] in self?.showAppearanceWindow() },
-                showAbout: { [weak self] in self?.showAboutWindow() }
+                showAbout: { [weak self] in self?.showAboutWindow() },
+                showDiagnostics: { [weak self] in self?.showDiagnosticsWindow() }
             )
             .environmentObject(model)
         }
@@ -287,6 +289,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         aboutItem.target = self
         menu.addItem(aboutItem)
 
+        let diagnosticsItem = NSMenuItem(
+            title: "Diagnostics…",
+            action: #selector(openDiagnosticsFromMenu(_:)),
+            keyEquivalent: ""
+        )
+        diagnosticsItem.target = self
+        menu.addItem(diagnosticsItem)
+
         menu.addItem(.separator())
 
         let refreshItem = NSMenuItem(
@@ -430,6 +440,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.showConnectionWindow()
         }
+    }
+
+    @objc private func openDiagnosticsFromMenu(_ sender: NSMenuItem) {
+        DispatchQueue.main.async { [weak self] in
+            self?.showDiagnosticsWindow()
+        }
+    }
+
+    private func showDiagnosticsWindow() {
+        prepareForWindowPresentation()
+        if presentExistingWindow(diagnosticsWindowController) { return }
+
+        let controller = makeWindow(
+            title: "Ring Stats Diagnostics",
+            width: 560,
+            minimumHeight: 520,
+            maximumHeight: 520,
+            content: DiagnosticsView().environmentObject(model)
+        )
+        diagnosticsWindowController = controller
+        controller.showWindow(self)
+        controller.window?.makeKeyAndOrderFront(self)
     }
 
     @objc private func openAboutFromMenu(_ sender: NSMenuItem) {

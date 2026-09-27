@@ -119,6 +119,7 @@ actor CallbackServer {
                 from: request,
                 expectedState: expectedState
             ) else {
+                DiagnosticsLog.shared.record(.callbackRejected)
                 sendResponse(
                     status: "400 Bad Request",
                     body: "Invalid callback request.",
@@ -126,6 +127,7 @@ actor CallbackServer {
                 )
                 return
             }
+            DiagnosticsLog.shared.record(.callbackAccepted)
             sendResponse(
                 status: "200 OK",
                 body: "Connected. You can close this window.",

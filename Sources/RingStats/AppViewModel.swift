@@ -149,6 +149,7 @@ final class AppViewModel: ObservableObject {
         }
 
         state = .refreshing
+        DiagnosticsLog.shared.record(.refreshStarted(metrics: metrics, forced: policy == .force))
         do {
             let refreshedSnapshot = try await api.fetchSnapshot(metrics: metrics, now: now())
             guard operationIsCurrent(generation) else { return }
@@ -158,6 +159,7 @@ final class AppViewModel: ObservableObject {
             guard operationIsCurrent(generation) else { return }
             errorMessage = error.localizedDescription
             lastRefreshOutcome = .failed(at: now())
+            DiagnosticsLog.shared.record(.refreshFailed(error))
             state = .authorizationExpired
         } catch {
             // Keep the last successful snapshot visible. Freshness and the error
@@ -165,6 +167,7 @@ final class AppViewModel: ObservableObject {
             guard operationIsCurrent(generation) else { return }
             errorMessage = error.localizedDescription
             lastRefreshOutcome = .failed(at: now())
+            DiagnosticsLog.shared.record(.refreshFailed(Self.classified(error)))
             let configured = await auth.isConfigured
             guard operationIsCurrent(generation) else { return }
             let connected = await auth.isConnected
@@ -243,6 +246,7 @@ final class AppViewModel: ObservableObject {
             guard operationIsCurrent(generation) else { return }
             try Task.checkCancellation()
             let scopes = OuraScope.required(for: metrics)
+            DiagnosticsLog.shared.record(.authorizationStarted(scopes: scopes))
             if let authorizationHandler {
                 try await authorizationHandler(scopes)
             } else {
@@ -250,6 +254,7 @@ final class AppViewModel: ObservableObject {
             }
             guard operationIsCurrent(generation) else { return }
             try Task.checkCancellation()
+            DiagnosticsLog.shared.record(.authorizationSucceeded)
             let refreshedSnapshot = try await api.fetchSnapshot(metrics: metrics, now: now())
             guard operationIsCurrent(generation) else { return }
             apply(refreshedSnapshot)
@@ -257,11 +262,13 @@ final class AppViewModel: ObservableObject {
         } catch {
             guard operationIsCurrent(generation) else { return }
             if error is CancellationError {
+                DiagnosticsLog.shared.record(.authorizationCancelled)
                 errorMessage = nil
                 await updateConnectionState()
                 return
             }
             errorMessage = error.localizedDescription
+            DiagnosticsLog.shared.record(.authorizationFailed(Self.classified(error)))
             let configured = await auth.isConfigured
             let connected = await auth.isConnected
             state = connected
@@ -277,9 +284,19 @@ final class AppViewModel: ObservableObject {
         let merged = refreshed.merging(previous: snapshot)
         snapshot = merged
         errorMessage = nil
-        lastRefreshOutcome = merged.hasTransientFailures
-            ? .partial(at: merged.fetchedAt)
-            : .succeeded(at: merged.fetchedAt)
+        if merged.hasTransientFailures {
+            lastRefreshOutcome = .partial(at: merged.fetchedAt)
+            DiagnosticsLog.shared.record(
+                .refreshPartial(failed: merged.failedMetrics, batteryFailed: merged.batteryFailed)
+            )
+        } else {
+            lastRefreshOutcome = .succeeded(at: merged.fetchedAt)
+            DiagnosticsLog.shared.record(.refreshSucceeded(metrics: merged.coveredMetrics))
+        }
+    }
+
+    private static func classified(_ error: any Error) -> RingStatsError {
+        (error as? RingStatsError) ?? .transport("")
     }
 
     func disconnect() async {
@@ -306,6 +323,7 @@ final class AppViewModel: ObservableObject {
             try await auth.disconnect()
             errorMessage = nil
             state = .unconfigured
+            DiagnosticsLog.shared.record(.disconnected)
         } catch {
             errorMessage = error.localizedDescription
             let configured = await auth.isConfigured
