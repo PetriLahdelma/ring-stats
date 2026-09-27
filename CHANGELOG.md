@@ -5,7 +5,36 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Fixed
+
+- A stat that fails to refresh keeps its last known value, dimmed and marked
+  "Not updated", instead of turning into "Unavailable" while the refresh
+  reports success. Failed stats are retried the next time the popover opens.
+- The battery gauge rendered white in the default theme; it is signal blue
+  again, and the options menu now uses the theme color.
+- "Updated now" no longer freezes while the popover stays open.
+- Tile details no longer truncate: earlier-day values read "From yesterday",
+  and missing permission reads "Needs access".
+- Small failure text and the battery sample age now meet 4.5:1 contrast.
+
 ### Changed
+
+- The status line shows a spinner and "Refreshing…" while fetching, confirms
+  "Updated just now" for three seconds and then fades, and stays visible when
+  data is old or a refresh failed or was partial.
+- Landscape keeps score labels, so both themes show the same information.
+- Customize moved from the metric strip to the footer, and the strip fades at
+  edges where more stats continue.
+- Connection is now a three-step guided setup that ends on "Connected
+  securely" and opens the popover.
+- Release tags must be signed, and releases publish a provenance archive.
+
+### Added
+
+- Diagnostics: privacy-safe events in the macOS unified log and a report you
+  can review, copy, or save. It never contains health values or secrets.
+- State gallery renders of every popover state, theme, and width.
+- THREAT_MODEL.md, ACCESSIBILITY.md, and a usability study protocol.
 
 - Local candidate installation now preserves the prior app at a printed Trash
   recovery path, restores it after injected install failures, and never

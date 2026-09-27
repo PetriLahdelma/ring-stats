@@ -301,4 +301,35 @@ if [[ -f "$PROJECT_DIR/dist/candidate-manifest.json" ]]; then
   [[ -z "$(/usr/bin/find "$PROJECT_DIR/dist/candidates" -maxdepth 1 \( -name ".candidate-$concurrent_hash.*" -o -name ".archive-$concurrent_hash.lock" \) -print -quit)" ]] || fail "concurrent emitters left staging or lock entries"
 fi
 
+# Release tags must be exact, annotated, on the release branch, and signed.
+tag_repo="$TEST_ROOT/tag-repo"
+/bin/mkdir -p "$tag_repo"
+/usr/bin/git -C "$tag_repo" init -q -b main
+/usr/bin/git -C "$tag_repo" config user.name "Release Test"
+/usr/bin/git -C "$tag_repo" config user.email "release-test@example.invalid"
+/usr/bin/git -C "$tag_repo" config commit.gpgsign false
+/usr/bin/git -C "$tag_repo" config tag.gpgsign false
+/usr/bin/git -C "$tag_repo" commit -q --allow-empty -m "release candidate"
+verify_tag() { "$PROJECT_DIR/scripts/verify_release_tag.sh" "$tag_repo" 9.9 main; }
+
+/usr/bin/git -C "$tag_repo" tag v9.9
+expect_failure verify_tag
+/usr/bin/git -C "$tag_repo" tag -d v9.9 >/dev/null
+/usr/bin/git -C "$tag_repo" tag -a v9.9 -m "unsigned"
+expect_failure verify_tag
+[[ "$(ALLOW_UNSIGNED_TAG=1 verify_tag 2>/dev/null)" == "v9.9" ]] || fail "documented unsigned override was rejected"
+/usr/bin/git -C "$tag_repo" tag -d v9.9 >/dev/null
+
+/usr/bin/ssh-keygen -q -t ed25519 -N "" -C release-test -f "$TEST_ROOT/release-key"
+printf 'release-test@example.invalid %s\n' "$(/bin/cat "$TEST_ROOT/release-key.pub")" > "$TEST_ROOT/allowed-signers"
+/usr/bin/git -C "$tag_repo" config gpg.format ssh
+/usr/bin/git -C "$tag_repo" config user.signingkey "$TEST_ROOT/release-key"
+/usr/bin/git -C "$tag_repo" config gpg.ssh.allowedSignersFile "$TEST_ROOT/allowed-signers"
+/usr/bin/git -C "$tag_repo" tag -s v9.9 -m "signed"
+[[ "$(verify_tag)" == "v9.9" ]] || fail "a valid signed tag was rejected"
+expect_failure "$PROJECT_DIR/scripts/verify_release_tag.sh" "$tag_repo" 9.8 main
+/usr/bin/git -C "$tag_repo" commit -q --allow-empty -m "later commit"
+/usr/bin/git -C "$tag_repo" checkout -q v9.9
+expect_failure verify_tag
+
 echo "Delivery safety tests passed"

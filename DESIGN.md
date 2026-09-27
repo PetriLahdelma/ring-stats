@@ -8,6 +8,7 @@ colors:
   white: "#FFFFFF"
   canvas-warm: "#F4F1EC"
   alert: "#E05C4E"
+  alert-text: "#B23A2E"
 typography:
   metric:
     fontFamily: ".AppleSystemUIFontRounded, -apple-system, sans-serif"
@@ -70,7 +71,8 @@ Use dark ink and white as the functional base, with signal blue and a warm separ
 - **Separator** (`#DAD3CA`): the footer divider and quiet boundaries.
 
 ### Secondary
-- **Alert** (`#E05C4E`): unavailable, stale, or low-battery exceptions only.
+- **Alert** (`#E05C4E`): low-battery and unavailable icons only (3.21:1 on canvas, enough for graphics).
+- **Alert Text** (`#B23A2E`): "Not updated" and failure text (5.27:1 on canvas). Landscape uses `#FFD4CC`, which keeps 4.5:1 over the brightest part of the photograph. See [ACCESSIBILITY.md](ACCESSIBILITY.md).
 
 ### Neutral
 - **Ink** (`#181B1F`): primary text and menu-bar template artwork.
@@ -91,9 +93,17 @@ Use tabular numerals for values. Sentence case only.
 
 ## Layout
 
-The popover defaults to 680pt wide and can be resized horizontally from 420pt to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt shortcut items with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, Stress, and Customize; Resilience is available through customization. Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery and options row. Global refresh freshness sits quietly at the top trailing edge inside the existing top inset.
+The popover defaults to 680pt wide and can be resized horizontally from 420pt to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt metric tiles with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, and Stress; Resilience is available through customization. Customize is a footer button, not a tile, so it never competes with health data. When tiles continue past an edge, that edge fades over 28pt, and VoiceOver hears "More stats are available by scrolling". Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery and options row. The refresh status sits at the top trailing edge inside the existing top inset:
 
-The popover never resizes vertically: its fixed-height menu-bar composition expands only along the horizontal axis. Connection, Appearance, and About & Credits appear in separate compact windows.
+- While fetching: a small spinner and "Refreshing…".
+- After a successful refresh: "Updated just now" for three seconds, then it fades out so the strip stays quiet.
+- When data is older than the five-minute refresh window: "Updated 12m ago", visible.
+- After a partial refresh: "Some stats not updated" in Alert Text, visible.
+- After a failed refresh: "Update failed · 1h ago" in Alert Text, visible.
+
+The status is always available to VoiceOver, including while faded out, and it re-evaluates every second.
+
+Users resize the popover horizontally only. Its height follows its content and is refitted after a resize or refresh, so wrapped text never clips. Connection, Appearance, and About & Credits appear in separate compact windows.
 
 ## Elevation & Depth
 
@@ -108,7 +118,7 @@ Use native macOS popover/window elevation. The Ring Stats theme adds no custom s
 ### Landscape
 - An original bundled Nordic landscape photograph spans the entire popover width and height.
 - A dark vertical veil protects contrast without obscuring the terrain.
-- Score charts are removed; each metric uses a white native icon and number with the metric name beneath. Detail text remains visible for loading, permission-required, unavailable, or stale/older values so presentation never hides status.
+- Score charts are replaced by a white native icon and number, with the metric name and the same detail line as the default theme beneath. Landscape changes presentation only: every label, band, and state that appears in Ring Stats appears here too.
 - Numbers, labels, battery artwork, dividers, and actions use white with controlled opacity hierarchy.
 - The photo contains no embedded UI, text, logos, people, or product imagery.
 - Settings stays on the stable Ring Stats surface so theme selection remains predictable and legible.
@@ -119,11 +129,20 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 
 ## Components
 
+### Metric Tile Anatomy
+Every tile has the same zones in the same order (`MetricTileAnatomy` in code), so themes and metrics vary content, never layout:
+
+1. **Visual zone**, `84pt` square: score ring, or icon above value.
+2. **Value baseline**: every value sits on the baseline of a 28pt reference line, including Resilience's 18pt level, so mixed sizes align without per-metric offsets.
+3. **Title**, 12pt semibold, `12pt` below the visual zone.
+4. **Detail**, 11pt, one line: score band, source day ("From yesterday"), sample age ("bpm · 7m ago"), or state ("Not updated", "Needs access", "No data yet", "Unavailable"). Every possible detail fits the 92pt tile; a test measures them.
+
 ### Score Donut
 - `84pt` square with only an `8pt` Signal Blue trimmed arc; the unfilled remainder and center stay transparent over Canvas Warm.
 - Score centered in 28pt rounded system type with tabular numerals.
 - Metric and qualitative label below the ring.
-- Missing state uses no arc, an em dash, and an explicit “No data” caption.
+- Missing state uses no arc, an em dash, and an explicit caption.
+- A stale value dims to 62% and its detail reads "Not updated" in Alert Text.
 
 ### Extended Metrics
 - Heart Rate shows the latest Oura sample as BPM and never presents it as a 0–100 score.
@@ -132,7 +151,7 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 - Non-score metrics use icon-and-value presentation rather than a fabricated progress donut.
 
 ### Stat Customization
-- The final shortcut opens Appearance at the shared stats configuration.
+- The footer Customize button (`slider.horizontal.3`) opens Appearance at the shared stats configuration.
 - Every available metric can be shown or hidden; at least one remains visible.
 - Ordering persists and can be changed by native row dragging in Appearance or direct dragging in the popover; nonvisual Move Up/Down accessibility actions remain available.
 - Drag reordering is a contained move interaction: the active metric tracks the
@@ -145,7 +164,8 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 ### Battery Row
 - A native macOS battery symbol followed by percentage and charging state.
 - Battery record age is prefixed with “Sampled” to distinguish Oura’s sample timestamp from app refresh freshness.
-- “Battery 92%” and “Not charging” are separate text elements with no middle dot; the primary battery text uses full emphasis and charging state uses 50% opacity.
+- “Battery 92%” and “Not charging” are separate text elements with no middle dot; the primary battery text uses full emphasis, charging state 68% ink, and sample age 62% ink (both at least 4.5:1).
+- When the battery request fails, the last reading stays and the sample age is replaced by “Not updated” in Alert Text.
 - In Landscape, the battery glyph and primary battery text are pure white.
 - In the Ring Stats theme, Alert is permitted on the battery icon only below 20% or when the reading is unavailable; text follows the theme’s foreground hierarchy.
 
@@ -162,19 +182,26 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 - Contains nothing related to credits or OAuth.
 
 ### Connection
-- Opens independently from the disconnected Connect action and from both menu surfaces in every configured state.
-- Owns OAuth application credentials, callback URL guidance, connection errors, and reauthorization status.
-- Shows the exact numeric callback URL with a Copy action and owns **Disconnect & Delete Local Data**.
+- Opens independently from the disconnected Connect action and from both menu surfaces in every configured state, at a fixed 460×440pt.
+- First-run setup is three steps with a step indicator: create the Oura application (with why it is needed), add the callback URL (Copy confirms visibly and to VoiceOver), and enter credentials (with “Stored only in this Mac’s Keychain”). While the browser flow runs, the window says so and offers Cancel.
+- A new connection ends on “Connected securely”; **Show My Stats** closes the window and opens the popover.
+- Once configured, Connection shows status, Reauthorize Permissions, and **Disconnect & Delete Local Data**.
+
+### Diagnostics
+- A fixed 560×520pt window reachable from both menus.
+- Explains that the report contains no health values, credentials, tokens, or identifiers, shows it in full as selectable monospaced text, and offers Refresh Report, Copy, and Save….
 
 ### Popover Options Menu
 - The visible control is the `line.3.horizontal` SF Symbol without an additional disclosure indicator.
-- Menu items are Appearance, Connection, About & Credits, a divider, Refresh Now, Reauthorize Permissions, another divider, and Quit Ring Stats.
+- Menu items are Appearance, Connection, About & Credits, Diagnostics…, a divider, Refresh Now, Reauthorize Permissions, another divider, and Quit Ring Stats.
+- The glyph uses the theme action color, matching the Customize button beside it.
 - Reauthorize Permissions is disabled when stored credentials are unavailable or authorization is already running.
 
 ### Menu-Bar Context Menu
 - An AppKit-owned status item dispatches clicks explicitly: left-click opens the SwiftUI popover; right-click or Control-click opens a native menu.
 - The status item uses the original 17pt Ring Stats split-ring template asset.
 - Connection remains available in every state. Refresh Now requires a connected account; Reauthorize Permissions requires stored developer credentials. Both are disabled while the app is already loading.
+- Diagnostics… sits with Appearance, Connection, and About & Credits.
 - Quit Ring Stats remains available as the final menu action.
 
 ## Do's and Don'ts
@@ -183,7 +210,7 @@ Circular status geometry is the signature language. Buttons and window surfaces 
 - **Do** keep enabled metrics in the user-selected order and make horizontal overflow discoverable.
 - **Do** keep donut centers and unfilled segments free of gray background fills.
 - **Do** refresh automatically when the popover appears.
-- **Do** show the last successful refresh time and retain prior values with an explicit stale warning after a transient failure.
+- **Do** show refresh progress, confirm success briefly, and keep old or failed states visible; retain each stat's prior value with an explicit “Not updated” after a transient failure.
 - **Do** identify Oura as the data provider in Credits.
 - **Do** use native macOS focus, keyboard, and VoiceOver behavior.
 

@@ -31,7 +31,7 @@ extension AppTheme {
     /// Failure and staleness text. Landscape uses a lighter tint that stays
     /// legible on the darkened photograph.
     var alert: Color {
-        self == .landscape ? Color(red: 1, green: 0.74, blue: 0.68) : Palette.alertText
+        self == .landscape ? Color(red: 1, green: 212 / 255, blue: 204 / 255) : Palette.alertText
     }
 
     var score: Color {

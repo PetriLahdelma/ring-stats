@@ -509,3 +509,42 @@ import Testing
     let reading = MetricReading(value: "72", detail: "Good", score: 72, sourceDay: "2026-09-25")
     #expect(MetricGauge.detailText(reading: reading, pending: false, now: now, calendar: calendar) == "From yesterday")
 }
+
+@Test @MainActor func themeTextColorsMeetWCAGContrastForSmallText() throws {
+    func components(_ color: Color, over background: (Double, Double, Double)) throws -> (Double, Double, Double) {
+        let ns = try #require(NSColor(color).usingColorSpace(.sRGB))
+        let alpha = Double(ns.alphaComponent)
+        return (
+            Double(ns.redComponent) * alpha + background.0 * (1 - alpha),
+            Double(ns.greenComponent) * alpha + background.1 * (1 - alpha),
+            Double(ns.blueComponent) * alpha + background.2 * (1 - alpha)
+        )
+    }
+    func luminance(_ rgb: (Double, Double, Double)) -> Double {
+        func channel(_ value: Double) -> Double {
+            value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(rgb.0) + 0.7152 * channel(rgb.1) + 0.0722 * channel(rgb.2)
+    }
+    func contrast(_ a: (Double, Double, Double), _ b: (Double, Double, Double)) -> Double {
+        let (high, low) = (max(luminance(a), luminance(b)), min(luminance(a), luminance(b)))
+        return (high + 0.05) / (low + 0.05)
+    }
+
+    let canvas = try components(Palette.canvasWarm, over: (1, 1, 1))
+    // The brightest pixel of the landscape photograph under its darkest-at-top
+    // veil, measured from the bundled asset. See ACCESSIBILITY.md.
+    let landscapeWorstCase = (108.0 / 255, 92.0 / 255, 81.0 / 255)
+    let cases: [(String, Color, (Double, Double, Double))] = [
+        ("ring-stats primary", AppTheme.ringStats.primaryContent, canvas),
+        ("ring-stats secondary", AppTheme.ringStats.secondaryContent, canvas),
+        ("ring-stats alert", AppTheme.ringStats.alert, canvas),
+        ("landscape primary", AppTheme.landscape.primaryContent, landscapeWorstCase),
+        ("landscape secondary", AppTheme.landscape.secondaryContent, landscapeWorstCase),
+        ("landscape alert", AppTheme.landscape.alert, landscapeWorstCase),
+    ]
+    for (name, color, background) in cases {
+        let ratio = contrast(try components(color, over: background), background)
+        #expect(ratio >= 4.5, "\(name) is \(ratio):1")
+    }
+}

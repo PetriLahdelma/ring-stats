@@ -29,21 +29,36 @@ dashboard.
   refresh, typed auth/API failures, and explicit authorization cancellation.
 - Connection and local deletion controls reachable from connected and
   disconnected states.
-- Keychain migration, callback socket tests, universal app/DMG verification,
-  and 68 automated tests.
+- Keychain migration, callback socket tests, and universal app/DMG verification.
+- Per-metric freshness: a stat that fails transiently keeps its last value
+  marked "Not updated" and is retried on the next open.
+- Refresh status with progress, a brief success confirmation, and persistent
+  old/partial/failed states.
+- Theme parity, a formal tile anatomy, Customize in the footer, and overflow
+  edge fades.
+- Three-step guided connection ending on "Connected securely".
+- Privacy-safe diagnostics with a reviewable local report.
+- State gallery with geometry, parity, truncation, and contrast tests; gate-based
+  concurrency tests; 100 automated tests.
+- Threat model, accessibility evidence matrix, and a usability study protocol.
+- Signed-tag enforcement and a publishable provenance archive for releases.
 
-## P0 — Before broader promotion
+## P0: Before broader promotion
 
 1. **Obtain written Oura confirmation.** Confirm that public distribution,
    positioning, promotion, and voluntary funding comply with the current API
    agreement. Broad promotion and donations remain on hold until then.
-2. **Complete accessibility QA.** Verify VoiceOver order, full keyboard access,
-   contrast, reduced motion, and larger text at every supported width.
-3. **Finish connection diagnostics.** Continue improving explanations for
-   port conflicts, invalid credentials, delayed Oura processing, and recovery
-   from unavailable services.
+2. **Finish manual accessibility QA.** Contrast, truncation, widths, and theme
+   parity are now tested automatically. Run the manual procedure in
+   [ACCESSIBILITY.md](ACCESSIBILITY.md) with VoiceOver, keyboard only, Reduce
+   Motion, and Increase Contrast, and record the results there.
+3. **Run the usability study.** Hold the 5 to 8 sessions in
+   [research/USABILITY_STUDY.md](research/USABILITY_STUDY.md), then ship the
+   single improvement the findings rank highest.
+4. **Sign the next release tag.** The release script now requires it; set up a
+   signing key as described in [RELEASING.md](RELEASING.md).
 
-## P1 — More useful every day
+## P1: More useful every day
 
 1. **Battery-first utility.** Add an optional low-battery notification with a
    user-controlled threshold and quiet hours.
@@ -56,12 +71,28 @@ dashboard.
 5. **Update discovery.** Provide a privacy-preserving way to learn that a newer
    signed release exists.
 
-## P2 — Sustainable open source
+## P1: Accessibility gaps
+
+1. **Keyboard path through the metric strip.** The strip cannot be scrolled
+   without a pointer today.
+2. **Text scaling.** Tiles use fixed sizes tuned to the 92pt tile; design a
+   scaled layout before localization lengthens copy.
+
+## P2: Hardening
+
+1. **App Sandbox.** Adopt with `network.client` and `network.server`
+   entitlements, preserving or migrating existing Keychain items. See
+   [THREAT_MODEL.md](THREAT_MODEL.md).
+2. **Connection error copy.** Clearer explanations for port conflicts, invalid
+   credentials, delayed Oura processing, and unavailable services, using the
+   diagnostic event kinds already recorded.
+
+## P2: Sustainable open source
 
 1. **Voluntary support, only if approved.** Funding must unlock no
    Oura-connected feature, data, support, or download.
-2. **Release provenance.** Add signed tags, attestations, and an SBOM where they
-   materially improve verification.
+2. **Release provenance.** Signed tags and a provenance archive are in place.
+   Add build attestations and an SBOM once CI can run release builds.
 3. **Measure without surveillance.** Use public repository and release signals,
    never in-app health-data analytics or user tracking.
 

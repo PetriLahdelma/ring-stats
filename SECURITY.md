@@ -25,6 +25,9 @@ reasonable remediation period before public disclosure.
 
 ## Security design
 
+[THREAT_MODEL.md](THREAT_MODEL.md) describes assets, trust boundaries,
+mitigations, and accepted residual risks in detail.
+
 - Users bring their own Oura developer application credentials.
 - OAuth credentials, current tokens, and access tokens queued after a temporary
   revocation failure are stored as generic-password items in the user's macOS
@@ -38,6 +41,9 @@ reasonable remediation period before public disclosure.
   IPv4 loopback address `127.0.0.1`.
 - The application talks directly to documented Oura HTTPS endpoints. It has no
   project-operated analytics, advertising, telemetry, or health-data server.
+- Operational diagnostics use a typed event model with no free-text payloads,
+  so health values, tokens, credentials, and upstream response bodies cannot be
+  logged. The Diagnostics report is shown to the user and never transmitted.
 
 ## Release integrity
 
@@ -57,8 +63,15 @@ spctl --assess --type open --context context:primary-signature --verbose=2 \
 After mounting the disk image, the enclosed application signature can be
 checked with `codesign --verify --deep --strict --verbose=2 "Ring Stats.app"`.
 
-The release script requires a clean tree, an exact annotated `v*` tag whose
-version matches the bundle, a Developer ID Application identity, and a
+Future releases also publish `Ring-Stats-<version>-provenance.zip`
+with its checksum. It contains the source commit, the tag signature, toolchain
+and dependency records, code-signature details, the candidate manifest, dSYM
+UUIDs and symbols, and the notarization result. Release tags are signed; verify
+one in a clone with `git verify-tag v<version>` using the maintainer's public
+key.
+
+The release script requires a clean tree, an exact annotated and signed `v*`
+tag on the fetched protected branch commit whose version matches the bundle, a Developer ID Application identity, and a
 Keychain-backed notary profile. It also refuses to sign or notarize without a
 Gate A marker explicitly approving the matching local candidate tree. It records
 source, toolchain, dependency, signature, checksum, and notarization evidence

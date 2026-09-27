@@ -31,6 +31,15 @@ jobs:
       - name: Run tests
         run: swift test -Xswiftc -warnings-as-errors
 
+      - name: Upload state gallery
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ring-stats-state-gallery-${{ github.sha }}
+          path: .build/state-gallery
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Assemble universal application bundle
         run: BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
 

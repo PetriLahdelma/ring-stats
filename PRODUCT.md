@@ -66,4 +66,4 @@ Use an independent warm-neutral palette, original Ring Stats split-ring mark, na
 
 ## Accessibility & Inclusion
 
-Support keyboard navigation, VoiceOver labels, increased contrast, and reduced motion. Never rely on donut color alone; every value and state must appear as text.
+Support keyboard navigation, VoiceOver labels, increased contrast, and reduced motion. Never rely on donut color alone; every value and state must appear as text. [ACCESSIBILITY.md](ACCESSIBILITY.md) records the evidence for each of these and what still needs manual verification.

@@ -10,9 +10,10 @@ and click behavior.
 NSStatusItem / AppDelegate
         │
         ├── StatusPopoverPanel ── SwiftUI MenuPopoverView
-        ├── Connection window
+        ├── Connection window (staged onboarding)
         ├── Appearance window
-        └── About window
+        ├── About window
+        └── Diagnostics window
                          │
                     AppViewModel
                     ┌────┴─────┐
@@ -25,7 +26,14 @@ NSStatusItem / AppDelegate
 
 - `RingStatsApp.swift` owns `NSStatusItem`, the resizable `NSPanel`, native
   context menu, outside-click/Escape dismissal, and refresh-on-open trigger.
-- `Views.swift` contains the SwiftUI popover and focused settings/about views.
+- `Views/` holds one file per surface: `PopoverChrome` (bubble shell and
+  background), `MenuPopoverView` (strip, footer, refresh status),
+  `MetricGauge` (the tile and its `MetricTileAnatomy`), `MetricReordering`,
+  `AppearanceSettingsView`, `ConnectionSettingsView` (three-step onboarding and
+  management), `AboutCreditsView`, `DiagnosticsView`, and `Theme` tokens.
+- `Diagnostics.swift` defines the typed `DiagnosticEvent` model, the
+  unified-log and in-memory `DiagnosticsLog`, and the redacted
+  `DiagnosticsReport`.
 - `AppViewModel.swift` is the `@MainActor` state boundary. It owns the typed app
   state, five-minute refresh TTL, stale snapshot retention, authorization
   orchestration, and explicit refresh/cancel/disconnect actions.
@@ -54,8 +62,12 @@ NSStatusItem / AppDelegate
 4. `OuraAPI` requests only enabled metrics plus battery. Results become one
    in-memory `HealthSnapshot`; health responses are not written to a database.
 5. Reopening the popover refreshes data when the snapshot is at least five
-   minutes old. A manual refresh always requests data. A transient failure keeps
-   the last successful snapshot in memory and marks it stale.
+   minutes old or any stat failed last time. A manual refresh always requests
+   data. Each refresh is merged with the previous snapshot per metric: a stat
+   whose request failed transiently keeps its last value marked stale, the
+   battery does the same, missing permission and "no data yet" are shown as
+   they are, and the outcome (succeeded, partial, failed) drives the status
+   line. A whole-refresh failure keeps the previous snapshot.
 6. Disconnect attempts remote revocation and deletes local credentials and
    tokens even when revocation cannot complete.
 
@@ -68,6 +80,7 @@ NSStatusItem / AppDelegate
 | Empty OAuth migration tombstone | macOS Keychain | May remain after token deletion to prevent legacy-token reimport |
 | Theme, metric order/visibility, width | `UserDefaults` | Until preference-domain deletion |
 | OAuth state/callback listener | Process memory | One authorization attempt |
+| Diagnostic events (no values or secrets) | Unified log and a 200-event memory buffer | macOS log retention; buffer until quit |
 
 Old compatible Keychain items and early JSON files under
 `~/Library/Application Support/Ring Stats Public/Legacy Secrets/` are migrated
@@ -91,7 +104,9 @@ credential.
 
 ## Build and release boundaries
 
-`swift test -Xswiftc -warnings-as-errors` runs the focused automated test suite.
+`swift test -Xswiftc -warnings-as-errors` runs the automated suite, grouped by
+boundary, and renders the state gallery to `.build/state-gallery/` with
+geometry, parity, truncation, and contrast assertions.
 CI also assembles a universal app and ad-hoc DMG, verifies architecture, bundle
 metadata, signature, app icon, mountability, and scans artifacts for paths or
 likely secrets.
@@ -103,6 +118,9 @@ install failure. Local approval markers live only in ignored `.omx/approvals/`;
 Gate A is tree-bound and Gate B is exact-artifact- and installed-binary-bound.
 
 Authenticated releases are separate: `scripts/sign_and_notarize.sh` requires a
-clean exact annotated version tag, Developer ID identity, and Keychain notary
-profile. It records source, toolchain, dependency, signature, checksum, and
-notarization evidence under `dist/release-metadata/`.
+clean exact annotated and signed version tag on the protected branch commit
+(checked by `scripts/verify_release_tag.sh`), a Developer ID identity, and a
+Keychain notary profile. It records source, tag signature, toolchain,
+dependency, signature, checksum, and notarization evidence under
+`dist/release-metadata/` and packages it as a publishable provenance archive.
+See [THREAT_MODEL.md](THREAT_MODEL.md) for the security reasoning.
