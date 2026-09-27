@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
+"$PROJECT_DIR/scripts/assert_production_environment.sh"
 OUTPUT_DIR="$PROJECT_DIR/dist"
 APP_DIR="$OUTPUT_DIR/Ring Stats.app"
 SOURCE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PROJECT_DIR/native/Info.plist")"
@@ -11,6 +12,7 @@ BUILD_NUMBER="${BUILD_NUMBER:-$SOURCE_BUILD_NUMBER}"
 DMG_PATH="$OUTPUT_DIR/Ring-Stats-$VERSION.dmg"
 METADATA_DIR="$OUTPUT_DIR/release-metadata"
 RELEASE_BRANCH_REF="${RELEASE_BRANCH_REF:-origin/main}"
+CANDIDATE_MANIFEST="${CANDIDATE_MANIFEST:-$OUTPUT_DIR/candidate-manifest.json}"
 
 : "${APPLE_SIGNING_IDENTITY:?Set APPLE_SIGNING_IDENTITY to a Developer ID Application identity}"
 : "${APPLE_NOTARY_PROFILE:?Set APPLE_NOTARY_PROFILE to a notarytool Keychain profile}"
@@ -60,6 +62,8 @@ if [[ "$APPLE_SIGNING_IDENTITY" != Developer\ ID\ Application:* ]]; then
   exit 1
 fi
 
+"$PROJECT_DIR/scripts/verify_approval_gate.sh" gate-a "$CANDIDATE_MANIFEST"
+
 if ! /usr/bin/security find-identity -v -p codesigning | /usr/bin/grep -F "$APPLE_SIGNING_IDENTITY" >/dev/null; then
   echo "Signing identity was not found in the current Keychain: $APPLE_SIGNING_IDENTITY" >&2
   exit 1
@@ -88,6 +92,9 @@ fi
   > "$METADATA_DIR/source-dependencies.json"
 /usr/bin/codesign -dvvv "$APP_DIR" 2> "$METADATA_DIR/codesign-app.txt"
 /usr/bin/codesign -dvvv "$DMG_PATH" 2> "$METADATA_DIR/codesign-dmg.txt"
+/bin/cp "$OUTPUT_DIR/candidate-manifest.json" "$OUTPUT_DIR/candidate-manifest.sha256" "$METADATA_DIR/"
+/usr/bin/dwarfdump --uuid "$OUTPUT_DIR/Ring Stats.app.dSYM" > "$METADATA_DIR/dsym-uuids.txt"
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$OUTPUT_DIR/Ring Stats.app.dSYM" "$METADATA_DIR/Ring-Stats.dSYM.zip"
 
 set +e
 xcrun notarytool submit \

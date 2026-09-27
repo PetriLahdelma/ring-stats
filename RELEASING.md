@@ -3,6 +3,12 @@
 Only publish artifacts produced from a reviewed, clean commit. CI artifacts are
 ad-hoc signed test outputs, not public releases.
 
+The delivery order is binding: build and recoverably install a local candidate,
+obtain explicit user approval for its tree (Gate A), and only then perform any
+push, pull request, tag, signing, or notarization action. After producing the
+reviewed/notarized artifact, install that exact artifact locally and obtain a
+second exact-hash approval (Gate B) before public upload.
+
 ## Prerequisites
 
 - Apple Developer Program membership
@@ -10,6 +16,7 @@ ad-hoc signed test outputs, not public releases.
 - A `notarytool` profile stored in Keychain
 - A clean tree at an exact annotated `v*` tag on the fetched `origin/main`
 - `native/Info.plist` version matching the tag without its `v` prefix
+- A Gate A marker matching `dist/candidate-manifest.json`
 
 Store a notary profile once:
 
@@ -22,6 +29,29 @@ xcrun notarytool store-credentials "ring-stats-notary" \
 
 Do not place notary credentials, certificates, or private keys in the
 repository or shell scripts.
+
+## Local candidate and Gate A
+
+```bash
+BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
+scripts/verify_release_artifacts.sh
+scripts/install_local_candidate.sh "dist/Ring Stats.app"
+```
+
+After the user inspects this installed candidate and explicitly approves it,
+record that exact message locally (never manufacture or infer it):
+
+```bash
+scripts/write_approval_marker.sh gate-a \
+  "dist/candidate-manifest.json" \
+  "<exact user approval message>"
+scripts/verify_approval_gate.sh gate-a "dist/candidate-manifest.json"
+scripts/preflight_remote_collaboration.sh
+```
+
+These markers are procedural content-integrity records, not cryptographic proof
+of human authorship. Use the supported preflight/release wrappers; direct raw
+Git or GitHub commands are technically capable of bypassing the procedure.
 
 ## Prepare and tag
 
@@ -70,6 +100,16 @@ cp "dist/release-metadata/Ring-Stats-$version.dmg.sha256" "dist/"
 ```
 
 ## Publish
+
+Install the app from the final notarized artifact, obtain explicit approval of
+that exact artifact, and record/verify Gate B:
+
+```bash
+artifact="dist/Ring-Stats-<version>.dmg"
+scripts/install_final_artifact.sh "$artifact"
+scripts/write_approval_marker.sh gate-b "$artifact" "<exact user approval message>"
+scripts/preflight_publication.sh "$artifact"
+```
 
 Push the reviewed commit and annotated tag, create GitHub release notes from the
 matching changelog section, and upload:

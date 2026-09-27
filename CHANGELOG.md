@@ -5,6 +5,15 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Changed
+
+- Local candidate installation now preserves the prior app at a printed Trash
+  recovery path, restores it after injected install failures, and never
+  recursively deletes the installed bundle.
+- Candidate builds now retain matching universal dSYMs and emit tree-bound
+  provenance manifests; explicit local Gate A and exact-artifact Gate B approval
+  preflights protect later remote release steps.
+
 ## 1.1.1 — 2026-09-27
 
 ### Fixed

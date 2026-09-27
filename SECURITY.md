@@ -59,8 +59,19 @@ checked with `codesign --verify --deep --strict --verbose=2 "Ring Stats.app"`.
 
 The release script requires a clean tree, an exact annotated `v*` tag whose
 version matches the bundle, a Developer ID Application identity, and a
-Keychain-backed notary profile. It records source, toolchain, dependency,
-signature, checksum, and notarization evidence under `dist/release-metadata/`.
+Keychain-backed notary profile. It also refuses to sign or notarize without a
+Gate A marker explicitly approving the matching local candidate tree. It records
+source, toolchain, dependency, signature, checksum, and notarization evidence
+under `dist/release-metadata/`.
+
+Public upload is a separate Gate B: the exact notarized artifact and the locally
+installed final binary must match the explicit approval marker. Run
+`scripts/preflight_publication.sh <artifact>` immediately before publication.
+Approval markers remain local under ignored `.omx/approvals/` and must record
+the user's explicit message. They are procedural integrity records binding
+reviewed content, not cryptographic proof of who typed an approval. The supported
+wrappers enforce them, but direct raw `git` or `gh` commands can bypass that
+procedure; maintainers must not use those bypasses for release operations.
 CI separately assembles and verifies an ad-hoc-signed universal application and
 DMG; CI artifacts are test evidence, not authenticated public releases.
 

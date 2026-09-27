@@ -96,6 +96,12 @@ CI also assembles a universal app and ad-hoc DMG, verifies architecture, bundle
 metadata, signature, app icon, mountability, and scans artifacts for paths or
 likely secrets.
 
+Every local candidate retains matching executable/dSYM UUIDs and a manifest
+bound to the actual Git tree content. Candidate installation is transactional:
+the prior app moves to a unique Trash recovery path and is restored after an
+install failure. Local approval markers live only in ignored `.omx/approvals/`;
+Gate A is tree-bound and Gate B is exact-artifact- and installed-binary-bound.
+
 Authenticated releases are separate: `scripts/sign_and_notarize.sh` requires a
 clean exact annotated version tag, Developer ID identity, and Keychain notary
 profile. It records source, toolchain, dependency, signature, checksum, and

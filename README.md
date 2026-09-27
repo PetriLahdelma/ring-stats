@@ -118,13 +118,18 @@ BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
 open "dist/Ring Stats.app"
 ```
 
-`scripts/build_app.sh` creates an ad-hoc-signed local build under `dist/` and
-does not install it by default. To install the build under `~/Applications`,
-opt in explicitly:
+`scripts/build_app.sh` creates an ad-hoc-signed local build, retained dSYM, and
+tree-bound candidate manifest under `dist/`; it does not install by default.
+To install under `~/Applications`, opt in explicitly:
 
 ```bash
 INSTALL_APP=1 scripts/build_app.sh
 ```
+
+Installation quits only the app with Ring Stats' bundle identifier, moves any
+previous installation to a unique recoverable Trash path, installs and launches
+the candidate, and prints that recovery path. It never recursively deletes the
+installed bundle.
 
 The default build targets the current Mac architecture. To create a universal
 application, build both supported architectures:

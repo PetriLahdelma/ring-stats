@@ -34,6 +34,11 @@ jobs:
       - name: Assemble universal application bundle
         run: BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
 
+      - name: Validate delivery scripts and artifact tamper checks
+        run: |
+          bash -n scripts/*.sh scripts/tests/*.sh
+          scripts/tests/test_delivery_safety.sh
+
       - name: Verify application bundle
         run: scripts/verify_release_artifacts.sh
 
@@ -61,5 +66,9 @@ jobs:
             dist/*.dmg.sha256
             dist/*-app.zip
             dist/*-app.zip.sha256
+            dist/candidate-manifest.json
+            dist/candidate-manifest.sha256
+            dist/candidates/*/Ring-Stats.dSYM.zip
+            dist/candidates/*/uuids.txt
           if-no-files-found: error
           retention-days: 14
