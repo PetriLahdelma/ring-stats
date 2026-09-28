@@ -139,6 +139,18 @@ credential.
 - A stable bundle identifier and Developer ID signature support consistent
   Keychain access across releases.
 
+## Shortcuts actions
+
+`Shortcuts/RingStatsIntents.swift` defines the App Intents and
+`ShortcutAnswers.swift` answers them. They run inside the menu-bar app through
+`ShortcutBridge`, refresh through `AppViewModel` like a popover open, and read
+the in-memory snapshot. Shortcuts finds the actions through
+`Contents/Resources/Metadata.appintents`, which `scripts/build_app.sh`
+generates with `appintentsmetadataprocessor` from the compiler's constant
+values (the protocol list is `native/AppIntentsConstProtocols.json`), because
+SwiftPM does not run that Xcode build step. `verify_release_artifacts.sh`
+fails a bundle whose metadata is missing either action.
+
 ## Build and release boundaries
 
 `swift test -Xswiftc -warnings-as-errors` runs the automated suite, grouped by
