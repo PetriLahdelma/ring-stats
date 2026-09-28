@@ -95,7 +95,7 @@ Use tabular numerals for values. Sentence case only.
 
 All type and tile geometry scale with Appearance > Text size (1, 1.15, or 1.3 times). The figures below are at Standard.
 
-The popover defaults to 680pt wide and can be resized horizontally from 420pt to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt metric tiles with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, and Stress; Resilience is available through customization. Customize is a footer button, not a tile, so it never competes with health data. When tiles continue past an edge, that edge fades over 28pt, and VoiceOver hears "More stats are available by scrolling". Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery and options row. The refresh status sits at the top trailing edge inside the existing top inset:
+The popover defaults to 680pt wide and can be resized horizontally from 420pt to 840pt, with 24pt outer padding. Its chosen width persists. The rounded arrow remains visually anchored to the menu-bar icon while either side is resized. A horizontal scroll view contains 92pt metric tiles with 16pt gaps. Default order is Readiness, Sleep, Activity, Heart Rate, and Stress; Resilience is available through customization. There is no Customize tile or button in the popover; stats are customized from Appearance in the options menu, so nothing competes with health data. When tiles continue past an edge, that edge fades over 28pt, and VoiceOver hears "More stats are available by scrolling". Visible shortcuts can be dragged into a new order directly in the popover, using the same stored order as Appearance. A one-pixel warm separator divides shortcuts from the battery and options row. The refresh status sits at the top trailing edge inside the existing top inset:
 
 - While fetching: a small spinner and "Refreshing…".
 - After a successful refresh: "Updated just now" for three seconds, then it fades out so the strip stays quiet.
@@ -153,7 +153,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Non-score metrics use icon-and-value presentation rather than a fabricated progress donut.
 
 ### Stat Customization
-- The footer Customize button (`slider.horizontal.3`) opens Appearance at the shared stats configuration.
+- Appearance, from the options menu or the status-item menu, holds the shared stats configuration. The popover has no separate customize control.
 - Every available metric can be shown or hidden; at least one remains visible.
 - Ordering persists and can be changed by native row dragging in Appearance or direct dragging in the popover; nonvisual Move Up/Down accessibility actions remain available.
 - Keyboard: Tab reaches the tiles; Left and Right Arrow move focus and scroll the tile into view; Option-Left and Option-Right move the focused stat and announce its position. Nothing is focused when the popover opens.
@@ -199,7 +199,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 ### Popover Options Menu
 - The visible control is the `line.3.horizontal` SF Symbol without an additional disclosure indicator.
 - Menu items are Appearance, Connection, About & Credits, Diagnostics…, a divider, Refresh Now, Reauthorize Permissions, another divider, and Quit Ring Stats.
-- The glyph uses the theme action color, matching the Customize button beside it.
+- The glyph uses the theme action color.
 - Reauthorize Permissions is disabled when stored credentials are unavailable or authorization is already running.
 
 ### Menu-Bar Context Menu

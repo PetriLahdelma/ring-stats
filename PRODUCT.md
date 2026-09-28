@@ -25,7 +25,7 @@ The Oura Ring continues syncing through the official phone app. Ring Stats reads
 ## Capabilities and Constraints
 
 - Live exclusively as a macOS menu-bar accessory with no Dock icon.
-- Show a horizontally scrollable shortcut strip ordered by default as Readiness, Sleep, Activity, Heart Rate, Stress, then Customize.
+- Show a horizontally scrollable shortcut strip ordered by default as Readiness, Sleep, Activity, Heart Rate, and Stress. Stats are customized from Appearance in the options menu.
 - Keep Readiness, Sleep, and Activity as 0–100 scores; show Heart Rate as latest BPM and Stress as today’s high-stress minutes.
 - Offer Resilience as an optional shortcut with its Oura level, hidden by default.
 - Let Appearance persistently hide, show, and reorder shortcuts while keeping at least one stat visible.

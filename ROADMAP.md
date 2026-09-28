@@ -34,7 +34,7 @@ dashboard.
   marked "Not updated" and is retried after a minute or Oura's Retry-After.
 - Refresh status with progress, a brief success confirmation, and persistent
   old/partial/failed states.
-- Theme parity, a formal tile anatomy, Customize in the footer, and overflow
+- Theme parity, a formal tile anatomy, Customize removed from the strip, and overflow
   edge fades.
 - Three-step guided connection ending on "Connected securely".
 - Privacy-safe diagnostics with a reviewable local report.

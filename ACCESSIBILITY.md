@@ -64,7 +64,7 @@ date, macOS version, and result in the log below.
 
 1. **VoiceOver order.** Turn on VoiceOver (Command-F5). Open the popover and
    move through it with VO-Right. Expect: refresh status, each tile in order
-   ("Readiness, 84, Good"), permission button if shown, battery, Customize,
+   ("Readiness, 84, Good"), permission button if shown, battery,
    menu. Confirm a stale tile reads "Not updated; showing the last known value".
 2. **Announcements.** Reorder a stat in Appearance with Up/Down on the focused
    grip and confirm the new position is announced. Copy the callback URL and

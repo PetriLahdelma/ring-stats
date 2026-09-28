@@ -30,8 +30,8 @@ versioned GitHub releases and annotated tags for new releases.
 - Landscape keeps score labels, so both themes show the same information.
 - The battery row shows "Synced 5h ago" only once Oura's newest reading is at
   least two hours old; the exact age is in the tooltip and VoiceOver label.
-- Customize moved from the metric strip to the footer, and the strip fades at
-  edges where more stats continue.
+- Customize left the metric strip; stats are customized from Appearance in
+  the menu. The strip fades at edges where more stats continue.
 - Connection is now a three-step guided setup that ends on "Connected
   securely" and opens the popover.
 - Release tags must be signed, and releases publish a provenance archive.

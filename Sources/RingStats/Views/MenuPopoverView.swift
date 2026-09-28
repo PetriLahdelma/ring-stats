@@ -355,22 +355,6 @@ struct MenuPopoverView: View {
         return reorderSession.offsetX(for: metric, sourceTranslationX: translation)
     }
 
-    /// Customize lives in the footer so it never competes with health data
-    /// for a place in the metric sequence.
-    private var customizeButton: some View {
-        Button(action: showAppearance) {
-            Image(systemName: "slider.horizontal.3")
-                .scaledFont(size: 14, weight: .medium)
-                .frame(width: (28 * textScale).rounded(), height: (28 * textScale).rounded())
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(theme.action)
-        .help("Customize stats")
-        .accessibilityLabel("Customize stats")
-        .accessibilityHint("Choose which stats appear and change their order")
-    }
-
     private var optionsMenu: some View {
         Menu {
             Button(action: showAppearance) {
@@ -406,7 +390,7 @@ struct MenuPopoverView: View {
                 .contentShape(Rectangle())
         }
         // A plain-styled button menu draws its label with SwiftUI, so it takes
-        // the theme color like the Customize button beside it.
+        // the theme color.
         .menuStyle(.button)
         .buttonStyle(.plain)
         .menuIndicator(.hidden)
@@ -537,7 +521,6 @@ struct MenuPopoverView: View {
                         theme: theme
                     )
                     Spacer()
-                    customizeButton
                     optionsMenu
                 }
             } else {
