@@ -35,6 +35,9 @@ FROZEN_COMPILER_PATH="$(xcrun --find swiftc)"
 FROZEN_COMPILER_VERSION="$("$FROZEN_COMPILER_PATH" --version 2>&1 | /usr/bin/head -n 1)"
 
 binary_paths=()
+# The first architecture's build supplies App Intents metadata; it does not
+# vary by architecture.
+intents_build_dir=""
 
 for architecture in $BUILD_ARCHS; do
   case "$architecture" in
@@ -52,7 +55,10 @@ for architecture in $BUILD_ARCHS; do
     -Xswiftc -warnings-as-errors \
     -Xswiftc -g \
     -Xswiftc -file-prefix-map \
-    -Xswiftc "$PROJECT_DIR=."
+    -Xswiftc "$PROJECT_DIR=." \
+    -Xswiftc -emit-const-values \
+    -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file \
+    -Xswiftc -Xfrontend -Xswiftc "$PROJECT_DIR/native/AppIntentsConstProtocols.json"
 
   bin_path="$(SWIFT_EXEC="$FROZEN_COMPILER_PATH" swift build \
     -c "$CONFIGURATION" \
@@ -60,6 +66,10 @@ for architecture in $BUILD_ARCHS; do
     --scratch-path "$scratch_path" \
     --show-bin-path)"
   binary_paths+=("$bin_path/$EXECUTABLE_NAME")
+  if [[ -z "$intents_build_dir" ]]; then
+    intents_build_dir="$bin_path"
+    intents_triple="$triple"
+  fi
 done
 
 GIT_INDEX_FILE="$source_index" /usr/bin/git -C "$PROJECT_DIR" read-tree HEAD
@@ -95,6 +105,27 @@ done
 /usr/bin/strip -S -x "$CONTENTS_DIR/MacOS/$EXECUTABLE_NAME"
 
 /usr/bin/ditto "$PROJECT_DIR/native/Info.plist" "$CONTENTS_DIR/Info.plist"
+
+# Shortcuts discovers the app's actions only through Metadata.appintents, which
+# Xcode normally generates. Produce it from the compiler's constant values.
+intents_work="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/ring-stats-intents.XXXXXX")"
+/usr/bin/find "$PROJECT_DIR/Sources/$EXECUTABLE_NAME" -name '*.swift' | LC_ALL=C /usr/bin/sort > "$intents_work/sources.txt"
+echo "$intents_build_dir/$EXECUTABLE_NAME.build/$EXECUTABLE_NAME.swiftconstvalues" > "$intents_work/constvalues.txt"
+[[ -s "$intents_build_dir/$EXECUTABLE_NAME.build/$EXECUTABLE_NAME.swiftconstvalues" ]] || { echo "Swift constant values were not emitted." >&2; exit 1; }
+xcrun appintentsmetadataprocessor \
+  --output "$CONTENTS_DIR/Resources" \
+  --toolchain-dir "$(dirname "$(dirname "$(dirname "$FROZEN_COMPILER_PATH")")")" \
+  --module-name "$EXECUTABLE_NAME" \
+  --sdk-root "$(xcrun --sdk macosx --show-sdk-path)" \
+  --xcode-version "$(xcodebuild -version | /usr/bin/awk '/Build version/ { print $3 }')" \
+  --platform-family macOS \
+  --deployment-target 14.0 \
+  --target-triple "$intents_triple" \
+  --binary-file "$intents_build_dir/$EXECUTABLE_NAME" \
+  --source-file-list "$intents_work/sources.txt" \
+  --swift-const-vals-list "$intents_work/constvalues.txt" \
+  --force >/dev/null 2>&1 || { echo "App Intents metadata generation failed." >&2; exit 1; }
+rm -rf "$intents_work"
 
 if [[ -n "$MARKETING_VERSION" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MARKETING_VERSION" "$CONTENTS_DIR/Info.plist"

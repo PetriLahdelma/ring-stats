@@ -36,6 +36,12 @@ data, use data for advertising, or use data to train an AI or machine-learning
 model. Network requests use a dedicated ephemeral session with URL caching and
 cookie persistence disabled.
 
+The "Get Ring Stat" and "Get Ring Battery" Shortcuts actions answer from the
+same in-memory values. They hand a value only to a shortcut you run, and
+what that shortcut does with it is up to you. Ring Stats itself still writes
+nothing to disk. An action can fetch a stat that is hidden in the popover,
+because running it is an explicit request for that stat.
+
 Your Oura developer Client ID, Client Secret, current OAuth access token, and
 OAuth refresh token are stored locally as device-only generic-password items in
 your macOS Keychain. If replacement authorization succeeds but revocation of an

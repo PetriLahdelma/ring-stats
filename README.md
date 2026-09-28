@@ -70,6 +70,9 @@ Ring Stats theme. Both present the same configurable metrics and battery state.
 - Two visual treatments that show the same information, including a
   project-owned landscape.
 - Guided three-step connection with a Keychain-only credential note.
+- Shortcuts actions, "Get Ring Stat" and "Get Ring Battery", which also work
+  from Raycast, Alfred, and Stream Deck through Shortcuts. They answer from
+  memory and write nothing to disk.
 - Text size setting, full keyboard access to the stats row, and App Sandbox
   confinement.
 - A local Diagnostics report you can review before sharing; it never contains

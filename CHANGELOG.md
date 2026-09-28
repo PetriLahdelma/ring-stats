@@ -41,6 +41,9 @@ versioned GitHub releases and annotated tags for new releases.
 
 ### Added
 
+- Shortcuts actions: "Get Ring Stat" returns any of the six stats, and "Get
+  Ring Battery" returns the battery percentage. Both refresh from Oura when
+  the data is more than five minutes old and write nothing to disk.
 - Text size: a stepped slider in Appearance, from a small to a large "Aa",
   offers Standard, Large, and Extra Large, scaling the popover's text and
   tiles and every window.

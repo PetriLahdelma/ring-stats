@@ -61,6 +61,11 @@ actual_binary_hash="$(/usr/bin/shasum -a 256 "$EXECUTABLE" | /usr/bin/awk '{prin
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 [[ -f "$APP_DIR/Contents/Resources/AppIcon.icns" ]] || fail "AppIcon.icns was not compiled into the bundle"
 [[ -f "$APP_DIR/Contents/Resources/container-migration.plist" ]] || fail "container-migration.plist is missing from the bundle"
+intents_metadata="$APP_DIR/Contents/Resources/Metadata.appintents/extract.actionsdata"
+[[ -f "$intents_metadata" ]] || fail "App Intents metadata is missing, so Shortcuts cannot find the actions"
+for intent in GetRingStatIntent GetRingBatteryIntent; do
+  /usr/bin/grep -q "\"$intent\"" "$intents_metadata" || fail "App Intents metadata does not list $intent"
+done
 entitlements_plist="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/ring-stats-entitlements.XXXXXX")"
 /usr/bin/codesign -d --entitlements - --xml "$APP_DIR" > "$entitlements_plist" 2>/dev/null \
   || fail "Could not read the signed entitlements"
