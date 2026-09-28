@@ -151,6 +151,11 @@ values (the protocol list is `native/AppIntentsConstProtocols.json`), because
 SwiftPM does not run that Xcode build step. `verify_release_artifacts.sh`
 fails a bundle whose metadata is missing either action.
 
+macOS runs App Intents only in apps signed with a Team ID. An ad-hoc signed
+local candidate lists the actions in Shortcuts, but running one fails with
+"couldn't communicate with the app". Test the actions with a build signed by
+setting `CODESIGN_IDENTITY` to a Developer ID identity.
+
 ## Build and release boundaries
 
 `swift test -Xswiftc -warnings-as-errors` runs the automated suite, grouped by

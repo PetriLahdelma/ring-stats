@@ -56,6 +56,9 @@ DMG_PATH="$PWD/dist/Ring-Stats-$version.dmg" scripts/verify_release_artifacts.sh
 ```
 
 These local artifacts are ad-hoc signed and are not public release candidates.
+Ad-hoc builds cannot run Shortcuts actions, because macOS requires a Team ID.
+To test them, build with `CODESIGN_IDENTITY` set to your Developer ID
+Application identity.
 The build retains `dist/Ring Stats.app.dSYM` and writes
 `dist/candidate-manifest.json`. Install a candidate recoverably with
 `scripts/install_local_candidate.sh "dist/Ring Stats.app"`; inspect it locally
