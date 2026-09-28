@@ -135,6 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     init(model: AppViewModel) {
         self.model = model
         super.init()
+        ShortcutBridge.model = model
     }
 
     let popoverGeometry = PopoverGeometryModel()

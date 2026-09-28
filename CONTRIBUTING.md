@@ -71,7 +71,8 @@ before any remote collaboration or release action.
 - Check new UI against [ACCESSIBILITY.md](ACCESSIBILITY.md) and update its
   matrix when behavior changes.
 - Preserve metric-aware scopes and fetching; hidden metrics must not generate
-  health endpoint requests.
+  health endpoint requests, except when a Shortcuts action asks for that stat
+  by name.
 - Keep health responses in memory. Do not add telemetry, analytics, crash
   reporting, or a health-history database without an explicit project decision.
 - Use only documented Oura endpoints. Do not add BLE reverse engineering,
