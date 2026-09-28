@@ -93,12 +93,17 @@ struct AppShellTests {
         let panel = try #require(delegate.popoverPanel)
         #expect(!delegate.popoverGeometry.isPresented)
 
-        delegate.showPopover(anchoredTo: Self.menuBarButton, visibleFrame: Self.screen)
+        // Use this machine's real screen: macOS moves a window that would sit
+        // off-screen, so a synthetic screen larger than the real one (as on a
+        // CI runner) would fail for reasons unrelated to the app.
+        let visible = NSScreen.main?.visibleFrame ?? Self.screen
+        let anchor = NSRect(x: visible.midX - 12, y: visible.maxY - 40, width: 24, height: 24)
+        delegate.showPopover(anchoredTo: anchor, visibleFrame: visible)
 
         #expect(panel.isVisible)
         #expect(delegate.popoverGeometry.isPresented)
-        #expect(abs(panel.frame.maxY - (Self.menuBarButton.minY + 1)) <= 1)
-        #expect(delegate.popoverGeometry.arrowX == Self.menuBarButton.midX - panel.frame.minX)
+        #expect(abs(panel.frame.maxY - (anchor.minY + 1)) <= 1)
+        #expect(delegate.popoverGeometry.arrowX == anchor.midX - panel.frame.minX)
         await waitUntil("refresh on open") { delegate.model.lastRefreshOutcome != .none }
 
         delegate.closePopover()
