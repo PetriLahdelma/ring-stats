@@ -223,16 +223,26 @@ struct BatteryRow: View {
         return battery.level.map { "Battery \($0)%" } ?? "Battery —"
     }
 
-    private var chargingStatus: String {
+    /// The visible text beside the level. Not charging is the usual state, so
+    /// it shows nothing; the bolt in the icon and this text mark the exception.
+    private var chargingStatus: String? {
         guard let battery else {
             if needsPermission { return "Needs access" }
             return loading ? "Updating…" : "Unavailable"
         }
-        return battery.isCharging ? "Charging" : "Not charging"
+        return Self.chargeState(for: battery)
     }
 
-    private var accessibilityDescription: String {
-        var parts = [batteryStatus, chargingStatus]
+    /// "Charged" once a ring in its charger reaches 100%, "Charging" before
+    /// that, and nothing when it is not charging.
+    static func chargeState(for battery: BatteryReading) -> String? {
+        guard battery.isCharging else { return nil }
+        return (battery.level ?? 0) >= 100 ? "Charged" : "Charging"
+    }
+
+    /// VoiceOver cannot see the bolt, so it always hears the charging state.
+    var accessibilityDescription: String {
+        var parts = [batteryStatus, chargingStatus ?? "Not charging"]
         if stale {
             parts.append("Not updated")
         }
@@ -244,7 +254,7 @@ struct BatteryRow: View {
             Text(batteryStatus)
                 .monospacedDigit()
                 .foregroundStyle(theme.primaryContent)
-            if showsCharging {
+            if showsCharging, let chargingStatus {
                 Text(chargingStatus)
                     .foregroundStyle(theme.primaryContent.opacity(0.68))
             }
@@ -306,10 +316,19 @@ struct BatteryStatusIcon: View {
             Image(systemName: symbolName)
                 .scaledFont(size: 17, weight: .medium)
             if charging {
+                // Cut a slightly larger bolt out of the fill, then draw the
+                // bolt inside the gap, as macOS does, so it stays visible at
+                // every level instead of vanishing into a full battery.
                 Image(systemName: "bolt.fill")
-                    .scaledFont(size: 7, weight: .bold)
+                    .scaledFont(size: 10, weight: .black)
+                    .offset(x: -1)
+                    .blendMode(.destinationOut)
+                Image(systemName: "bolt.fill")
+                    .scaledFont(size: 8, weight: .bold)
+                    .offset(x: -1)
             }
         }
+        .compositingGroup()
         .frame(width: (22 * textScale).rounded(), height: (20 * textScale).rounded())
         .foregroundStyle(tint)
         .accessibilityHidden(true)

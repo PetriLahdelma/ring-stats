@@ -7,6 +7,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 ### Fixed
 
+- The charging bolt disappeared into the battery icon above about half charge.
+  It is now cut out of the fill, as in macOS, and shows at every level.
 - A stat that fails to refresh keeps its last known value, dimmed and marked
   "Not updated", instead of turning into "Unavailable" while the refresh
   reports success. Failed stats are retried on the next open after a minute,
@@ -24,6 +26,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 ### Changed
 
+- The battery row no longer says "Not charging". A charging ring reads
+  "Charging", and one in its charger at 100% reads "Charged".
 - The status line shows a spinner and "Refreshing…" while fetching, confirms
   "Updated just now" for three seconds and then fades, and stays visible when
   data is old or a refresh failed or was partial.
@@ -37,8 +41,9 @@ versioned GitHub releases and annotated tags for new releases.
 
 ### Added
 
-- Text size: Appearance offers Standard, Large, and Extra Large, scaling the
-  popover's text and tiles and every window.
+- Text size: a stepped slider in Appearance, from a small to a large "Aa",
+  offers Standard, Large, and Extra Large, scaling the popover's text and
+  tiles and every window.
 - Keyboard access to the stats row: Tab reaches it, arrow keys move and
   scroll, and Option-arrow reorders.
 - Ring Stats now runs in the App Sandbox; existing preferences move into its

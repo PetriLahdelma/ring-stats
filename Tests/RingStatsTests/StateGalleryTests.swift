@@ -178,6 +178,8 @@ enum GalleryState: String, CaseIterable {
     case noData = "no-data"
     case permissionRequired = "permission-required"
     case resilienceAndLowBattery = "resilience-low-battery"
+    case charging
+    case charged
 }
 
 /// A view model driven into one gallery state through its public API.
@@ -255,6 +257,10 @@ struct GalleryFixture {
         case .resilienceAndLowBattery:
             let low = Self.snapshot(metrics: metrics, at: now, lowBattery: true)
             model = try await Self.connected(results: [.success(low)], metrics: metrics, now: now)
+        case .charging, .charged:
+            var docked = full
+            docked.battery = BatteryReading(level: state == .charged ? 100 : 64, isCharging: true)
+            model = try await Self.connected(results: [.success(docked)], metrics: metrics, now: now)
         }
     }
 
