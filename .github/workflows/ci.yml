@@ -17,6 +17,10 @@ jobs:
   test:
     name: Test and build
     runs-on: macos-26
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     timeout-minutes: 15
 
     steps:
@@ -31,6 +35,15 @@ jobs:
       - name: Run tests
         run: swift test -Xswiftc -warnings-as-errors
 
+      - name: Upload state gallery
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ring-stats-state-gallery-${{ github.sha }}
+          path: .build/state-gallery
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Assemble universal application bundle
         run: BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
 
@@ -38,6 +51,11 @@ jobs:
         run: |
           bash -n scripts/*.sh scripts/tests/*.sh
           scripts/tests/test_delivery_safety.sh
+
+      - name: Verify the App Sandbox allows Keychain, loopback, and migration
+        run: |
+          scripts/tests/test_sandbox_keychain.sh
+          scripts/tests/test_container_migration.sh
 
       - name: Verify application bundle
         run: scripts/verify_release_artifacts.sh
@@ -57,6 +75,26 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "dist/Ring Stats.app" "dist/Ring-Stats-$version-app.zip"
           shasum -a 256 "dist/Ring-Stats-$version-app.zip" > "dist/Ring-Stats-$version-app.zip.sha256"
 
+      - name: Generate SBOM
+        run: scripts/generate_sbom.sh "dist/Ring Stats.app" dist/ring-stats.cdx.json
+
+      # Attest what CI itself built. Public releases are built and notarized on
+      # the maintainer's Mac and carry a separately signed attestation.
+      - name: Attest build provenance
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.dmg
+            dist/*-app.zip
+
+      - name: Attest SBOM
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: dist/*-app.zip
+          sbom-path: dist/ring-stats.cdx.json
+
       - name: Upload verified CI artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -66,6 +104,7 @@ jobs:
             dist/*.dmg.sha256
             dist/*-app.zip
             dist/*-app.zip.sha256
+            dist/*.cdx.json
             dist/candidate-manifest.json
             dist/candidate-manifest.sha256
             dist/candidates/*/Ring-Stats.dSYM.zip

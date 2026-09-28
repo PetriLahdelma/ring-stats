@@ -189,9 +189,17 @@ enum OuraScope: String, CaseIterable, Sendable {
 }
 
 enum MetricAvailability: Sendable, Equatable {
+    /// A value fetched during the latest refresh.
     case available
+    /// A previously fetched value retained because the latest request for this
+    /// metric failed transiently.
+    case stale
+    /// Oura denied the scope for this metric.
     case permissionRequired
+    /// The request failed and no earlier value exists.
     case unavailable
+    /// The request succeeded but Oura has no record for the range yet.
+    case noData
 }
 
 struct MetricReading: Sendable, Equatable {
@@ -201,6 +209,8 @@ struct MetricReading: Sendable, Equatable {
     let observedAt: Date?
     let sourceDay: String?
     let availability: MetricAvailability
+    /// For a stale reading, when it was last successfully fetched.
+    let lastFetchedAt: Date?
 
     init(
         value: String,
@@ -208,7 +218,8 @@ struct MetricReading: Sendable, Equatable {
         score: Int?,
         observedAt: Date? = nil,
         sourceDay: String? = nil,
-        availability: MetricAvailability = .available
+        availability: MetricAvailability = .available,
+        lastFetchedAt: Date? = nil
     ) {
         self.value = value
         self.detail = detail
@@ -216,6 +227,24 @@ struct MetricReading: Sendable, Equatable {
         self.observedAt = observedAt
         self.sourceDay = sourceDay
         self.availability = availability
+        self.lastFetchedAt = lastFetchedAt
+    }
+
+    /// Whether the value came from Oura at some point, as opposed to a placeholder.
+    var hasValue: Bool { availability == .available || availability == .stale }
+
+    /// - Parameter fetchedAt: When this value was fetched. A reading that is
+    ///   already stale keeps its original time.
+    func markedStale(fetchedAt: Date? = nil) -> MetricReading {
+        MetricReading(
+            value: value,
+            detail: detail,
+            score: score,
+            observedAt: observedAt,
+            sourceDay: sourceDay,
+            availability: .stale,
+            lastFetchedAt: availability == .stale ? lastFetchedAt : (fetchedAt ?? lastFetchedAt)
+        )
     }
 }
 
@@ -317,21 +346,39 @@ struct MetricReorderCapabilities: Sendable, Equatable {
 }
 
 struct HealthSnapshot: Sendable, Equatable {
+    /// How long a failed stat waits before a popover open retries it, unless
+    /// Oura asked for longer with Retry-After. It keeps a persistently failing
+    /// endpoint from being fetched on every open.
+    static let failureRetryInterval: TimeInterval = 60
+    /// A stale value older than this is dropped rather than shown as current.
+    static let staleRetentionLimit: TimeInterval = 24 * 3_600
+
     var readings: [Metric: MetricReading]
     var battery: BatteryRecord?
     var fetchedAt: Date
     var coveredMetrics: Set<Metric>
+    /// Metrics whose latest request failed, keyed to the failure.
+    var failedMetrics: [Metric: RingStatsError]
+    /// Why the latest battery request failed, if it did.
+    var batteryFailure: RingStatsError?
+    var batteryIsStale: Bool
 
     init(
         readings: [Metric: MetricReading],
         battery: BatteryRecord?,
         fetchedAt: Date,
-        coveredMetrics: Set<Metric>? = nil
+        coveredMetrics: Set<Metric>? = nil,
+        failedMetrics: [Metric: RingStatsError] = [:],
+        batteryFailure: RingStatsError? = nil,
+        batteryIsStale: Bool = false
     ) {
         self.readings = readings
         self.battery = battery
         self.fetchedAt = fetchedAt
         self.coveredMetrics = coveredMetrics ?? Set(readings.keys)
+        self.failedMetrics = failedMetrics
+        self.batteryFailure = batteryFailure
+        self.batteryIsStale = batteryIsStale
     }
 
     static let empty = HealthSnapshot(
@@ -341,19 +388,81 @@ struct HealthSnapshot: Sendable, Equatable {
         coveredMetrics: []
     )
 
-    var hasData: Bool { !readings.isEmpty || battery != nil }
+    var hasData: Bool {
+        readings.values.contains(where: \.hasValue) || battery != nil
+    }
+
+    /// Failures a later refresh may fix. Missing permission is excluded because
+    /// retrying cannot succeed until the user reauthorizes.
+    var transientFailures: Set<Metric> {
+        Set(failedMetrics.filter { $0.value.isRetryable }.keys)
+    }
+
+    var batteryFailedTransiently: Bool { batteryFailure?.isRetryable == true }
+    var batteryNeedsPermission: Bool { batteryFailure == .insufficientScope }
+
+    var hasTransientFailures: Bool { !transientFailures.isEmpty || batteryFailedTransiently }
+
+    var staleMetrics: [Metric] {
+        readings.filter { $0.value.availability == .stale }.map(\.key)
+    }
+
+    /// How long to wait before retrying this snapshot's transient failures:
+    /// the standard interval, or longer when Oura rate limited a request.
+    var retryDelay: TimeInterval {
+        let failures = Array(failedMetrics.values) + [batteryFailure].compactMap { $0 }
+        let retryAfter = failures.compactMap { failure -> TimeInterval? in
+            if case .rateLimited(let seconds) = failure { return seconds }
+            return nil
+        }.max() ?? 0
+        return max(Self.failureRetryInterval, retryAfter)
+    }
 
     func isFresh(at date: Date, ttl: TimeInterval) -> Bool {
         hasData && date.timeIntervalSince(fetchedAt) < ttl
     }
 
+    /// Whether a popover open can reuse this snapshot. A snapshot with a
+    /// transient failure among the requested stats expires after `retryDelay`
+    /// instead of the full TTL.
     func isFresh(
         for metrics: Set<Metric>,
         at date: Date,
         ttl: TimeInterval
     ) -> Bool {
-        isFresh(at: date, ttl: ttl) && coveredMetrics.isSuperset(of: metrics)
+        guard hasData, coveredMetrics.isSuperset(of: metrics) else { return false }
+        let age = date.timeIntervalSince(fetchedAt)
+        let failedRequested = !transientFailures.isDisjoint(with: metrics) || batteryFailedTransiently
+        return age < (failedRequested ? min(ttl, retryDelay) : ttl)
     }
+
+    /// Combines a new refresh with the previous snapshot. A metric that failed
+    /// transiently keeps its last known value, marked stale, instead of being
+    /// replaced by a placeholder, until it is older than
+    /// `staleRetentionLimit`. Permission failures and genuine absence are
+    /// reported as they are, because an old value would misrepresent them.
+    func merging(previous: HealthSnapshot) -> HealthSnapshot {
+        var merged = self
+        for metric in transientFailures {
+            guard let earlier = previous.readings[metric], earlier.hasValue else { continue }
+            let stale = earlier.markedStale(fetchedAt: previous.fetchedAt)
+            let lastFetched = stale.lastFetchedAt ?? previous.fetchedAt
+            guard fetchedAt.timeIntervalSince(lastFetched) < Self.staleRetentionLimit else { continue }
+            merged.readings[metric] = stale
+        }
+        if batteryFailedTransiently, battery == nil, let earlierBattery = previous.battery {
+            merged.battery = earlierBattery
+            merged.batteryIsStale = true
+        }
+        return merged
+    }
+}
+
+enum RefreshOutcome: Sendable, Equatable {
+    case none
+    case succeeded(at: Date)
+    case partial(at: Date)
+    case failed(at: Date)
 }
 
 enum RefreshPolicy: Sendable, Equatable {
@@ -478,6 +587,18 @@ enum RingStatsError: LocalizedError, Sendable, Equatable {
     case transport(String)
     case server(String)
     case callback(String)
+
+    /// Whether retrying the same request later could succeed. Missing
+    /// permission and expired authorization need the user to act first.
+    var isRetryable: Bool {
+        switch self {
+        case .insufficientScope, .authenticationRequired, .notConfigured, .notConnected,
+             .invalidClientCredentials, .authorizationRestartRequired, .invalidRequestedScope:
+            false
+        default:
+            true
+        }
+    }
 
     var errorDescription: String? {
         switch self {

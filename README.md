@@ -65,7 +65,15 @@ Ring Stats theme. Both present the same configurable metrics and battery state.
 - Readiness, Sleep, Activity, Heart Rate, Stress, optional Resilience, and ring
   battery status.
 - Reorder and hide visible metrics, and resize the popover horizontally.
-- Two independent visual treatments, including a project-owned landscape.
+- Honest freshness: a stat that fails to refresh keeps its last known value,
+  marked "Not updated", and the status line says when data last updated.
+- Two visual treatments that show the same information, including a
+  project-owned landscape.
+- Guided three-step connection with a Keychain-only credential note.
+- Text size setting, full keyboard access to the stats row, and App Sandbox
+  confinement.
+- A local Diagnostics report you can review before sharing; it never contains
+  health values, credentials, or tokens.
 - Bring-your-own OAuth application credentials; no shared Client Secret.
 - Credentials and tokens stored in macOS Keychain.
 - Health API responses kept in memory rather than written to a local database.
@@ -97,9 +105,11 @@ license does not grant access to Oura services or override their terms.
    http://127.0.0.1:43828/oauth/callback
    ```
 
-3. Launch Ring Stats, open Connection settings, and enter your Client ID and
-   Client Secret.
-4. Complete Oura's browser-based consent flow.
+3. Launch Ring Stats. Connection opens on first launch and walks through the
+   same steps: create the application, add the callback, then enter your
+   Client ID and Client Secret.
+4. Complete Oura's browser-based consent flow. Ring Stats confirms the secure
+   connection and opens the popover.
 
 Ring Stats derives authorization scopes from the statistics currently enabled
 in Appearance. Battery status always requires `ring_configuration`; the other
@@ -117,6 +127,10 @@ swift test -Xswiftc -warnings-as-errors
 BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
 open "dist/Ring Stats.app"
 ```
+
+`swift test` also renders every popover state in both themes and all
+supported widths, plus each onboarding step, into `.build/state-gallery/`.
+Open `.build/state-gallery/popover/index.html` to review them.
 
 `scripts/build_app.sh` creates an ad-hoc-signed local build, retained dSYM, and
 tree-bound candidate manifest under `dist/`; it does not install by default.

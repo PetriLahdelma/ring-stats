@@ -21,7 +21,25 @@ BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
 scripts/verify_release_artifacts.sh
 scripts/verify_candidate_manifest.sh
 scripts/tests/test_delivery_safety.sh
+scripts/tests/test_sandbox_keychain.sh
+scripts/tests/test_container_migration.sh
 ```
+
+`swift test` writes a state gallery of every popover state, theme, and width,
+plus each onboarding step, to `.build/state-gallery/`. Review
+`.build/state-gallery/popover/index.html` whenever you change the UI. The
+gallery tests assert bounds, theme parity, and width-independent height;
+`everyTileDetailFitsTheTileWithoutTruncation` and
+`themeTextColorsMeetWCAGContrastForSmallText` guard copy length and contrast.
+
+`scripts/coverage_report.sh` prints line coverage grouped by the boundaries in
+[ARCHITECTURE.md](ARCHITECTURE.md). Use it to find untested boundaries, not as a
+target to maximize.
+
+Tests are grouped by boundary: `AppViewModelTests`, `OuraAPITests`,
+`OAuthClientTests`, `InfrastructureSecurityTests`, `DiagnosticsTests`, and
+`StateGalleryTests`, with shared fakes in `TestSupport.swift`. Wait on explicit
+gates (`Gate`, `waitUntil`, `HTTPHold`) rather than sleeping.
 
 The build stays under `dist/`. To launch it without replacing an installed copy:
 
@@ -48,6 +66,10 @@ before any remote collaboration or release action.
 - Add or update tests before changing security-, state-, time-, or persistence-
   sensitive behavior.
 - Keep UI state and errors typed. Do not infer permissions by searching strings.
+- Record diagnostics only through `DiagnosticEvent` cases. Never add a case that
+  carries free text, health values, identifiers, or response bodies.
+- Check new UI against [ACCESSIBILITY.md](ACCESSIBILITY.md) and update its
+  matrix when behavior changes.
 - Preserve metric-aware scopes and fetching; hidden metrics must not generate
   health endpoint requests.
 - Keep health responses in memory. Do not add telemetry, analytics, crash

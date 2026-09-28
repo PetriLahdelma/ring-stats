@@ -301,4 +301,82 @@ if [[ -f "$PROJECT_DIR/dist/candidate-manifest.json" ]]; then
   [[ -z "$(/usr/bin/find "$PROJECT_DIR/dist/candidates" -maxdepth 1 \( -name ".candidate-$concurrent_hash.*" -o -name ".archive-$concurrent_hash.lock" \) -print -quit)" ]] || fail "concurrent emitters left staging or lock entries"
 fi
 
+# Release tags must be exact, annotated, on the release branch, and signed.
+tag_repo="$TEST_ROOT/tag-repo"
+/bin/mkdir -p "$tag_repo"
+/usr/bin/git -C "$tag_repo" init -q -b main
+/usr/bin/git -C "$tag_repo" config user.name "Release Test"
+/usr/bin/git -C "$tag_repo" config user.email "release-test@example.invalid"
+/usr/bin/git -C "$tag_repo" config commit.gpgsign false
+/usr/bin/git -C "$tag_repo" config tag.gpgsign false
+/usr/bin/git -C "$tag_repo" commit -q --allow-empty -m "release candidate"
+verify_tag() { "$PROJECT_DIR/scripts/verify_release_tag.sh" "$tag_repo" 9.9 main; }
+
+/usr/bin/git -C "$tag_repo" tag v9.9
+expect_failure verify_tag
+/usr/bin/git -C "$tag_repo" tag -d v9.9 >/dev/null
+/usr/bin/git -C "$tag_repo" tag -a v9.9 -m "unsigned"
+expect_failure verify_tag
+[[ "$(ALLOW_UNSIGNED_TAG=1 verify_tag 2>/dev/null)" == "v9.9" ]] || fail "documented unsigned override was rejected"
+/usr/bin/git -C "$tag_repo" tag -d v9.9 >/dev/null
+
+/usr/bin/ssh-keygen -q -t ed25519 -N "" -C release-test -f "$TEST_ROOT/release-key"
+printf 'release-test@example.invalid %s\n' "$(/bin/cat "$TEST_ROOT/release-key.pub")" > "$TEST_ROOT/allowed-signers"
+/usr/bin/git -C "$tag_repo" config gpg.format ssh
+/usr/bin/git -C "$tag_repo" config user.signingkey "$TEST_ROOT/release-key"
+/usr/bin/git -C "$tag_repo" config gpg.ssh.allowedSignersFile "$TEST_ROOT/allowed-signers"
+/usr/bin/git -C "$tag_repo" tag -s v9.9 -m "signed"
+[[ "$(verify_tag)" == "v9.9" ]] || fail "a valid signed tag was rejected"
+expect_failure "$PROJECT_DIR/scripts/verify_release_tag.sh" "$tag_repo" 9.8 main
+/usr/bin/git -C "$tag_repo" commit -q --allow-empty -m "later commit"
+/usr/bin/git -C "$tag_repo" checkout -q v9.9
+expect_failure verify_tag
+
+# The SBOM describes the built executable and is valid CycloneDX JSON.
+if [[ -x "$PROJECT_DIR/dist/Ring Stats.app/Contents/MacOS/RingStats" ]]; then
+  "$PROJECT_DIR/scripts/generate_sbom.sh" "$PROJECT_DIR/dist/Ring Stats.app" "$TEST_ROOT/sbom.json" >/dev/null
+  /usr/bin/python3 - "$TEST_ROOT/sbom.json" "$(/usr/bin/shasum -a 256 "$PROJECT_DIR/dist/Ring Stats.app/Contents/MacOS/RingStats" | /usr/bin/awk '{print $1}')" <<'PY' || fail "SBOM content is wrong"
+import json, sys
+bom = json.load(open(sys.argv[1]))
+assert bom["bomFormat"] == "CycloneDX" and bom["specVersion"] == "1.5"
+app = bom["metadata"]["component"]
+assert app["name"] == "Ring Stats"
+assert app["hashes"][0]["content"] == sys.argv[2]
+names = {component["name"] for component in bom["components"]}
+assert {"Foundation", "SwiftUI", "AppKit", "Security", "Network"} <= names, names
+assert all(c.get("supplier", {}).get("name") == "Apple Inc." for c in bom["components"]), "unexpected third-party component"
+paths = [p["value"] for c in bom["components"] for p in c.get("properties", []) if p["name"] == "ringstats:path"]
+assert paths and all(p.startswith(("/System/", "/usr/lib/")) for p in paths), paths
+PY
+fi
+
+# The signing preflight passes with an SSH key and fails without SSH format.
+"$PROJECT_DIR/scripts/sign_release_file.sh" "$tag_repo" --check >/dev/null || fail "a usable SSH key failed the preflight"
+/usr/bin/git -C "$tag_repo" config gpg.format openpgp
+expect_failure "$PROJECT_DIR/scripts/sign_release_file.sh" "$tag_repo" --check
+/usr/bin/git -C "$tag_repo" config gpg.format ssh
+
+# Release attestations are signed with the tag key and bind exact file digests.
+attest_files="$TEST_ROOT/attest"
+/bin/mkdir -p "$attest_files"
+printf 'disk image' > "$attest_files/Ring-Stats-9.9.dmg"
+printf '{}' > "$attest_files/Ring-Stats-9.9.cdx.json"
+"$PROJECT_DIR/scripts/create_release_attestation.sh" "$tag_repo" v9.9 "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$attest_files/Ring-Stats-9.9.dmg" "$attest_files/Ring-Stats-9.9.cdx.json" >/dev/null
+"$PROJECT_DIR/scripts/sign_release_file.sh" "$tag_repo" "$attest_files/Ring-Stats-9.9.intoto.json" >/dev/null
+"$PROJECT_DIR/scripts/verify_release_attestation.sh" "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$TEST_ROOT/allowed-signers" release-test@example.invalid \
+  "$attest_files/Ring-Stats-9.9.dmg" "$attest_files/Ring-Stats-9.9.cdx.json" >/dev/null \
+  || fail "a valid attestation was rejected"
+printf 'tampered' > "$attest_files/Ring-Stats-9.9.dmg"
+expect_failure "$PROJECT_DIR/scripts/verify_release_attestation.sh" "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$TEST_ROOT/allowed-signers" release-test@example.invalid "$attest_files/Ring-Stats-9.9.dmg"
+printf 'disk image' > "$attest_files/Ring-Stats-9.9.dmg"
+expect_failure "$PROJECT_DIR/scripts/verify_release_attestation.sh" "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$TEST_ROOT/allowed-signers" someone-else@example.invalid "$attest_files/Ring-Stats-9.9.dmg"
+/usr/bin/python3 -c 'import json,sys; p=sys.argv[1]; d=json.load(open(p)); d["subject"][0]["digest"]["sha256"]="0"*64; json.dump(d,open(p,"w"))' \
+  "$attest_files/Ring-Stats-9.9.intoto.json"
+expect_failure "$PROJECT_DIR/scripts/verify_release_attestation.sh" "$attest_files/Ring-Stats-9.9.intoto.json" \
+  "$TEST_ROOT/allowed-signers" release-test@example.invalid "$attest_files/Ring-Stats-9.9.dmg"
+
 echo "Delivery safety tests passed"

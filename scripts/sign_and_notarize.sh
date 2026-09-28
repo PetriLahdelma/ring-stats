@@ -27,31 +27,10 @@ if [[ -n "$(/usr/bin/git -C "$PROJECT_DIR" status --porcelain --untracked-files=
   exit 1
 fi
 
-exact_tag="$(/usr/bin/git -C "$PROJECT_DIR" describe --exact-match --tags HEAD 2>/dev/null || true)"
-if [[ -z "$exact_tag" || "$exact_tag" != v* ]]; then
-  echo "Release signing requires HEAD to be an exact v* tag." >&2
-  exit 1
-fi
-if [[ "$(/usr/bin/git -C "$PROJECT_DIR" cat-file -t "$exact_tag")" != "tag" ]]; then
-  echo "Release tag must be annotated: $exact_tag" >&2
-  exit 1
-fi
-tag_version="${exact_tag#v}"
-if [[ "$tag_version" != "$VERSION" ]]; then
-  echo "Tag version $tag_version does not match bundle version $VERSION." >&2
-  exit 1
-fi
-
-if ! branch_commit="$(/usr/bin/git -C "$PROJECT_DIR" rev-parse --verify "$RELEASE_BRANCH_REF^{commit}" 2>/dev/null)"; then
-  echo "Release branch ref is unavailable: $RELEASE_BRANCH_REF" >&2
-  echo "Fetch the protected release branch before signing." >&2
-  exit 1
-fi
-tag_commit="$(/usr/bin/git -C "$PROJECT_DIR" rev-parse "$exact_tag^{commit}")"
-if [[ "$tag_commit" != "$branch_commit" ]]; then
-  echo "Release tag $exact_tag must point to the exact $RELEASE_BRANCH_REF commit." >&2
-  exit 1
-fi
+exact_tag="$("$PROJECT_DIR/scripts/verify_release_tag.sh" "$PROJECT_DIR" "$VERSION" "$RELEASE_BRANCH_REF")"
+# The attestation is signed at the very end; fail now rather than after
+# notarization if the release key is not usable.
+"$PROJECT_DIR/scripts/sign_release_file.sh" "$PROJECT_DIR" --check
 if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
   echo "CFBundleVersion must be a positive integer: $BUILD_NUMBER" >&2
   exit 1
@@ -82,6 +61,10 @@ if [[ -d "$METADATA_DIR" ]]; then
   /bin/rm -rf "$METADATA_DIR"
 fi
 /bin/mkdir -p "$METADATA_DIR"
+/bin/rm -f \
+  "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip" "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip.sha256" \
+  "$OUTPUT_DIR/Ring-Stats-$VERSION.cdx.json" "$OUTPUT_DIR/Ring-Stats-$VERSION.intoto.json" \
+  "$OUTPUT_DIR/Ring-Stats-$VERSION.intoto.json.sig"
 /usr/bin/git -C "$PROJECT_DIR" show -s --format=fuller HEAD > "$METADATA_DIR/source-commit.txt"
 /usr/bin/git -C "$PROJECT_DIR" for-each-ref "refs/tags/$exact_tag" \
   --format='tag=%(refname:short)%0atag_object=%(objectname)%0acreator=%(creator)%0asubject=%(subject)' \
@@ -130,5 +113,27 @@ echo "Signed, notarized, and stapled: $DMG_PATH"
 (cd "$OUTPUT_DIR" && /usr/bin/shasum -a 256 "Ring-Stats-$VERSION.dmg") \
   > "$METADATA_DIR/Ring-Stats-$VERSION.dmg.sha256"
 /usr/bin/shasum -a 256 "$APP_DIR/Contents/MacOS/RingStats" > "$METADATA_DIR/RingStats-binary.sha256"
+/usr/bin/git -C "$PROJECT_DIR" verify-tag --raw "$exact_tag" > "$METADATA_DIR/source-tag-signature.txt" 2>&1 || true
+
 DMG_PATH="$DMG_PATH" "$PROJECT_DIR/scripts/verify_release_artifacts.sh"
+# Built only after verification passes: one public archive of the provenance
+# evidence (source commit and signed tag, toolchain, dependencies, signatures,
+# candidate manifest, dSYM UUIDs and symbols, notarization result, and
+# checksums). It contains no secrets.
+sbom="$OUTPUT_DIR/Ring-Stats-$VERSION.cdx.json"
+"$PROJECT_DIR/scripts/generate_sbom.sh" "$APP_DIR" "$sbom"
+/bin/cp "$sbom" "$METADATA_DIR/"
+provenance_zip="$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip"
+/bin/rm -f "$provenance_zip"
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$METADATA_DIR" "$provenance_zip"
+(cd "$OUTPUT_DIR" && /usr/bin/shasum -a 256 "Ring-Stats-$VERSION-provenance.zip") \
+  > "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip.sha256"
+echo "Provenance archive: $provenance_zip"
+
+# A signed statement binding the DMG, SBOM, and provenance archive to the
+# signed tag and commit, using the same key as the tag.
+attestation="$OUTPUT_DIR/Ring-Stats-$VERSION.intoto.json"
+"$PROJECT_DIR/scripts/create_release_attestation.sh" "$PROJECT_DIR" "$exact_tag" "$attestation" \
+  "$DMG_PATH" "$sbom" "$provenance_zip"
+"$PROJECT_DIR/scripts/sign_release_file.sh" "$PROJECT_DIR" "$attestation"
 echo "Release evidence retained in: $METADATA_DIR"

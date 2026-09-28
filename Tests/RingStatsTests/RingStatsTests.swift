@@ -32,28 +32,129 @@ import Testing
     #expect(envelope.data.first?.inCharger == true)
 }
 
-@Test func popoverTimestampCopyDistinguishesRefreshFromBatterySampling() {
+@Test func refreshStatusShowsSpinnerWhileRefreshing() throws {
     let now = Date(timeIntervalSince1970: 10_000)
-    #expect(
-        PopoverTimestampText.freshness(
-            updatedAt: now.addingTimeInterval(-45),
+    let status = try #require(
+        PopoverTimestampText.refreshStatus(
+            isRefreshing: true,
+            outcome: .succeeded(at: now.addingTimeInterval(-600)),
+            lastUpdatedAt: now.addingTimeInterval(-600),
             now: now,
-            stale: false
-        ) == FreshnessPresentation(visual: "Updated now", accessibility: "Updated now")
-    )
-    #expect(
-        PopoverTimestampText.freshness(
-            updatedAt: now.addingTimeInterval(-3_900),
-            now: now,
-            stale: true
-        ) == FreshnessPresentation(
-            visual: "Update failed · Updated 1h ago",
-            accessibility: "Update failed. Showing the last successful values."
+            refreshInterval: 300
         )
     )
-    let sampledAt = ISO8601DateFormatter().string(from: now.addingTimeInterval(-3_900))
-    #expect(PopoverTimestampText.batterySample(timestamp: sampledAt, now: now) == "Sampled 1h ago")
-    #expect(PopoverTimestampText.batterySample(timestamp: "invalid", now: now) == nil)
+    #expect(status.label == "Refreshing…")
+    #expect(status.showsSpinner)
+    #expect(status.isVisible)
+}
+
+@Test func successConfirmationFadesAfterThreeSecondsWhileDataIsFresh() throws {
+    let refreshedAt = Date(timeIntervalSince1970: 10_000)
+    func status(after seconds: TimeInterval) throws -> RefreshStatusPresentation {
+        try #require(
+            PopoverTimestampText.refreshStatus(
+                isRefreshing: false,
+                outcome: .succeeded(at: refreshedAt),
+                lastUpdatedAt: refreshedAt,
+                now: refreshedAt.addingTimeInterval(seconds),
+                refreshInterval: 300
+            )
+        )
+    }
+    #expect(try status(after: 0).isVisible)
+    #expect(try status(after: 0).label == "Updated just now")
+    #expect(try status(after: 2.9).isVisible)
+    #expect(try !status(after: 3).isVisible)
+    #expect(try !status(after: 299).isVisible)
+    // VoiceOver still gets the age while nothing is drawn.
+    #expect(try status(after: 120).accessibility == "Updated 2m ago")
+}
+
+@Test func agedDataKeepsItsAgeVisible() throws {
+    let refreshedAt = Date(timeIntervalSince1970: 10_000)
+    let status = try #require(
+        PopoverTimestampText.refreshStatus(
+            isRefreshing: false,
+            outcome: .succeeded(at: refreshedAt),
+            lastUpdatedAt: refreshedAt,
+            now: refreshedAt.addingTimeInterval(720),
+            refreshInterval: 300
+        )
+    )
+    #expect(status.isVisible)
+    #expect(status.label == "Updated 12m ago")
+    #expect(status.tone == .neutral)
+}
+
+@Test func failuresStayVisibleInAlertTone() throws {
+    let now = Date(timeIntervalSince1970: 10_000)
+    let failed = try #require(
+        PopoverTimestampText.refreshStatus(
+            isRefreshing: false,
+            outcome: .failed(at: now),
+            lastUpdatedAt: now.addingTimeInterval(-3_900),
+            now: now.addingTimeInterval(60),
+            refreshInterval: 300
+        )
+    )
+    #expect(failed.label == "Update failed · 1h ago")
+    #expect(failed.tone == .alert)
+    #expect(failed.isVisible)
+
+    let partial = try #require(
+        PopoverTimestampText.refreshStatus(
+            isRefreshing: false,
+            outcome: .partial(at: now),
+            lastUpdatedAt: now,
+            now: now.addingTimeInterval(60),
+            refreshInterval: 300
+        )
+    )
+    #expect(partial.label == "Some stats not updated")
+    #expect(partial.tone == .alert)
+    #expect(partial.isVisible)
+}
+
+@Test func noStatusBeforeTheFirstRefresh() {
+    #expect(
+        PopoverTimestampText.refreshStatus(
+            isRefreshing: false,
+            outcome: .none,
+            lastUpdatedAt: nil,
+            now: Date(),
+            refreshInterval: 300
+        ) == nil
+    )
+}
+
+@Test func staleTileSaysSoInTextAndToVoiceOver() {
+    let stale = MetricReading(value: "80", detail: "Good", score: 80).markedStale()
+    #expect(MetricGauge.detailText(reading: stale, pending: false, now: Date()) == "Not updated")
+    #expect(
+        MetricGauge.accessibilityLabel(metric: .activity, reading: stale, pending: false)
+            == "Activity, 80, Good. Not updated; showing the last known value."
+    )
+}
+
+@Test func metricStripReportsOverflowOnlyAtEdgesWithHiddenStats() {
+    // Six tiles need 6 * 92 + 5 * 16 = 632 pt.
+    let content: CGFloat = 632
+    #expect(
+        MetricStripLayout.overflow(contentWidth: content, viewportWidth: 700, contentMinX: 0)
+            == MetricStripOverflow(leading: false, trailing: false)
+    )
+    #expect(
+        MetricStripLayout.overflow(contentWidth: content, viewportWidth: 372, contentMinX: 0)
+            == MetricStripOverflow(leading: false, trailing: true)
+    )
+    #expect(
+        MetricStripLayout.overflow(contentWidth: content, viewportWidth: 372, contentMinX: -130)
+            == MetricStripOverflow(leading: true, trailing: true)
+    )
+    #expect(
+        MetricStripLayout.overflow(contentWidth: content, viewportWidth: 372, contentMinX: -260)
+            == MetricStripOverflow(leading: true, trailing: false)
+    )
 }
 
 @Test func tokenExpiryUsesResponseLifetime() {
@@ -360,4 +461,106 @@ import Testing
     #expect(AppTheme.landscape.rawValue == "landscape")
     #expect(AppTheme.resolve("oura-original") == .landscape)
     #expect(AppTheme.allCases.map(\.title) == ["Ring Stats", "Landscape"])
+}
+
+@Test(arguments: TextSizePreference.allCases)
+@MainActor func everyTileDetailFitsTheTileWithoutTruncation(textSize: TextSizePreference) {
+    // The detail line is limited to one line, so anything wider than the tile
+    // is silently cut off. Measure every string the app can put there, at
+    // every text size.
+    let anatomy = MetricTileAnatomy(scale: textSize.scale)
+    let font = NSFont.systemFont(ofSize: anatomy.detailFontSize)
+    let now = Date(timeIntervalSince1970: 1_790_467_200)
+    var details: [String] = [60, 70, 85, 40].map { ScoreBand.label(for: $0) }
+    details += ["Updating…", "No data", "Not updated", "Long-term", "High stress"]
+    details += ["Restored", "Normal", "Stressful"]
+    details += [nil, .insufficientScope, .timedOut].compactMap { OuraAPI.placeholder(for: $0).detail }
+    details += [59, 3_540, 82_800].map { age in
+        MetricGauge.detailText(
+            reading: MetricReading(value: "58", detail: "bpm", score: nil, observedAt: now.addingTimeInterval(-Double(age))),
+            pending: false,
+            now: now
+        )
+    }
+    details += [1, 6].map { daysAgo in
+        let day = QueryDates.dayString(for: now.addingTimeInterval(-86_400 * Double(daysAgo)))
+        return MetricGauge.detailText(
+            reading: MetricReading(value: "72", detail: "Pay attention", score: 40, sourceDay: day),
+            pending: false,
+            now: now
+        )
+    }
+    for detail in details {
+        let width = (detail as NSString).size(withAttributes: [.font: font]).width
+        #expect(width <= anatomy.width, "\"\(detail)\" is \(width) pt wide at \(textSize)")
+    }
+}
+
+@Test func earlierSourceDaysAreLabelledRelativeToToday() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "Europe/Helsinki"))
+    let now = try #require(ISO8601DateFormatter().date(from: "2026-09-26T09:00:00Z"))
+    #expect(MetricGauge.earlierDayLabel(sourceDay: "2026-09-26", now: now, calendar: calendar) == nil)
+    #expect(MetricGauge.earlierDayLabel(sourceDay: "2026-09-25", now: now, calendar: calendar) == "yesterday")
+    let reading = MetricReading(value: "72", detail: "Good", score: 72, sourceDay: "2026-09-25")
+    #expect(MetricGauge.detailText(reading: reading, pending: false, now: now, calendar: calendar) == "From yesterday")
+}
+
+@Test @MainActor func themeTextColorsMeetWCAGContrastForSmallText() throws {
+    func components(_ color: Color, over background: (Double, Double, Double)) throws -> (Double, Double, Double) {
+        let ns = try #require(NSColor(color).usingColorSpace(.sRGB))
+        let alpha = Double(ns.alphaComponent)
+        return (
+            Double(ns.redComponent) * alpha + background.0 * (1 - alpha),
+            Double(ns.greenComponent) * alpha + background.1 * (1 - alpha),
+            Double(ns.blueComponent) * alpha + background.2 * (1 - alpha)
+        )
+    }
+    func luminance(_ rgb: (Double, Double, Double)) -> Double {
+        func channel(_ value: Double) -> Double {
+            value <= 0.03928 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(rgb.0) + 0.7152 * channel(rgb.1) + 0.0722 * channel(rgb.2)
+    }
+    func contrast(_ a: (Double, Double, Double), _ b: (Double, Double, Double)) -> Double {
+        let (high, low) = (max(luminance(a), luminance(b)), min(luminance(a), luminance(b)))
+        return (high + 0.05) / (low + 0.05)
+    }
+
+    let canvas = try components(Palette.canvasWarm, over: (1, 1, 1))
+    // The brightest pixel of the landscape photograph under its darkest-at-top
+    // veil, measured from the bundled asset. See ACCESSIBILITY.md.
+    let landscapeWorstCase = (108.0 / 255, 92.0 / 255, 81.0 / 255)
+    let cases: [(String, Color, (Double, Double, Double))] = [
+        ("ring-stats primary", AppTheme.ringStats.primaryContent, canvas),
+        ("ring-stats secondary", AppTheme.ringStats.secondaryContent, canvas),
+        ("ring-stats alert", AppTheme.ringStats.alert, canvas),
+        ("landscape primary", AppTheme.landscape.primaryContent, landscapeWorstCase),
+        ("landscape secondary", AppTheme.landscape.secondaryContent, landscapeWorstCase),
+        ("landscape alert", AppTheme.landscape.alert, landscapeWorstCase),
+    ]
+    for (name, color, background) in cases {
+        let ratio = contrast(try components(color, over: background), background)
+        #expect(ratio >= 4.5, "\(name) is \(ratio):1")
+    }
+}
+
+@Test func arrowKeysMoveFocusAcrossVisibleStatsOnly() {
+    let visible: [Metric] = [.readiness, .sleep, .heartRate]
+    #expect(MetricStripNavigation.neighbor(of: .sleep, in: visible, direction: .right) == .heartRate)
+    #expect(MetricStripNavigation.neighbor(of: .sleep, in: visible, direction: .left) == .readiness)
+    #expect(MetricStripNavigation.neighbor(of: .readiness, in: visible, direction: .left) == nil)
+    #expect(MetricStripNavigation.neighbor(of: .heartRate, in: visible, direction: .right) == nil)
+}
+
+@Test func optionArrowMovesAStatPastItsVisibleNeighbor() throws {
+    // Activity is hidden, so moving Sleep right must pass Heart Rate, not Activity.
+    let configuration = MetricConfiguration(
+        order: [.readiness, .sleep, .activity, .heartRate, .stress, .resilience],
+        hidden: [.activity, .resilience]
+    )
+    let moved = try #require(MetricStripNavigation.moving(.sleep, .right, in: configuration))
+    #expect(moved.visibleMetrics == [.readiness, .heartRate, .sleep, .stress])
+    #expect(MetricStripNavigation.moving(.readiness, .left, in: configuration) == nil)
+    #expect(MetricStripNavigation.moving(.stress, .right, in: configuration) == nil)
 }

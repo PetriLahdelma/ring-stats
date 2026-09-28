@@ -56,6 +56,7 @@ actor OuraAPI: SnapshotFetching {
         var readings: [Metric: MetricReading] = [:]
         var metricFailures: [Metric: RingStatsError] = [:]
         var battery: BatteryRecord?
+        var batteryFailure: RingStatsError?
         var failures: [RingStatsError] = []
         var wasCancelled = false
 
@@ -101,7 +102,7 @@ actor OuraAPI: SnapshotFetching {
                         let baseDetail = ScoreBand.label(for: value)
                         readings[metric] = MetricReading(
                             value: String(value),
-                            detail: Self.freshnessDetail(baseDetail, sourceDay: record.day, now: now),
+                            detail: baseDetail,
                             score: value,
                             sourceDay: record.day
                         )
@@ -120,11 +121,7 @@ actor OuraAPI: SnapshotFetching {
                         let minutes = value.stressHigh.map { max(0, ($0 + 30) / 60) }
                         readings[.stress] = MetricReading(
                             value: minutes.map { "\($0)m" } ?? "—",
-                            detail: Self.freshnessDetail(
-                                value.daySummary?.capitalized ?? "High stress",
-                                sourceDay: value.day,
-                                now: now
-                            ),
+                            detail: value.daySummary?.capitalized ?? "High stress",
                             score: nil,
                             sourceDay: value.day
                         )
@@ -133,7 +130,7 @@ actor OuraAPI: SnapshotFetching {
                     if let value, let level = value.level {
                         readings[.resilience] = MetricReading(
                             value: level.capitalized,
-                            detail: Self.freshnessDetail("Long-term", sourceDay: value.day, now: now),
+                            detail: "Long-term",
                             score: nil,
                             sourceDay: value.day
                         )
@@ -142,7 +139,11 @@ actor OuraAPI: SnapshotFetching {
                     battery = value
                 case .failure(let metric, let error):
                     failures.append(error)
-                    if let metric { metricFailures[metric] = error }
+                    if let metric {
+                        metricFailures[metric] = error
+                    } else {
+                        batteryFailure = error
+                    }
                 case .cancelled:
                     wasCancelled = true
                 }
@@ -161,20 +162,34 @@ actor OuraAPI: SnapshotFetching {
         }
 
         for metric in metrics where readings[metric] == nil {
-            let error = metricFailures[metric]
-            readings[metric] = MetricReading(
-                value: "—",
-                detail: error == .insufficientScope ? "Permission required" : "Unavailable",
-                score: nil,
-                availability: error == .insufficientScope ? .permissionRequired : .unavailable
-            )
+            readings[metric] = Self.placeholder(for: metricFailures[metric])
         }
         return HealthSnapshot(
             readings: readings,
             battery: battery,
             fetchedAt: now,
-            coveredMetrics: metrics
+            coveredMetrics: metrics,
+            failedMetrics: metricFailures.filter { metrics.contains($0.key) },
+            batteryFailure: batteryFailure
         )
+    }
+
+    /// The reading shown when a metric has no value from this refresh. The view
+    /// model replaces transient-failure placeholders with the last known value.
+    static func placeholder(for failure: RingStatsError?) -> MetricReading {
+        switch failure {
+        case .none:
+            MetricReading(value: "—", detail: "No data yet", score: nil, availability: .noData)
+        case .some(.insufficientScope):
+            MetricReading(
+                value: "—",
+                detail: "Needs access",
+                score: nil,
+                availability: .permissionRequired
+            )
+        case .some:
+            MetricReading(value: "—", detail: "Unavailable", score: nil, availability: .unavailable)
+        }
     }
 
     private static func fetchPart(
@@ -211,9 +226,6 @@ actor OuraAPI: SnapshotFetching {
             ?? errors.first
     }
 
-    private static func freshnessDetail(_ detail: String, sourceDay: String, now: Date) -> String {
-        sourceDay == QueryDates.dayString(for: now) ? detail : "\(detail) · \(sourceDay)"
-    }
 
     private static func fetchScore(
         _ metric: Metric,
@@ -348,6 +360,7 @@ actor OuraAPI: SnapshotFetching {
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let endpoint = OuraEndpoint(path: url.path)
         let data: Data
         let response: URLResponse
         do {
@@ -355,14 +368,18 @@ actor OuraAPI: SnapshotFetching {
         } catch let error as URLError where error.code == .cancelled {
             throw CancellationError()
         } catch let error as URLError where error.code == .timedOut {
+            DiagnosticsLog.shared.record(.endpointUnreachable(endpoint: endpoint, error: .timedOut))
             throw RingStatsError.timedOut
         } catch {
             if Task.isCancelled { throw CancellationError() }
-            throw RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
+            let failure = RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
+            DiagnosticsLog.shared.record(.endpointUnreachable(endpoint: endpoint, error: failure))
+            throw failure
         }
         guard let http = response as? HTTPURLResponse else {
             throw RingStatsError.invalidResponse
         }
+        DiagnosticsLog.shared.record(.endpointResponse(endpoint: endpoint, status: http.statusCode))
         guard (200..<300).contains(http.statusCode) else {
             switch http.statusCode {
             case 401:

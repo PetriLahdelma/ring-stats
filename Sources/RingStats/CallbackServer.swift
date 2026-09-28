@@ -84,6 +84,13 @@ actor CallbackServer {
         case .failed(let error):
             completeReady(with: .failure(error))
             completeCallback(with: .failure(error))
+        case .waiting(let error):
+            // A listener waits rather than fails when, for example, the port is
+            // already bound. Treat that as a failure so start() cannot hang and
+            // the browser is never opened toward a port another process holds.
+            completeReady(with: .failure(error))
+            completeCallback(with: .failure(error))
+            listener?.cancel()
         case .cancelled:
             listenerIsReady = false
             listener = nil
@@ -119,6 +126,7 @@ actor CallbackServer {
                 from: request,
                 expectedState: expectedState
             ) else {
+                DiagnosticsLog.shared.record(.callbackRejected)
                 sendResponse(
                     status: "400 Bad Request",
                     body: "Invalid callback request.",
@@ -126,6 +134,7 @@ actor CallbackServer {
                 )
                 return
             }
+            DiagnosticsLog.shared.record(.callbackAccepted)
             sendResponse(
                 status: "200 OK",
                 body: "Connected. You can close this window.",

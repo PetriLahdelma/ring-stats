@@ -5,7 +5,49 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Fixed
+
+- A stat that fails to refresh keeps its last known value, dimmed and marked
+  "Not updated", instead of turning into "Unavailable" while the refresh
+  reports success. Failed stats are retried on the next open after a minute,
+  or after Oura's Retry-After, and a value older than a day is no longer shown.
+- A missing battery permission is shown as "Needs access" with an Enable
+  Battery Access action instead of an endless partial refresh.
+- The OAuth listener no longer waits forever when its port is already taken.
+- The battery gauge rendered white in the default theme; it is signal blue
+  again, and the options menu now uses the theme color.
+- "Updated now" no longer freezes while the popover stays open.
+- Tile details no longer truncate: earlier-day values read "From yesterday",
+  and missing permission reads "Needs access".
+- Small failure text now meets 4.5:1 contrast.
+- Opening the popover no longer puts a focus ring on the first stat.
+
 ### Changed
+
+- The status line shows a spinner and "Refreshing…" while fetching, confirms
+  "Updated just now" for three seconds and then fades, and stays visible when
+  data is old or a refresh failed or was partial.
+- Landscape keeps score labels, so both themes show the same information.
+- The battery row no longer shows when the reading was sampled.
+- Customize left the metric strip; stats are customized from Appearance in
+  the menu. The strip fades at edges where more stats continue.
+- Connection is now a three-step guided setup that ends on "Connected
+  securely" and opens the popover.
+- Release tags must be signed, and releases publish a provenance archive.
+
+### Added
+
+- Text size: Appearance offers Standard, Large, and Extra Large, scaling the
+  popover's text and tiles and every window.
+- Keyboard access to the stats row: Tab reaches it, arrow keys move and
+  scroll, and Option-arrow reorders.
+- Ring Stats now runs in the App Sandbox; existing preferences move into its
+  container on first launch.
+- Releases publish a CycloneDX SBOM and a signed in-toto attestation.
+- Diagnostics: privacy-safe events in the macOS unified log and a report you
+  can review, copy, or save. It never contains health values or secrets.
+- State gallery renders of every popover state, theme, and width.
+- THREAT_MODEL.md, ACCESSIBILITY.md, and a usability study protocol.
 
 - Local candidate installation now preserves the prior app at a printed Trash
   recovery path, restores it after injected install failures, and never

@@ -14,7 +14,10 @@ second exact-hash approval (Gate B) before public upload.
 - Apple Developer Program membership
 - A `Developer ID Application` certificate available to `security find-identity`
 - A `notarytool` profile stored in Keychain
-- A clean tree at an exact annotated `v*` tag on the fetched `origin/main`
+- A clean tree at an exact annotated and signed `v*` tag on the fetched
+  `origin/main`
+- A Git signing key (SSH or GPG) configured for tags, with its public key
+  published so others can verify
 - `native/Info.plist` version matching the tag without its `v` prefix
 - A Gate A marker matching `dist/candidate-manifest.json`
 
@@ -62,20 +65,40 @@ Git or GitHub commands are technically capable of bypassing the procedure.
 3. Run the contributor verification commands.
 4. Commit the release preparation using the repository's Lore commit format,
    open a pull request, and merge it after required checks pass.
-5. Fast-forward the local branch to the reviewed remote commit, then create an
-   annotated tag whose version matches the plist:
+5. Fast-forward the local branch to the reviewed remote commit, then create a
+   signed tag whose version matches the plist. Tag only after the release
+   pull request is merged, so the tag lands on the exact protected-branch
+   commit rather than a pre-merge sibling:
 
    ```bash
    git switch main
    git pull --ff-only origin main
    version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' native/Info.plist)"
-   git tag -a "v$version" -m "Release Ring Stats $version"
+   git tag -s "v$version" -m "Release Ring Stats $version"
+   git verify-tag "v$version"
    ```
 
-The release script rejects a lightweight tag, dirty tree, version mismatch,
-tag that is not the exact `origin/main` commit, or non-Developer-ID signing
-identity. Set `RELEASE_BRANCH_REF` only when the protected release branch is
-intentionally different.
+One-time signing setup. Releases use an SSH signing key, so the tag and the
+release attestation share one key and one verification path:
+
+```bash
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+git config --global tag.gpgsign true
+printf '%s %s\n' "$(git config user.email)" "$(cat ~/.ssh/id_ed25519.pub)" >> ~/.config/git/allowed_signers
+git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
+```
+
+Add the same public key to GitHub as a signing key so the tag shows as
+verified.
+
+`scripts/verify_release_tag.sh`, run by the release script, rejects a
+lightweight or unsigned tag, a version mismatch, or a tag that is not the exact
+`origin/main` commit; the release script also rejects a dirty tree or a
+non-Developer-ID signing identity. Set `RELEASE_BRANCH_REF` only when the
+protected release branch is intentionally different. `ALLOW_UNSIGNED_TAG=1`
+skips only the signature check and must be justified in the release notes.
+Tags v1.0 through v1.1.1 predate this rule and are not rewritten.
 
 ## Build, sign, and notarize
 
@@ -111,11 +134,26 @@ scripts/write_approval_marker.sh gate-b "$artifact" "<exact user approval messag
 scripts/preflight_publication.sh "$artifact"
 ```
 
-Push the reviewed commit and annotated tag, create GitHub release notes from the
-matching changelog section, and upload:
+Push the signed tag, create GitHub release notes from the matching changelog
+section, and upload:
 
 - `dist/Ring-Stats-<version>.dmg`
 - `dist/release-metadata/Ring-Stats-<version>.dmg.sha256`
+- `dist/Ring-Stats-<version>-provenance.zip`
+- `dist/Ring-Stats-<version>-provenance.zip.sha256`
+- `dist/Ring-Stats-<version>.cdx.json` (CycloneDX SBOM)
+- `dist/Ring-Stats-<version>.intoto.json` and its `.sig`
+
+The release script generates the SBOM with `scripts/generate_sbom.sh`, writes
+an in-toto statement with a SLSA provenance predicate binding the DMG, SBOM,
+and provenance archive to the signed tag and commit
+(`scripts/create_release_attestation.sh`), and signs it with the same key as
+the tag (`scripts/sign_release_file.sh`). Publish the maintainer's
+allowed-signers line in `SECURITY.md` so anyone can verify.
+
+CI separately attests the unsigned artifacts it builds on `main` with GitHub
+artifact attestations. Those attestations describe CI builds, not the public
+notarized release.
 
 Download both public assets and verify the checksum again before announcing the
 release. Do not promote the Oura integration or enable donations until written
