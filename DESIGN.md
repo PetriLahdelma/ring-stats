@@ -165,9 +165,10 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
   the positional interpolation.
 
 ### Battery Row
-- A native macOS battery symbol followed by percentage and charging state.
+- A native macOS battery symbol followed by the percentage. While the ring charges, a bolt is cut out of the battery fill, as macOS does, so it stays visible at every level.
+- Not charging is the usual state and shows no text. A charging ring adds "Charging", and a ring in its charger at 100% reads "Charged". VoiceOver always hears the state, including "Not charging", because it cannot see the bolt.
 - The row shows no reading age. Oura only receives a battery reading when the ring syncs through the Oura phone app, and a ring loses only about 0.5 to 1% an hour, so the age adds noise without changing what the user does.
-- “Battery 92%” and “Not charging” are separate text elements with no middle dot; the primary battery text uses full emphasis and charging state 68% ink (at least 4.5:1).
+- “Battery 92%” and “Charging” are separate text elements with no middle dot; the primary battery text uses full emphasis and charging state 68% ink (at least 4.5:1).
 - When the battery request fails, the last reading stays and the row adds “Not updated” in Alert Text.
 - When the battery permission is missing, the row reads “Needs access” and the popover offers Enable Battery Access.
 - In Landscape, the battery glyph and primary battery text are pure white.
