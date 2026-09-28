@@ -5,6 +5,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.2.0 (2026-09-28)
+
 ### Fixed
 
 - The charging bolt disappeared into the battery icon above about half charge.

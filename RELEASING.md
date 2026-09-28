@@ -78,16 +78,21 @@ Git or GitHub commands are technically capable of bypassing the procedure.
    git verify-tag "v$version"
    ```
 
-One-time signing setup. Releases use an SSH signing key, so the tag and the
-release attestation share one key and one verification path:
+One-time signing setup. Releases use a dedicated SSH signing key, so the tag
+and the release attestation share one key and one verification path, and no
+login key is used. Configure it for this repository only:
 
 ```bash
-git config --global gpg.format ssh
-git config --global user.signingkey ~/.ssh/id_ed25519.pub
-git config --global tag.gpgsign true
-printf '%s %s\n' "$(git config user.email)" "$(cat ~/.ssh/id_ed25519.pub)" >> ~/.config/git/allowed_signers
-git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
+ssh-keygen -t ed25519 -C "Ring Stats release signing" -f ~/.ssh/ring_stats_release_signing
+git config gpg.format ssh
+git config user.signingkey ~/.ssh/ring_stats_release_signing.pub
+printf '%s namespaces="git" %s\n' "$(git config user.email)" \
+  "$(cut -d' ' -f1,2 ~/.ssh/ring_stats_release_signing.pub)" \
+  > ~/.config/git/ring-stats-allowed-signers
+git config gpg.ssh.allowedSignersFile ~/.config/git/ring-stats-allowed-signers
 ```
+
+Publish the allowed-signers line in `SECURITY.md` whenever the key changes.
 
 Add the same public key to GitHub as a signing key so the tag shows as
 verified.

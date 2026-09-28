@@ -70,7 +70,17 @@ Future releases also publish a CycloneDX SBOM (`Ring-Stats-<version>.cdx.json`)
 and a signed in-toto attestation (`Ring-Stats-<version>.intoto.json` with
 `.sig`) that binds the DMG, SBOM, and provenance archive to the signed tag.
 With the maintainer's allowed-signers line saved as `allowed_signers`, verify
-the downloaded files in a clone of this repository:
+the downloaded files in a clone of this repository.
+
+The release signing key, from 1.2.0 on, has the fingerprint
+`SHA256:NqcbYcDrBzOdqbkzCUcKjjt/8y4Xp2KNVRON8iasxts`. Its allowed-signers
+line is:
+
+```text
+ring-stats@users.noreply.github.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINQXXxIgMfjNgnc6sMAnZswZe/ZjSiHRW+JBYTCYzdRr
+```
+
+Then verify:
 
 ```bash
 scripts/verify_release_attestation.sh "Ring-Stats-<version>.intoto.json" \
