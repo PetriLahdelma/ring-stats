@@ -6,6 +6,20 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var rawConfiguration = MetricConfiguration.default.encoded
     @AppStorage(TextSizePreference.storageKey) private var textSizeRaw = TextSizePreference.standard.rawValue
+
+    private var textSizeStep: Binding<Double> {
+        Binding(
+            get: {
+                let sizes = TextSizePreference.allCases
+                return Double(sizes.firstIndex(of: TextSizePreference.resolve(textSizeRaw)) ?? 0)
+            },
+            set: { step in
+                let sizes = TextSizePreference.allCases
+                let index = min(max(Int(step.rounded()), 0), sizes.count - 1)
+                textSizeRaw = sizes[index].rawValue
+            }
+        )
+    }
     @Environment(\.textScale) private var textScale
 
     static let baseSize = CGSize(width: 500, height: 690)
@@ -108,15 +122,20 @@ struct AppearanceSettingsView: View {
                 Text("Text size")
                     .scaledFont(.headline)
                 Spacer()
-                Picker("Text size", selection: $textSizeRaw) {
-                    ForEach(TextSizePreference.allCases) { size in
-                        Text(size.title).tag(size.rawValue)
-                    }
+                // A stepped slider from a small to a large "Aa", as macOS
+                // presents text size. The end labels show real sizes, so they
+                // do not scale with the setting.
+                Slider(value: textSizeStep, in: 0...Double(TextSizePreference.allCases.count - 1), step: 1) {
+                    Text("Text size")
+                } minimumValueLabel: {
+                    Text("Aa").font(.system(size: 11, weight: .medium)).accessibilityHidden(true)
+                } maximumValueLabel: {
+                    Text("Aa").font(.system(size: 17, weight: .medium)).accessibilityHidden(true)
                 }
-                .pickerStyle(.segmented)
                 .labelsHidden()
-                .fixedSize()
+                .frame(width: 180)
                 .accessibilityLabel("Text size")
+                .accessibilityValue(TextSizePreference.resolve(textSizeRaw).title)
                 .accessibilityHint("Scales the text and stats in the popover and every Ring Stats window")
             }
             .padding(.top, 4)
