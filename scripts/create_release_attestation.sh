@@ -20,8 +20,12 @@ subjects="$(for file in "$@"; do
   [[ -f "$file" ]] || { echo "Missing subject: $file" >&2; exit 1; }
   printf '%s\t%s\n' "$(/usr/bin/basename "$file")" "$(/usr/bin/shasum -a 256 "$file" | /usr/bin/awk '{print $1}')"
 done)"
-toolchain="$(/usr/bin/swift --version 2>&1 | /usr/bin/head -1)"
-xcode="$(/usr/bin/xcodebuild -version 2>/dev/null | /usr/bin/head -1 || echo unknown)"
+# Take first lines from complete outputs; piping into head can abort xcodebuild
+# with a broken pipe.
+toolchain="$(/usr/bin/swift --version 2>&1)"
+toolchain="${toolchain%%$'\n'*}"
+xcode="$(/usr/bin/xcodebuild -version 2>/dev/null || echo unknown)"
+xcode="${xcode%%$'\n'*}"
 
 SUBJECTS="$subjects" TAG="$tag" COMMIT="$commit" TOOLCHAIN="$toolchain" XCODE="$xcode" \
 /usr/bin/python3 - "$output" <<'PY'

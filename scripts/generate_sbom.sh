@@ -24,8 +24,12 @@ trap '/bin/rm -rf "$work"' EXIT
 # Dependency lines are tab-indented; the per-architecture header lines are not
 # and contain the build path, so they must be excluded.
 /usr/bin/otool -L -arch all "$executable" | /usr/bin/awk '/^\t\// {print $1}' | LC_ALL=C /usr/bin/sort -u > "$work/linked"
-/usr/bin/swift --version 2>&1 | /usr/bin/head -1 > "$work/swift"
-/usr/bin/xcodebuild -version | /usr/bin/head -1 > "$work/xcode"
+# Capture whole outputs before taking the first line: piping into head can
+# close the pipe early, and xcodebuild aborts on the broken pipe.
+swift_version="$(/usr/bin/swift --version 2>&1)"
+xcode_version="$(/usr/bin/xcodebuild -version)"
+printf '%s\n' "${swift_version%%$'\n'*}" > "$work/swift"
+printf '%s\n' "${xcode_version%%$'\n'*}" > "$work/xcode"
 /usr/bin/git -C "$PROJECT_DIR" rev-parse HEAD > "$work/commit"
 
 /usr/bin/python3 - "$work" "$output" <<'PY'
