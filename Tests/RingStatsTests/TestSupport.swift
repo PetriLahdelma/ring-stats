@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 /// Parent for suites that install handlers on the process-wide HTTPStubProtocol.
 /// Serializing them together keeps one suite's handler from answering another's
@@ -71,6 +73,7 @@ actor SnapshotStub: SnapshotFetching {
 actor AuthorizationProbe {
     private let holds: Bool
     private(set) var callCount = 0
+    private(set) var recordedScopes: [Set<AuthorizationScope>] = []
     private(set) var wasCancelled = false
     nonisolated let started = Gate()
     nonisolated let release = Gate()
@@ -78,8 +81,8 @@ actor AuthorizationProbe {
     /// With `holds`, each run waits for `release` or cancellation before finishing.
     init(holds: Bool = true) { self.holds = holds }
 
-    func run(scopes: Set<OuraScope>) async throws {
-        _ = scopes
+    func run(scopes: Set<AuthorizationScope>) async throws {
+        recordedScopes.append(scopes)
         callCount += 1
         started.open()
         guard holds else { return }
@@ -123,7 +126,7 @@ actor AuthStub: OAuthServicing {
     func accessToken(forceRefresh: Bool) async throws -> String { "access" }
     func invalidateAuthorization() async throws { isConnected = false }
 
-    func authorizationRequest(state: String, scopes: Set<OuraScope>) async throws -> URL {
+    func authorizationRequest(state: String, scopes: Set<AuthorizationScope>) async throws -> URL {
         var components = URLComponents(string: "https://cloud.ouraring.com/oauth/authorize")!
         components.queryItems = [
             URLQueryItem(name: "scope", value: scopes.map(\.rawValue).sorted().joined(separator: " ")),

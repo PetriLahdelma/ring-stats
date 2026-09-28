@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 extension HTTPStubbedTests {
     /// Health endpoint fetching, snapshot assembly, and failure classification.

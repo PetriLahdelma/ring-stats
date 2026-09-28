@@ -1,10 +1,7 @@
 import Foundation
+import RingStatsCore
 
-protocol SnapshotFetching: Sendable {
-    func fetchSnapshot(metrics: Set<Metric>, now: Date) async throws -> HealthSnapshot
-}
-
-actor OuraAPI: SnapshotFetching {
+package actor OuraAPI: SnapshotFetching {
     private enum SnapshotPart: Sendable {
         case score(Metric, DailyScore?)
         case heartRate(HeartRateRecord?)
@@ -19,7 +16,7 @@ actor OuraAPI: SnapshotFetching {
     private let session: URLSession
     private let baseURL: URL
 
-    init(
+    package init(
         auth: any AccessTokenProviding,
         session: URLSession = NetworkSessionFactory.ephemeral(),
         baseURL: URL = URL(string: "https://api.ouraring.com/v2/usercollection/")!
@@ -29,7 +26,7 @@ actor OuraAPI: SnapshotFetching {
         self.baseURL = baseURL
     }
 
-    func fetchSnapshot(
+    package func fetchSnapshot(
         metrics: Set<Metric> = Set(Metric.defaultVisible),
         now: Date = Date()
     ) async throws -> HealthSnapshot {
@@ -166,7 +163,7 @@ actor OuraAPI: SnapshotFetching {
         }
         return HealthSnapshot(
             readings: readings,
-            battery: battery,
+            battery: battery?.reading,
             fetchedAt: now,
             coveredMetrics: metrics,
             failedMetrics: metricFailures.filter { metrics.contains($0.key) },
@@ -176,7 +173,7 @@ actor OuraAPI: SnapshotFetching {
 
     /// The reading shown when a metric has no value from this refresh. The view
     /// model replaces transient-failure placeholders with the last known value.
-    static func placeholder(for failure: RingStatsError?) -> MetricReading {
+    package static func placeholder(for failure: RingStatsError?) -> MetricReading {
         switch failure {
         case .none:
             MetricReading(value: "—", detail: "No data yet", score: nil, availability: .noData)
@@ -368,18 +365,18 @@ actor OuraAPI: SnapshotFetching {
         } catch let error as URLError where error.code == .cancelled {
             throw CancellationError()
         } catch let error as URLError where error.code == .timedOut {
-            DiagnosticsLog.shared.record(.endpointUnreachable(endpoint: endpoint, error: .timedOut))
+            DiagnosticsLog.shared.record(.endpointUnreachable(endpoint: endpoint.diagnostic, error: .timedOut))
             throw RingStatsError.timedOut
         } catch {
             if Task.isCancelled { throw CancellationError() }
             let failure = RingStatsError.transport("Could not reach Oura. Check your internet connection and try again.")
-            DiagnosticsLog.shared.record(.endpointUnreachable(endpoint: endpoint, error: failure))
+            DiagnosticsLog.shared.record(.endpointUnreachable(endpoint: endpoint.diagnostic, error: failure))
             throw failure
         }
         guard let http = response as? HTTPURLResponse else {
             throw RingStatsError.invalidResponse
         }
-        DiagnosticsLog.shared.record(.endpointResponse(endpoint: endpoint, status: http.statusCode))
+        DiagnosticsLog.shared.record(.endpointResponse(endpoint: endpoint.diagnostic, status: http.statusCode))
         guard (200..<300).contains(http.statusCode) else {
             switch http.statusCode {
             case 401:

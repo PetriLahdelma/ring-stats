@@ -4,12 +4,13 @@ boundaries = [
     ("App shell (AppKit)", ["RingStatsApp.swift"]),
     ("Views (SwiftUI)", ["/Views/"]),
     ("View model", ["AppViewModel.swift"]),
-    ("Oura API", ["OuraAPI.swift"]),
+    ("Provider boundary", ["HealthProvider.swift", "OuraProvider.swift"]),
+    ("Oura API", ["OuraAPI.swift", "OuraModels.swift"]),
     ("OAuth", ["OAuthClient.swift"]),
     ("Callback listener", ["CallbackServer.swift"]),
     ("Keychain", ["KeychainCredentialStore.swift"]),
-    ("Models", ["Models.swift", "Networking.swift"]),
-    ("Diagnostics", ["Diagnostics.swift"]),
+    ("Models", ["Models.swift", "Networking.swift", "AppTheme.swift"]),
+    ("Diagnostics", ["Diagnostics.swift", "DiagnosticsReport.swift"]),
 ]
 totals = {name: [0, 0] for name, _ in boundaries}
 for entry in json.load(sys.stdin)["data"][0]["files"]:

@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import RingStatsCore
+import RingStatsOura
 
 struct MenuPopoverBackground: View {
     /// Lets the state gallery supply the photograph, which lives in the app's

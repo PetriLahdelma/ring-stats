@@ -1,41 +1,27 @@
 import AppKit
 import Foundation
+import RingStatsCore
 
-protocol AccessTokenProviding: Sendable {
-    func accessToken(forceRefresh: Bool) async throws -> String
-    func invalidateAuthorization() async throws
-}
+package struct StoredOAuthAuthorization: Codable, Sendable, Equatable {
+    package var token: OAuthToken?
+    package var pendingRevocationAccessTokens: Set<String>
 
-protocol OAuthServicing: AccessTokenProviding {
-    var startupError: RingStatsError? { get async }
-    var isConfigured: Bool { get async }
-    var isConnected: Bool { get async }
-    func configure(_ credentials: ClientCredentials) async throws
-    func disconnect() async throws
-    func authorizationRequest(state: String, scopes: Set<OuraScope>) async throws -> URL
-    func exchange(code: String) async throws
-}
-
-struct StoredOAuthAuthorization: Codable, Sendable, Equatable {
-    var token: OAuthToken?
-    var pendingRevocationAccessTokens: Set<String>
-
-    static let empty = StoredOAuthAuthorization(
+    package static let empty = StoredOAuthAuthorization(
         token: nil,
         pendingRevocationAccessTokens: []
     )
 }
 
-actor OAuthClient: OAuthServicing {
+package actor OAuthClient: OAuthServicing {
     private enum GrantContext: Equatable {
         case authorizationCode
         case refreshToken
     }
 
-    static let callbackURL = OAuthLoopback.callbackURL
-    static let authorizationURL = URL(string: "https://cloud.ouraring.com/oauth/authorize")!
-    static let tokenURL = URL(string: "https://api.ouraring.com/oauth/token")!
-    static let revocationURL = URL(string: "https://api.ouraring.com/oauth/revoke")!
+    package static let callbackURL = OAuthLoopback.callbackURL
+    package static let authorizationURL = URL(string: "https://cloud.ouraring.com/oauth/authorize")!
+    package static let tokenURL = URL(string: "https://api.ouraring.com/oauth/token")!
+    package static let revocationURL = URL(string: "https://api.ouraring.com/oauth/revoke")!
 
     private let store: any CredentialStoring
     private let session: URLSession
@@ -49,7 +35,7 @@ actor OAuthClient: OAuthServicing {
     /// it to prove concurrent callers share one refresh.
     private(set) var refreshWaiterCount = 0
 
-    init(
+    package init(
         store: any CredentialStoring = KeychainCredentialStore(),
         session: URLSession = NetworkSessionFactory.ephemeral()
     ) {
@@ -92,25 +78,25 @@ actor OAuthClient: OAuthServicing {
         }
     }
 
-    var startupError: RingStatsError? { loadError }
-    var isConfigured: Bool { credentials != nil || loadError != nil }
-    var isConnected: Bool { authorization.token != nil }
+    package var startupError: RingStatsError? { loadError }
+    package var isConfigured: Bool { credentials != nil || loadError != nil }
+    package var isConnected: Bool { authorization.token != nil }
 
-    func configure(_ credentials: ClientCredentials) throws {
+    package func configure(_ credentials: ClientCredentials) throws {
         try ensureStoreLoaded()
         try store.save(credentials, account: "client-credentials")
         self.credentials = credentials
     }
 
     /// Revokes remote access and removes every locally saved OAuth secret.
-    func disconnect() async throws {
+    package func disconnect() async throws {
         try await removeAuthorization(deleteCredentials: true)
         loadError = nil
     }
 
-    func authorizationRequest(
+    package func authorizationRequest(
         state: String,
-        scopes: Set<OuraScope> = OuraScope.required(for: Set(Metric.defaultVisible))
+        scopes: Set<AuthorizationScope> = OuraProvider.descriptor.scopes(for: Set(Metric.defaultVisible))
     ) throws -> URL {
         try ensureStoreLoaded()
         guard let credentials else { throw RingStatsError.notConfigured }
@@ -126,7 +112,7 @@ actor OAuthClient: OAuthServicing {
         return url
     }
 
-    func exchange(code: String) async throws {
+    package func exchange(code: String) async throws {
         try ensureStoreLoaded()
         try Task.checkCancellation()
         guard let credentials else { throw RingStatsError.notConfigured }
@@ -153,7 +139,7 @@ actor OAuthClient: OAuthServicing {
         schedulePendingRevocationRetry()
     }
 
-    func accessToken(forceRefresh: Bool = false) async throws -> String {
+    package func accessToken(forceRefresh: Bool = false) async throws -> String {
         try ensureStoreLoaded()
         schedulePendingRevocationRetry()
         guard var current = authorization.token else { throw RingStatsError.notConnected }
@@ -212,7 +198,7 @@ actor OAuthClient: OAuthServicing {
         return current.accessToken
     }
 
-    func invalidateAuthorization() throws {
+    package func invalidateAuthorization() throws {
         refreshTask?.cancel()
         refreshTask = nil
         var updatedAuthorization = authorization
@@ -353,7 +339,7 @@ actor OAuthClient: OAuthServicing {
 
     /// Returns once no revocation retry is running or queued. Tests call it so
     /// background retries cannot outlive the test that started them.
-    func waitForRevocationRetries() async {
+    package func waitForRevocationRetries() async {
         while let task = revocationRetryTask {
             await task.value
         }
@@ -425,7 +411,7 @@ actor OAuthClient: OAuthServicing {
 }
 
 private struct OAuthErrorResponse: Decodable {
-    let error: String
+    package let error: String
 }
 
 private extension String {

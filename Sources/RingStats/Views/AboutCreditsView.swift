@@ -1,4 +1,6 @@
 import SwiftUI
+import RingStatsCore
+import RingStatsOura
 
 struct AboutCreditsView: View {
     static let baseWidth: CGFloat = 420

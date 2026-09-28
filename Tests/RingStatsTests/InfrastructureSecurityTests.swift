@@ -3,6 +3,8 @@ import Network
 import Security
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 @Suite(.serialized)
 struct InfrastructureSecurityTests {

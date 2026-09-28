@@ -4,6 +4,33 @@ Ring Stats is a dependency-free Swift package assembled into a macOS app by the
 repository scripts. SwiftUI renders content; AppKit owns menu-bar, panel, window,
 and click behavior.
 
+## Package targets
+
+| Target | Holds | Knows about Oura |
+| --- | --- | --- |
+| `RingStatsCore` | Models, freshness and merging, the `HealthProvider` boundary, diagnostics, Keychain storage, the loopback callback, network sessions | No, apart from user-facing error text |
+| `RingStatsOura` | `OuraProvider`, `OuraAPI`, `OAuthClient`, Oura response models, scopes, endpoints, and score bands | Yes |
+| `RingStats` | The app: AppKit shell, SwiftUI views, `AppViewModel`, diagnostics report | Only where it creates `OuraProvider` and in onboarding copy |
+
+Cross-target declarations use `package` access, so nothing is public outside
+the package. Providers are compiled in, not loaded as plugins.
+
+## Provider boundary
+
+A provider conforms to `HealthProvider`: a `ProviderDescriptor` (identity,
+capabilities, and the scope each metric needs), an account (`OAuthServicing`:
+sign-in, connection state, revocation), and a snapshot source
+(`SnapshotFetching`). `AppViewModel` works only through this boundary. It asks
+the descriptor which scopes to request and drops metrics the provider does not
+support before fetching.
+
+`Metric` cases keep their vendor's meaning. Another provider's recovery score
+is a different measure from Oura's Readiness and would get its own case. Only
+quantities that really are shared, such as battery percentage
+(`BatteryReading`), have one neutral shape. Scope and endpoint names in
+diagnostics (`AuthorizationScope`, `DiagnosticEndpoint`) are created only from
+string literals, so a provider cannot log runtime text through them.
+
 ## Runtime components
 
 ```text
@@ -16,6 +43,8 @@ NSStatusItem / AppDelegate
         └── Diagnostics window
                          │
                     AppViewModel
+                         │  HealthProvider
+                    OuraProvider
                     ┌────┴─────┐
                OAuthClient   OuraAPI
                     │           │
@@ -31,9 +60,9 @@ NSStatusItem / AppDelegate
   `MetricGauge` (the tile and its `MetricTileAnatomy`), `MetricReordering`,
   `AppearanceSettingsView`, `ConnectionSettingsView` (three-step onboarding and
   management), `AboutCreditsView`, `DiagnosticsView`, and `Theme` tokens.
-- `Diagnostics.swift` defines the typed `DiagnosticEvent` model, the
-  unified-log and in-memory `DiagnosticsLog`, and the redacted
-  `DiagnosticsReport`.
+- `Diagnostics.swift` (Core) defines the typed `DiagnosticEvent` model and the
+  unified-log and in-memory `DiagnosticsLog`. `DiagnosticsReport.swift` (app)
+  builds the redacted report.
 - `AppViewModel.swift` is the `@MainActor` state boundary. It owns the typed app
   state, five-minute refresh TTL, stale snapshot retention, authorization
   orchestration, and explicit refresh/cancel/disconnect actions.
@@ -47,8 +76,11 @@ NSStatusItem / AppDelegate
 - `KeychainCredentialStore.swift` stores Client ID, Client Secret, current
   access/refresh tokens, and any access tokens awaiting revocation as
   generic-password items.
-- `Models.swift` defines metrics, scope derivation, snapshot freshness, persisted
-  configuration, and typed application/error state.
+- `Models.swift` (Core) defines metrics, snapshot freshness and merging,
+  persisted metric configuration, and typed application/error state.
+- `HealthProvider.swift` (Core) defines the provider boundary.
+- `OuraProvider.swift` and `OuraModels.swift` (Oura) define Oura's descriptor,
+  scope derivation, endpoints, response models, and score bands.
 
 ## Data lifecycle
 

@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 extension HTTPStubbedTests {
     /// Token exchange, refresh, revocation, and credential persistence.
@@ -321,7 +323,7 @@ extension HTTPStubbedTests {
                 stubResponse(request, 500, "unused")
             }
             let client = OAuthClient(store: store, session: recorder.session)
-            let url = try await client.authorizationRequest(state: "state", scopes: [.daily])
+            let url = try await client.authorizationRequest(state: "state", scopes: [OuraScope.daily.authorizationScope])
             let redirect = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?.first(where: { $0.name == "redirect_uri" })?.value
             let scope = URLComponents(url: url, resolvingAgainstBaseURL: false)?

@@ -1,10 +1,10 @@
 import Foundation
 
-enum NetworkSessionFactory {
-    static let requestTimeout: TimeInterval = 30
-    static let resourceTimeout: TimeInterval = 60
+package enum NetworkSessionFactory {
+    package static let requestTimeout: TimeInterval = 30
+    package static let resourceTimeout: TimeInterval = 60
 
-    static func ephemeral() -> URLSession {
+    package static func ephemeral() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData

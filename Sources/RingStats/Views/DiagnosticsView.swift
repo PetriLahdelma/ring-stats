@@ -1,6 +1,8 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
+import RingStatsCore
+import RingStatsOura
 
 /// Shows the redacted diagnostics report so the user can read exactly what
 /// they would share before copying or saving it. Nothing is sent anywhere.

@@ -1,4 +1,6 @@
 import SwiftUI
+import RingStatsCore
+import RingStatsOura
 
 enum Palette {
     static let canvasWarm = Color(red: 244 / 255, green: 241 / 255, blue: 236 / 255)

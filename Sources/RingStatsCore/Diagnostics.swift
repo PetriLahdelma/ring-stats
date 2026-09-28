@@ -6,24 +6,24 @@ import OSLog
 /// names, HTTP status codes, and error kinds. There is deliberately no case
 /// that accepts free text, so health values, tokens, credentials, and server
 /// response bodies cannot reach the log or a diagnostics report.
-enum DiagnosticEvent: Sendable, Equatable {
+package enum DiagnosticEvent: Sendable, Equatable {
     case refreshStarted(metrics: Set<Metric>, forced: Bool)
     case refreshSucceeded(metrics: Set<Metric>)
     case refreshPartial(failed: [Metric: RingStatsError], batteryFailed: Bool)
     case refreshFailed(RingStatsError)
-    case authorizationStarted(scopes: Set<OuraScope>)
+    case authorizationStarted(scopes: Set<AuthorizationScope>)
     case authorizationSucceeded
     case authorizationCancelled
     case authorizationFailed(RingStatsError)
-    case endpointResponse(endpoint: OuraEndpoint, status: Int)
-    case endpointUnreachable(endpoint: OuraEndpoint, error: RingStatsError)
+    case endpointResponse(endpoint: DiagnosticEndpoint, status: Int)
+    case endpointUnreachable(endpoint: DiagnosticEndpoint, error: RingStatsError)
     case tokenRefreshed
     case tokenRefreshFailed(RingStatsError)
     case callbackRejected
     case callbackAccepted
     case disconnected
 
-    var category: DiagnosticCategory {
+    package var category: DiagnosticCategory {
         switch self {
         case .refreshStarted, .refreshSucceeded, .refreshPartial, .refreshFailed: .refresh
         case .authorizationStarted, .authorizationSucceeded, .authorizationCancelled,
@@ -33,7 +33,7 @@ enum DiagnosticEvent: Sendable, Equatable {
         }
     }
 
-    var isFailure: Bool {
+    package var isFailure: Bool {
         switch self {
         case .refreshPartial, .refreshFailed, .authorizationFailed, .endpointUnreachable,
              .tokenRefreshFailed, .callbackRejected:
@@ -45,7 +45,7 @@ enum DiagnosticEvent: Sendable, Equatable {
         }
     }
 
-    var summary: String {
+    package var summary: String {
         switch self {
         case .refreshStarted(let metrics, let forced):
             "Refresh started (\(forced ? "manual" : "on open")): \(Self.names(metrics))"
@@ -68,9 +68,9 @@ enum DiagnosticEvent: Sendable, Equatable {
         case .authorizationFailed(let error):
             "Authorization failed: \(error.diagnosticKind)"
         case .endpointResponse(let endpoint, let status):
-            "\(endpoint.rawValue): HTTP \(status)"
+            "\(endpoint.name): HTTP \(status)"
         case .endpointUnreachable(let endpoint, let error):
-            "\(endpoint.rawValue): \(error.diagnosticKind)"
+            "\(endpoint.name): \(error.diagnosticKind)"
         case .tokenRefreshed:
             "Access token refreshed"
         case .tokenRefreshFailed(let error):
@@ -89,36 +89,27 @@ enum DiagnosticEvent: Sendable, Equatable {
     }
 }
 
-enum DiagnosticCategory: String, Sendable {
+package enum DiagnosticCategory: String, Sendable {
     case refresh
     case authorization
     case network
     case callback
 }
 
-/// The Oura endpoints the app calls. Logging a case instead of a URL keeps
-/// query strings, which can hold tokens, out of diagnostics.
-enum OuraEndpoint: String, Sendable, CaseIterable {
-    case dailyReadiness = "daily_readiness"
-    case dailySleep = "daily_sleep"
-    case dailyActivity = "daily_activity"
-    case heartRate = "heartrate"
-    case dailyStress = "daily_stress"
-    case dailyResilience = "daily_resilience"
-    case ringBatteryLevel = "ring_battery_level"
-    case token = "oauth/token"
-    case revoke = "oauth/revoke"
-    case other
+/// The name of a provider endpoint. It is created only from a string literal,
+/// so query strings, which can hold tokens, cannot reach diagnostics.
+package struct DiagnosticEndpoint: Hashable, Sendable {
+    package let name: String
 
-    init(path: String) {
-        self = Self.allCases.first { $0 != .other && path.hasSuffix($0.rawValue) } ?? .other
+    package init(_ literal: StaticString) {
+        self.name = "\(literal)"
     }
 }
 
 extension RingStatsError {
     /// A stable identifier with no associated text. Messages from upstream
     /// services are dropped because they can echo request data.
-    var diagnosticKind: String {
+    package var diagnosticKind: String {
         switch self {
         case .notConfigured: "not-configured"
         case .notConnected: "not-connected"
@@ -142,13 +133,13 @@ extension RingStatsError {
 /// Records diagnostic events to the unified log and keeps the most recent ones
 /// in memory for a user-reviewed report. Nothing is written to disk by the app
 /// and nothing is sent anywhere.
-final class DiagnosticsLog: @unchecked Sendable {
-    static let shared = DiagnosticsLog()
-    static let subsystem = "com.digitaltableteur.ringstats"
+package final class DiagnosticsLog: @unchecked Sendable {
+    package static let shared = DiagnosticsLog()
+    package static let subsystem = "com.digitaltableteur.ringstats"
 
-    struct Entry: Sendable, Equatable {
-        let date: Date
-        let event: DiagnosticEvent
+    package struct Entry: Sendable, Equatable {
+        package let date: Date
+        package let event: DiagnosticEvent
     }
 
     private let capacity: Int
@@ -156,14 +147,14 @@ final class DiagnosticsLog: @unchecked Sendable {
     private var buffer: [Entry] = []
     private let clock: @Sendable () -> Date
 
-    init(capacity: Int = 200, clock: @escaping @Sendable () -> Date = Date.init) {
+    package init(capacity: Int = 200, clock: @escaping @Sendable () -> Date = Date.init) {
         self.capacity = capacity
         self.clock = clock
     }
 
-    var entries: [Entry] { lock.withLock { buffer } }
+    package var entries: [Entry] { lock.withLock { buffer } }
 
-    func record(_ event: DiagnosticEvent) {
+    package func record(_ event: DiagnosticEvent) {
         let entry = Entry(date: clock(), event: event)
         lock.withLock {
             buffer.append(entry)
@@ -178,102 +169,7 @@ final class DiagnosticsLog: @unchecked Sendable {
         }
     }
 
-    func clear() {
+    package func clear() {
         lock.withLock { buffer.removeAll() }
-    }
-}
-
-/// A plain-text report for a support request. It describes state and recent
-/// events without any health values, identifiers, or secrets.
-enum DiagnosticsReport {
-    @MainActor
-    static func make(model: AppViewModel, log: DiagnosticsLog = .shared, now: Date = Date()) -> String {
-        let bundle = Bundle.main
-        let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "development"
-        let build = bundle.infoDictionary?["CFBundleVersion"] as? String ?? "-"
-        let os = ProcessInfo.processInfo.operatingSystemVersion
-        #if arch(arm64)
-        let architecture = "arm64"
-        #else
-        let architecture = "x86_64"
-        #endif
-
-        var lines = [
-            "Ring Stats diagnostics",
-            "Generated: \(timestamp(now))",
-            "",
-            "This report contains no health values, credentials, tokens, or account identifiers.",
-            "",
-            "App: \(version) (\(build)), \(architecture)",
-            "macOS: \(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
-            "Connection: \(connectionSummary(model.state))",
-            "Last refresh: \(outcomeSummary(model.lastRefreshOutcome, now: now))",
-        ]
-
-        let readings = model.snapshot.readings.sorted { $0.key.rawValue < $1.key.rawValue }
-        if !readings.isEmpty {
-            lines.append("Stats:")
-            for (metric, reading) in readings {
-                var line = "  \(metric.rawValue): \(availabilitySummary(reading.availability))"
-                if let failure = model.snapshot.failedMetrics[metric] {
-                    line += " (\(failure.diagnosticKind))"
-                }
-                lines.append(line)
-            }
-        }
-        let battery = model.snapshot.battery == nil
-            ? "none"
-            : (model.snapshot.batteryIsStale ? "stale" : "available")
-        lines.append("Battery reading: \(battery)")
-
-        let entries = log.entries
-        lines.append("")
-        lines.append("Recent events (\(entries.count)):")
-        if entries.isEmpty {
-            lines.append("  none")
-        }
-        for entry in entries {
-            lines.append("  \(timestamp(entry.date))  \(entry.event.summary)")
-        }
-        return lines.joined(separator: "\n") + "\n"
-    }
-
-    private static func timestamp(_ date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.string(from: date)
-    }
-
-    private static func connectionSummary(_ state: AppState) -> String {
-        switch state {
-        case .unconfigured: "not configured"
-        case .configured: "configured, not connected"
-        case .authorizing: "authorizing"
-        case .connected: "connected"
-        case .refreshing: "refreshing"
-        case .authorizationExpired: "authorization expired"
-        case .failed(_, let connected, let configured):
-            "failed (\(connected ? "connected" : "not connected"), \(configured ? "configured" : "not configured"))"
-        }
-    }
-
-    private static func outcomeSummary(_ outcome: RefreshOutcome, now: Date) -> String {
-        func age(_ date: Date) -> String { "\(Int(max(0, now.timeIntervalSince(date))))s ago" }
-        return switch outcome {
-        case .none: "none"
-        case .succeeded(let at): "succeeded \(age(at))"
-        case .partial(let at): "partial \(age(at))"
-        case .failed(let at): "failed \(age(at))"
-        }
-    }
-
-    private static func availabilitySummary(_ availability: MetricAvailability) -> String {
-        switch availability {
-        case .available: "available"
-        case .stale: "stale"
-        case .permissionRequired: "needs access"
-        case .unavailable: "unavailable"
-        case .noData: "no data yet"
-        }
     }
 }
