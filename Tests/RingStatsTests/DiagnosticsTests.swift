@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 /// The diagnostics report is meant to be shared. These tests plant values that
 /// must never leave the app and check that none of them appear.
@@ -13,7 +15,7 @@ struct DiagnosticsTests {
                 .heartRate: MetricReading(value: "4219", detail: "bpm", score: nil),
                 .stress: OuraAPI.placeholder(for: .insufficientScope),
             ],
-            battery: BatteryRecord(level: 6613, charging: false, inCharger: false, timestamp: nil),
+            battery: BatteryReading(level: 6613, isCharging: false),
             fetchedAt: now,
             coveredMetrics: [.readiness, .heartRate, .stress],
             failedMetrics: [.stress: .insufficientScope]
@@ -21,6 +23,7 @@ struct DiagnosticsTests {
         let model = AppViewModel(
             auth: AuthStub(configured: true, connected: true),
             api: SnapshotStub(results: [.success(snapshot)]),
+            descriptor: OuraProvider.descriptor,
             now: { now },
             checkConnectionOnInit: false
         )
@@ -30,7 +33,7 @@ struct DiagnosticsTests {
         log.record(.refreshFailed(.server("upstream body SECRET-BODY with Bearer abc.def")))
         log.record(.authorizationFailed(.callback("state=PLANTED-STATE")))
         log.record(.tokenRefreshFailed(.credentialStore("keychain said PLANTED-KEYCHAIN")))
-        log.record(.endpointResponse(endpoint: OuraEndpoint(path: "/v2/usercollection/daily_readiness"), status: 503))
+        log.record(.endpointResponse(endpoint: OuraEndpoint(path: "/v2/usercollection/daily_readiness").diagnostic, status: 503))
 
         let report = DiagnosticsReport.make(model: model, log: log, now: now)
 
@@ -47,10 +50,10 @@ struct DiagnosticsTests {
     @Test func logKeepsOnlyTheMostRecentEvents() {
         let log = DiagnosticsLog(capacity: 3)
         for status in 200..<205 {
-            log.record(.endpointResponse(endpoint: .dailySleep, status: status))
+            log.record(.endpointResponse(endpoint: OuraEndpoint.dailySleep.diagnostic, status: status))
         }
         #expect(log.entries.map(\.event) == [202, 203, 204].map {
-            .endpointResponse(endpoint: .dailySleep, status: $0)
+            .endpointResponse(endpoint: OuraEndpoint.dailySleep.diagnostic, status: $0)
         })
     }
 

@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import RingStatsCore
+import RingStatsOura
 
 /// Where the first-run connection flow is. Oura requires each person to use
 /// their own developer application, so onboarding explains that constraint in
@@ -149,7 +151,7 @@ struct ConnectionSettingsView: View {
             Text("In your application’s settings, add this exact redirect URI. Oura returns you to Ring Stats through it after you approve access.")
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
-                Text(OAuthClient.callbackURL)
+                Text(OAuthLoopback.callbackURL)
                     .scaledFont(.body, design: .monospaced)
                     .textSelection(.enabled)
                     .padding(.vertical, 6)
@@ -277,7 +279,7 @@ struct ConnectionSettingsView: View {
 
     private func copyCallbackURL() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(OAuthClient.callbackURL, forType: .string)
+        NSPasteboard.general.setString(OAuthLoopback.callbackURL, forType: .string)
         callbackCopied = true
         AccessibilityNotification.Announcement("Callback URL copied").post()
         Task {

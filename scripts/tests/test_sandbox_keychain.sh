@@ -92,8 +92,8 @@ listener.cancel()
 check(listenerState == "ready", "loopback listener allowed by network.server (\(listenerState))")
 SWIFT
 
-/usr/bin/xcrun swiftc -O -swift-version 5 \
-  "$PROJECT_DIR/Sources/RingStats/KeychainCredentialStore.swift" \
+/usr/bin/xcrun swiftc -O -swift-version 5 -package-name RingStats \
+  "$PROJECT_DIR/Sources/RingStatsCore/KeychainCredentialStore.swift" \
   "$WORK/main.swift" \
   -o "$WORK/probe" \
   -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$WORK/Info.plist"

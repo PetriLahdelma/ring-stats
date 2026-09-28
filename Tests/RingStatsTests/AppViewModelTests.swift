@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 /// Refresh, authorization, and disconnect orchestration in AppViewModel.
 struct AppViewModelTests {
@@ -16,6 +18,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             refreshTTL: 300,
             now: { now.value },
             checkConnectionOnInit: false
@@ -54,6 +57,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             refreshTTL: 300,
             now: { now.value },
             checkConnectionOnInit: false
@@ -79,6 +83,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now },
             checkConnectionOnInit: false
         )
@@ -117,6 +122,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now },
             checkConnectionOnInit: false
         )
@@ -141,6 +147,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now },
             checkConnectionOnInit: false
         )
@@ -163,6 +170,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             authorizationHandler: { scopes in try await probe.run(scopes: scopes) },
             checkConnectionOnInit: false
         )
@@ -195,6 +203,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now },
             authorizationHandler: { scopes in try await probe.run(scopes: scopes) },
             checkConnectionOnInit: false
@@ -222,6 +231,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             authorizationHandler: { scopes in try await probe.run(scopes: scopes) },
             checkConnectionOnInit: false
         )
@@ -253,6 +263,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now },
             authorizationHandler: { scopes in try await probe.run(scopes: scopes) },
             checkConnectionOnInit: false
@@ -290,6 +301,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now.value },
             checkConnectionOnInit: false
         )
@@ -316,6 +328,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now },
             checkConnectionOnInit: false
         )
@@ -338,7 +351,7 @@ struct AppViewModelTests {
                 .readiness: MetricReading(value: "72", detail: "Good", score: 72),
                 .activity: MetricReading(value: "80", detail: "Good", score: 80),
             ],
-            battery: BatteryRecord(level: 64, charging: false, inCharger: false, timestamp: nil),
+            battery: BatteryReading(level: 64, isCharging: false),
             fetchedAt: now.value
         )
         let partial = HealthSnapshot(
@@ -353,7 +366,7 @@ struct AppViewModelTests {
             batteryFailure: .timedOut
         )
         let api = SnapshotStub(results: [.success(first), .success(partial)])
-        let model = AppViewModel(auth: auth, api: api, now: { now.value }, checkConnectionOnInit: false)
+        let model = AppViewModel(auth: auth, api: api, descriptor: OuraProvider.descriptor, now: { now.value }, checkConnectionOnInit: false)
 
         await model.refreshNow(metrics: [.readiness, .activity])
         now.value = now.value.addingTimeInterval(600)
@@ -385,7 +398,7 @@ struct AppViewModelTests {
             failedMetrics: [.activity: .timedOut]
         )
         let api = SnapshotStub(results: [.success(partial)])
-        let model = AppViewModel(auth: auth, api: api, now: { now }, checkConnectionOnInit: false)
+        let model = AppViewModel(auth: auth, api: api, descriptor: OuraProvider.descriptor, now: { now }, checkConnectionOnInit: false)
 
         await model.refreshNow(metrics: [.readiness, .activity])
 
@@ -412,7 +425,7 @@ struct AppViewModelTests {
             failedMetrics: [.stress: .insufficientScope]
         )
         let api = SnapshotStub(results: [.success(first), .success(denied)])
-        let model = AppViewModel(auth: auth, api: api, now: { now.value }, checkConnectionOnInit: false)
+        let model = AppViewModel(auth: auth, api: api, descriptor: OuraProvider.descriptor, now: { now.value }, checkConnectionOnInit: false)
 
         await model.refreshNow(metrics: [.stress])
         now.value = now.value.addingTimeInterval(600)
@@ -449,6 +462,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             refreshTTL: 300,
             now: { now.value },
             checkConnectionOnInit: false
@@ -481,6 +495,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: AuthStub(configured: true, connected: true),
             api: api,
+            descriptor: OuraProvider.descriptor,
             refreshTTL: 300,
             now: { now.value },
             checkConnectionOnInit: false
@@ -502,6 +517,7 @@ struct AppViewModelTests {
         let model = AppViewModel(
             auth: auth,
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now },
             authorizationHandler: { _ in await auth.markConnected() },
             checkConnectionOnInit: false

@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-protocol CredentialStoring: Sendable {
+package protocol CredentialStoring: Sendable {
     func load<T: Decodable & Sendable>(_ type: T.Type, account: String) throws -> T?
     func save<T: Encodable & Sendable>(_ value: T, account: String) throws
     func delete(account: String) throws
@@ -10,11 +10,11 @@ protocol CredentialStoring: Sendable {
 /// Stores OAuth credentials and tokens as generic-password items in the user's
 /// macOS Keychain. A stable Developer ID signature and bundle identifier let
 /// macOS recognize subsequent builds without repeatedly requesting access.
-struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
+package struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
     private let service: String
     private let legacyDirectory: URL
 
-    init(
+    package init(
         service: String = Bundle.main.bundleIdentifier ?? "com.digitaltableteur.ringstats",
         legacyDirectory: URL? = nil
     ) {
@@ -27,7 +27,7 @@ struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
             .appendingPathComponent("Legacy Secrets", isDirectory: true)
     }
 
-    func load<T: Decodable & Sendable>(_ type: T.Type, account: String) throws -> T? {
+    package func load<T: Decodable & Sendable>(_ type: T.Type, account: String) throws -> T? {
         do {
             if let data = try readData(account: account, useDataProtectionKeychain: true) {
                 let value = try JSONDecoder().decode(type, from: data)
@@ -75,7 +75,7 @@ struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
         return try migrateLegacyItem(type, account: account)
     }
 
-    func save<T: Encodable & Sendable>(_ value: T, account: String) throws {
+    package func save<T: Encodable & Sendable>(_ value: T, account: String) throws {
         let data = try JSONEncoder().encode(value)
         try save(data, account: account)
     }
@@ -112,7 +112,7 @@ struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
         }
     }
 
-    func delete(account: String) throws {
+    package func delete(account: String) throws {
         do {
             try deleteKeychainItem(account: account, useDataProtectionKeychain: true)
         } catch where isMissingEntitlement(error) {
@@ -219,11 +219,11 @@ struct KeychainCredentialStore: CredentialStoring, @unchecked Sendable {
     }
 }
 
-enum KeychainStoreError: LocalizedError, Sendable {
+package enum KeychainStoreError: LocalizedError, Sendable {
     case invalidData
     case operationFailed(operation: String, status: OSStatus, message: String)
 
-    var errorDescription: String? {
+    package var errorDescription: String? {
         switch self {
         case .invalidData:
             "The saved Keychain item did not contain valid data."

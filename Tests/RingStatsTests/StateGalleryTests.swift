@@ -3,6 +3,8 @@ import Foundation
 import SwiftUI
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 /// Renders the popover and connection window in every state that matters, at
 /// every supported width and theme, and checks their geometry.
@@ -74,6 +76,7 @@ struct StateGalleryTests {
         let model = AppViewModel(
             auth: AuthStub(configured: false, connected: false),
             api: SnapshotStub(results: []),
+            descriptor: OuraProvider.descriptor,
             checkConnectionOnInit: false
         )
         await model.updateConnectionState()
@@ -148,6 +151,7 @@ struct StateGalleryTests {
             let model = AppViewModel(
                 auth: AuthStub(configured: false, connected: false),
                 api: SnapshotStub(results: []),
+                descriptor: OuraProvider.descriptor,
                 checkConnectionOnInit: false
             )
             await model.updateConnectionState()
@@ -208,6 +212,7 @@ struct GalleryFixture {
             model = AppViewModel(
                 auth: AuthStub(configured: false, connected: false),
                 api: SnapshotStub(results: []),
+                descriptor: OuraProvider.descriptor,
                 now: { now },
                 checkConnectionOnInit: false
             )
@@ -273,6 +278,7 @@ struct GalleryFixture {
         let model = AppViewModel(
             auth: AuthStub(configured: true, connected: true),
             api: api,
+            descriptor: OuraProvider.descriptor,
             now: { now },
             checkConnectionOnInit: false
         )
@@ -311,15 +317,9 @@ struct GalleryFixture {
                 readings[metric] = MetricReading(value: "Solid", detail: "Long-term", score: nil, sourceDay: today)
             }
         }
-        let formatter = ISO8601DateFormatter()
         return HealthSnapshot(
             readings: readings,
-            battery: BatteryRecord(
-                level: lowBattery ? 12 : 76,
-                charging: false,
-                inCharger: false,
-                timestamp: formatter.string(from: date.addingTimeInterval(-900))
-            ),
+            battery: BatteryReading(level: lowBattery ? 12 : 76, isCharging: false),
             fetchedAt: date,
             coveredMetrics: metrics
         )

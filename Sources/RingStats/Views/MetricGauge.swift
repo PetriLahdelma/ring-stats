@@ -1,4 +1,6 @@
 import SwiftUI
+import RingStatsCore
+import RingStatsOura
 
 /// Fixed geometry for one metric tile. Every tile has the same zones in the
 /// same order, so themes and metrics vary content, never layout:
@@ -210,7 +212,7 @@ struct ScoreLoadingSpinner: View {
 }
 
 struct BatteryRow: View {
-    let battery: BatteryRecord?
+    let battery: BatteryReading?
     let loading: Bool
     var stale = false
     var needsPermission = false
@@ -226,7 +228,7 @@ struct BatteryRow: View {
             if needsPermission { return "Needs access" }
             return loading ? "Updating…" : "Unavailable"
         }
-        return battery.charging == true || battery.inCharger == true ? "Charging" : "Not charging"
+        return battery.isCharging ? "Charging" : "Not charging"
     }
 
     private var accessibilityDescription: String {
@@ -259,7 +261,7 @@ struct BatteryRow: View {
         HStack(spacing: 7) {
             BatteryStatusIcon(
                 level: battery?.level,
-                charging: battery?.charging == true || battery?.inCharger == true,
+                charging: battery?.isCharging == true,
                 theme: theme
             )
             // Never wrap: drop the least important text when space is tight.

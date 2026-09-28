@@ -1,128 +1,10 @@
 import Foundation
 
-enum AppTheme: String, CaseIterable, Identifiable, Sendable {
-    case ringStats = "ring-stats"
-    case landscape
-
-    static let storageKey = "selected-theme"
-
-    static func resolve(_ storedValue: String) -> AppTheme {
-        if storedValue == "oura-original" { return .landscape }
-        return AppTheme(rawValue: storedValue) ?? .ringStats
-    }
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .ringStats: "Ring Stats"
-        case .landscape: "Landscape"
-        }
-    }
-
-    var summary: String {
-        switch self {
-        case .ringStats:
-            "Warm canvas with signal-blue gauges and dark text."
-        case .landscape:
-            "Full-width landscape with white icons, numbers, and labels."
-        }
-    }
-}
-
-struct DailyScore: Codable, Sendable, Equatable {
-    let day: String
-    let score: Int?
-}
-
-struct ScoreEnvelope: Codable, Sendable {
-    let data: [DailyScore]
-}
-
-struct HeartRateRecord: Codable, Sendable, Equatable {
-    let timestamp: Date
-    let bpm: Int
-    let source: String
-
-    private enum CodingKeys: String, CodingKey {
-        case timestamp, bpm, source
-    }
-
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let rawTimestamp = try container.decode(String.self, forKey: .timestamp)
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let standard = ISO8601DateFormatter()
-        standard.formatOptions = [.withInternetDateTime]
-        guard let timestamp = fractional.date(from: rawTimestamp) ?? standard.date(from: rawTimestamp) else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .timestamp,
-                in: container,
-                debugDescription: "Expected an ISO 8601 timestamp."
-            )
-        }
-        self.timestamp = timestamp
-        self.bpm = try container.decode(Int.self, forKey: .bpm)
-        self.source = try container.decode(String.self, forKey: .source)
-    }
-
-    func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(ISO8601DateFormatter().string(from: timestamp), forKey: .timestamp)
-        try container.encode(bpm, forKey: .bpm)
-        try container.encode(source, forKey: .source)
-    }
-}
-
-struct HeartRateEnvelope: Codable, Sendable {
-    let data: [HeartRateRecord]
-}
-
-struct DailyStressRecord: Codable, Sendable, Equatable {
-    let day: String
-    let daySummary: String?
-    let recoveryHigh: Int?
-    let stressHigh: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case day
-        case daySummary = "day_summary"
-        case recoveryHigh = "recovery_high"
-        case stressHigh = "stress_high"
-    }
-}
-
-struct DailyStressEnvelope: Codable, Sendable {
-    let data: [DailyStressRecord]
-}
-
-struct DailyResilienceRecord: Codable, Sendable, Equatable {
-    let day: String
-    let level: String?
-}
-
-struct DailyResilienceEnvelope: Codable, Sendable {
-    let data: [DailyResilienceRecord]
-}
-
-struct BatteryRecord: Codable, Sendable, Equatable {
-    let level: Int?
-    let charging: Bool?
-    let inCharger: Bool?
-    let timestamp: String?
-
-    enum CodingKeys: String, CodingKey {
-        case level, charging, timestamp
-        case inCharger = "in_charger"
-    }
-}
-
-struct BatteryEnvelope: Codable, Sendable {
-    let data: [BatteryRecord]
-}
-
-enum Metric: String, CaseIterable, Codable, Identifiable, Sendable {
+/// A statistic Ring Stats can show. Each case keeps its vendor's meaning:
+/// another provider's "recovery" is a different measure from Oura's Readiness
+/// and gets its own case rather than reusing this one. Raw values are
+/// persisted in `MetricConfiguration`, so they must not change.
+package enum Metric: String, CaseIterable, Codable, Identifiable, Sendable {
     case readiness
     case sleep
     case activity
@@ -130,12 +12,12 @@ enum Metric: String, CaseIterable, Codable, Identifiable, Sendable {
     case stress
     case resilience
 
-    static let defaultVisible: [Metric] = [.readiness, .sleep, .activity, .heartRate, .stress]
-    static let dailyScores: [Metric] = [.readiness, .sleep, .activity]
+    package static let defaultVisible: [Metric] = [.readiness, .sleep, .activity, .heartRate, .stress]
+    package static let dailyScores: [Metric] = [.readiness, .sleep, .activity]
 
-    var id: String { rawValue }
+    package var id: String { rawValue }
 
-    var title: String {
+    package var title: String {
         switch self {
         case .readiness: "Readiness"
         case .sleep: "Sleep"
@@ -146,7 +28,7 @@ enum Metric: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 
-    var symbolName: String {
+    package var symbolName: String {
         switch self {
         case .readiness: "leaf"
         case .sleep: "moon"
@@ -157,62 +39,35 @@ enum Metric: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 
-    var dailyScoreEndpoint: String? {
-        switch self {
-        case .readiness: "daily_readiness"
-        case .sleep: "daily_sleep"
-        case .activity: "daily_activity"
-        case .heartRate, .stress, .resilience: nil
-        }
-    }
-
-    var isDailyScore: Bool { dailyScoreEndpoint != nil }
-
-    var requiredScope: OuraScope {
-        switch self {
-        case .readiness, .sleep, .activity, .resilience: .daily
-        case .heartRate: .heartRate
-        case .stress: .stress
-        }
-    }
+    /// Whether the metric is a 0 to 100 daily score, drawn as a gauge.
+    package var isDailyScore: Bool { Self.dailyScores.contains(self) }
 }
 
-enum OuraScope: String, CaseIterable, Sendable {
-    case daily
-    case heartRate = "heartrate"
-    case stress
-    case ringConfiguration = "ring_configuration"
-
-    static func required(for metrics: Set<Metric>) -> Set<OuraScope> {
-        Set(metrics.map(\.requiredScope)).union([.ringConfiguration])
-    }
-}
-
-enum MetricAvailability: Sendable, Equatable {
+package enum MetricAvailability: Sendable, Equatable {
     /// A value fetched during the latest refresh.
     case available
     /// A previously fetched value retained because the latest request for this
     /// metric failed transiently.
     case stale
-    /// Oura denied the scope for this metric.
+    /// The provider denied the scope for this metric.
     case permissionRequired
     /// The request failed and no earlier value exists.
     case unavailable
-    /// The request succeeded but Oura has no record for the range yet.
+    /// The request succeeded but the provider has no record for the range yet.
     case noData
 }
 
-struct MetricReading: Sendable, Equatable {
-    let value: String
-    let detail: String?
-    let score: Int?
-    let observedAt: Date?
-    let sourceDay: String?
-    let availability: MetricAvailability
+package struct MetricReading: Sendable, Equatable {
+    package let value: String
+    package let detail: String?
+    package let score: Int?
+    package let observedAt: Date?
+    package let sourceDay: String?
+    package let availability: MetricAvailability
     /// For a stale reading, when it was last successfully fetched.
-    let lastFetchedAt: Date?
+    package let lastFetchedAt: Date?
 
-    init(
+    package init(
         value: String,
         detail: String?,
         score: Int?,
@@ -230,12 +85,12 @@ struct MetricReading: Sendable, Equatable {
         self.lastFetchedAt = lastFetchedAt
     }
 
-    /// Whether the value came from Oura at some point, as opposed to a placeholder.
-    var hasValue: Bool { availability == .available || availability == .stale }
+    /// Whether the value came from the provider at some point, as opposed to a placeholder.
+    package var hasValue: Bool { availability == .available || availability == .stale }
 
     /// - Parameter fetchedAt: When this value was fetched. A reading that is
     ///   already stale keeps its original time.
-    func markedStale(fetchedAt: Date? = nil) -> MetricReading {
+    package func markedStale(fetchedAt: Date? = nil) -> MetricReading {
         MetricReading(
             value: value,
             detail: detail,
@@ -248,21 +103,33 @@ struct MetricReading: Sendable, Equatable {
     }
 }
 
-struct MetricConfiguration: Codable, Sendable, Equatable {
-    static let storageKey = "metric-shortcuts"
-    static let `default` = MetricConfiguration(
+/// A ring battery sample. Battery percentage is a quantity every provider
+/// reports the same way, so it has one neutral shape.
+package struct BatteryReading: Sendable, Equatable {
+    package let level: Int?
+    package let isCharging: Bool
+
+    package init(level: Int?, isCharging: Bool) {
+        self.level = level
+        self.isCharging = isCharging
+    }
+}
+
+package struct MetricConfiguration: Codable, Sendable, Equatable {
+    package static let storageKey = "metric-shortcuts"
+    package static let `default` = MetricConfiguration(
         order: Metric.defaultVisible + [.resilience],
         hidden: [.resilience]
     )
 
-    var order: [Metric]
-    var hidden: Set<Metric>
+    package var order: [Metric]
+    package var hidden: Set<Metric>
 
-    var visibleMetrics: [Metric] {
+    package var visibleMetrics: [Metric] {
         order.filter { !hidden.contains($0) }
     }
 
-    var encoded: String {
+    package var encoded: String {
         guard let data = try? JSONEncoder().encode(normalized),
               let string = String(data: data, encoding: .utf8) else {
             return ""
@@ -270,7 +137,7 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
         return string
     }
 
-    var normalized: MetricConfiguration {
+    package var normalized: MetricConfiguration {
         var seen = Set<Metric>()
         var normalizedOrder = order.filter { seen.insert($0).inserted }
         normalizedOrder.append(contentsOf: Metric.allCases.filter { seen.insert($0).inserted })
@@ -278,7 +145,7 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
         return MetricConfiguration(order: normalizedOrder, hidden: normalizedHidden)
     }
 
-    func moving(_ source: Metric, relativeTo target: Metric, after: Bool) -> MetricConfiguration {
+    package func moving(_ source: Metric, relativeTo target: Metric, after: Bool) -> MetricConfiguration {
         guard source != target,
               order.contains(source),
               order.contains(target) else { return normalized }
@@ -291,7 +158,7 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
         return updated.normalized
     }
 
-    func moving(fromOffsets sourceOffsets: IndexSet, toOffset destination: Int) -> MetricConfiguration {
+    package func moving(fromOffsets sourceOffsets: IndexSet, toOffset destination: Int) -> MetricConfiguration {
         let current = normalized
         guard !sourceOffsets.isEmpty,
               sourceOffsets.allSatisfy(current.order.indices.contains),
@@ -307,7 +174,7 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
         return MetricConfiguration(order: remaining, hidden: current.hidden).normalized
     }
 
-    func moving(_ metric: Metric, by offset: Int) -> MetricConfiguration {
+    package func moving(_ metric: Metric, by offset: Int) -> MetricConfiguration {
         let current = normalized
         guard let source = current.order.firstIndex(of: metric), offset != 0 else { return current }
         let target = source + offset
@@ -316,7 +183,7 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
         return current.moving(fromOffsets: IndexSet(integer: source), toOffset: destination)
     }
 
-    func reorderCapabilities(for metric: Metric) -> MetricReorderCapabilities? {
+    package func reorderCapabilities(for metric: Metric) -> MetricReorderCapabilities? {
         let current = normalized
         guard let index = current.order.firstIndex(of: metric) else { return nil }
         return MetricReorderCapabilities(
@@ -327,7 +194,7 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
         )
     }
 
-    static func decode(_ rawValue: String?) -> MetricConfiguration {
+    package static func decode(_ rawValue: String?) -> MetricConfiguration {
         guard let rawValue,
               let data = rawValue.data(using: .utf8),
               let decoded = try? JSONDecoder().decode(MetricConfiguration.self, from: data) else {
@@ -338,34 +205,34 @@ struct MetricConfiguration: Codable, Sendable, Equatable {
     }
 }
 
-struct MetricReorderCapabilities: Sendable, Equatable {
-    let position: Int
-    let total: Int
-    let canMoveUp: Bool
-    let canMoveDown: Bool
+package struct MetricReorderCapabilities: Sendable, Equatable {
+    package let position: Int
+    package let total: Int
+    package let canMoveUp: Bool
+    package let canMoveDown: Bool
 }
 
-struct HealthSnapshot: Sendable, Equatable {
+package struct HealthSnapshot: Sendable, Equatable {
     /// How long a failed stat waits before a popover open retries it, unless
-    /// Oura asked for longer with Retry-After. It keeps a persistently failing
+    /// the provider asked for longer with Retry-After. It keeps a persistently failing
     /// endpoint from being fetched on every open.
-    static let failureRetryInterval: TimeInterval = 60
+    package static let failureRetryInterval: TimeInterval = 60
     /// A stale value older than this is dropped rather than shown as current.
-    static let staleRetentionLimit: TimeInterval = 24 * 3_600
+    package static let staleRetentionLimit: TimeInterval = 24 * 3_600
 
-    var readings: [Metric: MetricReading]
-    var battery: BatteryRecord?
-    var fetchedAt: Date
-    var coveredMetrics: Set<Metric>
+    package var readings: [Metric: MetricReading]
+    package var battery: BatteryReading?
+    package var fetchedAt: Date
+    package var coveredMetrics: Set<Metric>
     /// Metrics whose latest request failed, keyed to the failure.
-    var failedMetrics: [Metric: RingStatsError]
+    package var failedMetrics: [Metric: RingStatsError]
     /// Why the latest battery request failed, if it did.
-    var batteryFailure: RingStatsError?
-    var batteryIsStale: Bool
+    package var batteryFailure: RingStatsError?
+    package var batteryIsStale: Bool
 
-    init(
+    package init(
         readings: [Metric: MetricReading],
-        battery: BatteryRecord?,
+        battery: BatteryReading?,
         fetchedAt: Date,
         coveredMetrics: Set<Metric>? = nil,
         failedMetrics: [Metric: RingStatsError] = [:],
@@ -381,35 +248,35 @@ struct HealthSnapshot: Sendable, Equatable {
         self.batteryIsStale = batteryIsStale
     }
 
-    static let empty = HealthSnapshot(
+    package static let empty = HealthSnapshot(
         readings: [:],
         battery: nil,
         fetchedAt: .distantPast,
         coveredMetrics: []
     )
 
-    var hasData: Bool {
+    package var hasData: Bool {
         readings.values.contains(where: \.hasValue) || battery != nil
     }
 
     /// Failures a later refresh may fix. Missing permission is excluded because
     /// retrying cannot succeed until the user reauthorizes.
-    var transientFailures: Set<Metric> {
+    package var transientFailures: Set<Metric> {
         Set(failedMetrics.filter { $0.value.isRetryable }.keys)
     }
 
-    var batteryFailedTransiently: Bool { batteryFailure?.isRetryable == true }
-    var batteryNeedsPermission: Bool { batteryFailure == .insufficientScope }
+    package var batteryFailedTransiently: Bool { batteryFailure?.isRetryable == true }
+    package var batteryNeedsPermission: Bool { batteryFailure == .insufficientScope }
 
-    var hasTransientFailures: Bool { !transientFailures.isEmpty || batteryFailedTransiently }
+    package var hasTransientFailures: Bool { !transientFailures.isEmpty || batteryFailedTransiently }
 
-    var staleMetrics: [Metric] {
+    package var staleMetrics: [Metric] {
         readings.filter { $0.value.availability == .stale }.map(\.key)
     }
 
     /// How long to wait before retrying this snapshot's transient failures:
-    /// the standard interval, or longer when Oura rate limited a request.
-    var retryDelay: TimeInterval {
+    /// the standard interval, or longer when the provider rate limited a request.
+    package var retryDelay: TimeInterval {
         let failures = Array(failedMetrics.values) + [batteryFailure].compactMap { $0 }
         let retryAfter = failures.compactMap { failure -> TimeInterval? in
             if case .rateLimited(let seconds) = failure { return seconds }
@@ -418,14 +285,14 @@ struct HealthSnapshot: Sendable, Equatable {
         return max(Self.failureRetryInterval, retryAfter)
     }
 
-    func isFresh(at date: Date, ttl: TimeInterval) -> Bool {
+    package func isFresh(at date: Date, ttl: TimeInterval) -> Bool {
         hasData && date.timeIntervalSince(fetchedAt) < ttl
     }
 
     /// Whether a popover open can reuse this snapshot. A snapshot with a
     /// transient failure among the requested stats expires after `retryDelay`
     /// instead of the full TTL.
-    func isFresh(
+    package func isFresh(
         for metrics: Set<Metric>,
         at date: Date,
         ttl: TimeInterval
@@ -441,7 +308,7 @@ struct HealthSnapshot: Sendable, Equatable {
     /// replaced by a placeholder, until it is older than
     /// `staleRetentionLimit`. Permission failures and genuine absence are
     /// reported as they are, because an old value would misrepresent them.
-    func merging(previous: HealthSnapshot) -> HealthSnapshot {
+    package func merging(previous: HealthSnapshot) -> HealthSnapshot {
         var merged = self
         for metric in transientFailures {
             guard let earlier = previous.readings[metric], earlier.hasValue else { continue }
@@ -458,19 +325,19 @@ struct HealthSnapshot: Sendable, Equatable {
     }
 }
 
-enum RefreshOutcome: Sendable, Equatable {
+package enum RefreshOutcome: Sendable, Equatable {
     case none
     case succeeded(at: Date)
     case partial(at: Date)
     case failed(at: Date)
 }
 
-enum RefreshPolicy: Sendable, Equatable {
+package enum RefreshPolicy: Sendable, Equatable {
     case ifStale
     case force
 }
 
-enum AppState: Sendable, Equatable {
+package enum AppState: Sendable, Equatable {
     case unconfigured
     case configured
     case authorizing
@@ -479,7 +346,7 @@ enum AppState: Sendable, Equatable {
     case authorizationExpired
     case failed(message: String, connected: Bool, configured: Bool)
 
-    var isConfigured: Bool {
+    package var isConfigured: Bool {
         switch self {
         case .unconfigured: false
         case .failed(_, _, let configured): configured
@@ -487,7 +354,7 @@ enum AppState: Sendable, Equatable {
         }
     }
 
-    var isConnected: Bool {
+    package var isConnected: Bool {
         switch self {
         case .connected, .refreshing: true
         case .failed(_, let connected, _): connected
@@ -495,7 +362,7 @@ enum AppState: Sendable, Equatable {
         }
     }
 
-    var isLoading: Bool {
+    package var isLoading: Bool {
         switch self {
         case .authorizing, .refreshing: true
         default: false
@@ -503,20 +370,8 @@ enum AppState: Sendable, Equatable {
     }
 }
 
-enum ScoreBand {
-    static func label(for score: Int?) -> String {
-        guard let score else { return "No data" }
-        return switch score {
-        case 85...: "Optimal"
-        case 70..<85: "Good"
-        case 60..<70: "Fair"
-        default: "Pay attention"
-        }
-    }
-}
-
-enum QueryDates {
-    static func boundedRange(now: Date = Date(), calendar: Calendar = .current) -> (start: String, end: String) {
+package enum QueryDates {
+    package static func boundedRange(now: Date = Date(), calendar: Calendar = .current) -> (start: String, end: String) {
         let today = calendar.startOfDay(for: now)
         let start = calendar.date(byAdding: .day, value: -1, to: today) ?? today
         let end = calendar.date(byAdding: .day, value: 1, to: today) ?? today
@@ -527,7 +382,7 @@ enum QueryDates {
         return (formatter.string(from: start), formatter.string(from: end))
     }
 
-    static func dayString(for date: Date, calendar: Calendar = .current) -> String {
+    package static func dayString(for date: Date, calendar: Calendar = .current) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -536,42 +391,17 @@ enum QueryDates {
     }
 }
 
-struct OAuthToken: Codable, Sendable, Equatable {
-    let accessToken: String
-    let refreshToken: String
-    let expiresAt: Date
+package struct ClientCredentials: Codable, Sendable, Equatable {
+    package let clientID: String
+    package let clientSecret: String
 
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case refreshToken = "refresh_token"
-        case expiresAt = "expires_at"
-    }
-
-    var needsRefresh: Bool { expiresAt.timeIntervalSinceNow < 90 }
-}
-
-struct TokenResponse: Decodable, Sendable {
-    let accessToken: String
-    let refreshToken: String
-    let expiresIn: TimeInterval
-
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case refreshToken = "refresh_token"
-        case expiresIn = "expires_in"
-    }
-
-    func token(now: Date = Date()) -> OAuthToken {
-        OAuthToken(accessToken: accessToken, refreshToken: refreshToken, expiresAt: now.addingTimeInterval(expiresIn))
+    package init(clientID: String, clientSecret: String) {
+        self.clientID = clientID
+        self.clientSecret = clientSecret
     }
 }
 
-struct ClientCredentials: Codable, Sendable, Equatable {
-    let clientID: String
-    let clientSecret: String
-}
-
-enum RingStatsError: LocalizedError, Sendable, Equatable {
+package enum RingStatsError: LocalizedError, Sendable, Equatable {
     case notConfigured
     case notConnected
     case invalidResponse
@@ -590,7 +420,7 @@ enum RingStatsError: LocalizedError, Sendable, Equatable {
 
     /// Whether retrying the same request later could succeed. Missing
     /// permission and expired authorization need the user to act first.
-    var isRetryable: Bool {
+    package var isRetryable: Bool {
         switch self {
         case .insufficientScope, .authenticationRequired, .notConfigured, .notConnected,
              .invalidClientCredentials, .authorizationRestartRequired, .invalidRequestedScope:
@@ -600,7 +430,9 @@ enum RingStatsError: LocalizedError, Sendable, Equatable {
         }
     }
 
-    var errorDescription: String? {
+    /// Messages name Oura because it is the only provider. A second provider
+    /// needs them to name the source of the failure instead.
+    package var errorDescription: String? {
         switch self {
         case .notConfigured: "Enter Oura application credentials first."
         case .notConnected: "Connect your Oura account first."

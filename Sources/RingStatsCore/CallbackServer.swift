@@ -1,16 +1,16 @@
 import Foundation
 import Network
 
-enum OAuthLoopback {
-    static let host = "127.0.0.1"
-    static let port: UInt16 = 43_828
-    static let path = "/oauth/callback"
-    static let origin = "http://\(host):\(port)"
-    static let callbackURL = "\(origin)\(path)"
-    static let acceptedHostHeaders = ["\(host):\(port)", "localhost:\(port)"]
+package enum OAuthLoopback {
+    package static let host = "127.0.0.1"
+    package static let port: UInt16 = 43_828
+    package static let path = "/oauth/callback"
+    package static let origin = "http://\(host):\(port)"
+    package static let callbackURL = "\(origin)\(path)"
+    package static let acceptedHostHeaders = ["\(host):\(port)", "localhost:\(port)"]
 }
 
-actor CallbackServer {
+package actor CallbackServer {
     private static let maximumHeaderBytes = 16_384
 
     private let expectedState: String
@@ -22,11 +22,11 @@ actor CallbackServer {
     private var bufferedResult: Result<URL, any Error>?
     private var pendingResultAfterListenerShutdown: Result<URL, any Error>?
 
-    init(expectedState: String) {
+    package init(expectedState: String) {
         self.expectedState = expectedState
     }
 
-    func start() async throws {
+    package func start() async throws {
         if listenerIsReady { return }
 
         try await withCheckedThrowingContinuation { ready in
@@ -55,7 +55,7 @@ actor CallbackServer {
         }
     }
 
-    func waitForCallback() async throws -> URL {
+    package func waitForCallback() async throws -> URL {
         try Task.checkCancellation()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -71,7 +71,7 @@ actor CallbackServer {
         }
     }
 
-    func cancel() {
+    package func cancel() {
         completeReady(with: .failure(CancellationError()))
         completeCallback(with: .failure(CancellationError()))
     }
@@ -184,7 +184,7 @@ actor CallbackServer {
         }
     }
 
-    nonisolated static func validatedCallbackURL(
+    package nonisolated static func validatedCallbackURL(
         from request: String,
         expectedState: String
     ) -> URL? {
@@ -250,7 +250,7 @@ private enum CallbackServerError: LocalizedError {
     case incompleteHeaders
     case invalidEncoding
 
-    var errorDescription: String? {
+    package var errorDescription: String? {
         switch self {
         case .headersTooLarge:
             "The OAuth callback headers exceeded the allowed size."

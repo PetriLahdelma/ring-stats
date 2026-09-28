@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import RingStatsCore
+import RingStatsOura
 
 /// What the top-right status shows. `label` stays populated while hidden so
 /// the text can fade out instead of vanishing, and `accessibility` is always

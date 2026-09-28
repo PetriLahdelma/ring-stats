@@ -1,6 +1,8 @@
 import AppKit
 import Foundation
 import SwiftUI
+import RingStatsCore
+import RingStatsOura
 
 @MainActor
 final class AppViewModel: ObservableObject {
@@ -20,11 +22,12 @@ final class AppViewModel: ObservableObject {
             && (errorMessage != nil || !snapshot.staleMetrics.isEmpty || snapshot.batteryIsStale)
     }
 
+    let descriptor: ProviderDescriptor
     private let auth: any OAuthServicing
     private let api: any SnapshotFetching
     private let now: @Sendable () -> Date
     private let refreshTTL: TimeInterval
-    private let authorizationHandler: (@Sendable (Set<OuraScope>) async throws -> Void)?
+    private let authorizationHandler: (@Sendable (Set<AuthorizationScope>) async throws -> Void)?
     private var activeCallbackServer: CallbackServer?
     private var refreshTask: Task<Void, Never>?
     private var refreshOperationID: UUID?
@@ -38,26 +41,26 @@ final class AppViewModel: ObservableObject {
     /// finish. Tests use it to know a request is queued without sleeping.
     private(set) var waitingOperationCount = 0
 
-    init() {
-        let auth = OAuthClient()
-        self.auth = auth
-        self.api = OuraAPI(auth: auth)
-        self.now = Date.init
-        self.refreshTTL = 5 * 60
-        self.authorizationHandler = nil
-        Task { await updateConnectionState() }
+    convenience init() {
+        self.init(provider: OuraProvider())
+    }
+
+    convenience init(provider: any HealthProvider) {
+        self.init(auth: provider.account, api: provider.snapshots, descriptor: provider.descriptor)
     }
 
     init(
         auth: any OAuthServicing,
         api: any SnapshotFetching,
+        descriptor: ProviderDescriptor,
         refreshTTL: TimeInterval = 5 * 60,
         now: @escaping @Sendable () -> Date = Date.init,
-        authorizationHandler: (@Sendable (Set<OuraScope>) async throws -> Void)? = nil,
+        authorizationHandler: (@Sendable (Set<AuthorizationScope>) async throws -> Void)? = nil,
         checkConnectionOnInit: Bool = true
     ) {
         self.auth = auth
         self.api = api
+        self.descriptor = descriptor
         self.refreshTTL = refreshTTL
         self.now = now
         self.authorizationHandler = authorizationHandler
@@ -93,6 +96,7 @@ final class AppViewModel: ObservableObject {
         policy: RefreshPolicy = .ifStale
     ) async {
         guard !isDisconnecting else { return }
+        let metrics = descriptor.supported(metrics)
         let generation = operationGeneration
         if let authorizationTask {
             await waitFor(authorizationTask)
@@ -217,6 +221,7 @@ final class AppViewModel: ObservableObject {
         }
         guard operationIsCurrent(generation) else { return }
         let operationID = UUID()
+        let metrics = descriptor.supported(metrics)
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             await self.performAuthorization(
@@ -245,7 +250,7 @@ final class AppViewModel: ObservableObject {
             try await prepare()
             guard operationIsCurrent(generation) else { return }
             try Task.checkCancellation()
-            let scopes = OuraScope.required(for: metrics)
+            let scopes = descriptor.scopes(for: metrics)
             DiagnosticsLog.shared.record(.authorizationStarted(scopes: scopes))
             if let authorizationHandler {
                 try await authorizationHandler(scopes)
@@ -354,8 +359,9 @@ final class AppViewModel: ObservableObject {
         await updateConnectionState()
     }
 
-    private func authorizeConfiguredApplication(scopes: Set<OuraScope>) async throws {
+    private func authorizeConfiguredApplication(scopes: Set<AuthorizationScope>) async throws {
         try Task.checkCancellation()
+        let providerName = descriptor.displayName
         let state = UUID().uuidString
         let browserURL = try await auth.authorizationRequest(state: state, scopes: scopes)
         let server = CallbackServer(expectedState: state)
@@ -367,16 +373,16 @@ final class AppViewModel: ObservableObject {
         try await server.start()
         try Task.checkCancellation()
         guard NSWorkspace.shared.open(browserURL) else {
-            throw RingStatsError.callback("Could not open the browser for Oura authorization.")
+            throw RingStatsError.callback("Could not open the browser for \(providerName) authorization.")
         }
         let callback = try await withThrowingTaskGroup(of: URL.self) { group in
             group.addTask { try await server.waitForCallback() }
             group.addTask {
                 try await Task.sleep(for: .seconds(300))
-                throw RingStatsError.callback("Oura authorization timed out. Start the connection again.")
+                throw RingStatsError.callback("\(providerName) authorization timed out. Start the connection again.")
             }
             guard let first = try await group.next() else {
-                throw RingStatsError.callback("Oura authorization did not complete.")
+                throw RingStatsError.callback("\(providerName) authorization did not complete.")
             }
             group.cancelAll()
             return first
@@ -390,10 +396,10 @@ final class AppViewModel: ObservableObject {
             throw RingStatsError.callback("The connection state did not match.")
         }
         if let oauthError = items.first(where: { $0.name == "error" })?.value {
-            throw RingStatsError.callback("Oura authorization failed: \(oauthError)")
+            throw RingStatsError.callback("\(providerName) authorization failed: \(oauthError)")
         }
         guard let code = items.first(where: { $0.name == "code" })?.value else {
-            throw RingStatsError.callback("Oura did not return an authorization code.")
+            throw RingStatsError.callback("\(providerName) did not return an authorization code.")
         }
         try Task.checkCancellation()
         try await auth.exchange(code: code)

@@ -3,6 +3,8 @@ import Foundation
 import SwiftUI
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 @Test func scoreBandsMatchPublishedThresholds() {
     #expect(ScoreBand.label(for: 92) == "Optimal")

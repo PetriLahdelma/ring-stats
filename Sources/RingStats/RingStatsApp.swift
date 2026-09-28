@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import RingStatsCore
+import RingStatsOura
 
 enum PopoverLayout {
     static let minimumWidth: CGFloat = 420

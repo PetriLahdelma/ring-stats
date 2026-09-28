@@ -36,9 +36,9 @@ gallery tests assert bounds, theme parity, and width-independent height;
 [ARCHITECTURE.md](ARCHITECTURE.md). Use it to find untested boundaries, not as a
 target to maximize.
 
-Tests are grouped by boundary: `AppViewModelTests`, `OuraAPITests`,
-`OAuthClientTests`, `InfrastructureSecurityTests`, `DiagnosticsTests`, and
-`StateGalleryTests`, with shared fakes in `TestSupport.swift`. Wait on explicit
+Tests are grouped by boundary: `AppViewModelTests`, `ProviderBoundaryTests`,
+`OuraAPITests`, `OAuthClientTests`, `InfrastructureSecurityTests`,
+`DiagnosticsTests`, and `StateGalleryTests`, with shared fakes in `TestSupport.swift`. Wait on explicit
 gates (`Gate`, `waitUntil`, `HTTPHold`) rather than sleeping.
 
 The build stays under `dist/`. To launch it without replacing an installed copy:

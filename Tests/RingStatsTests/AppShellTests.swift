@@ -3,6 +3,8 @@ import Foundation
 import SwiftUI
 import Testing
 @testable import RingStats
+@testable import RingStatsCore
+@testable import RingStatsOura
 
 /// The AppKit shell: popover placement and lifecycle, status-item routing, the
 /// context menu, and window management. The delegate gets a stubbed model, so
@@ -21,6 +23,7 @@ struct AppShellTests {
         let model = AppViewModel(
             auth: AuthStub(configured: connected, connected: connected),
             api: SnapshotStub(results: [.success(snapshot), .success(snapshot)]),
+            descriptor: OuraProvider.descriptor,
             checkConnectionOnInit: false
         )
         await model.updateConnectionState()
