@@ -1,13 +1,6 @@
 import AppKit
 import SwiftUI
 
-struct BatterySyncPresentation: Equatable {
-    /// Shown in the footer only when the reading is old enough to matter.
-    let label: String?
-    /// Always available as a tooltip and to VoiceOver.
-    let description: String
-}
-
 /// What the top-right status shows. `label` stays populated while hidden so
 /// the text can fade out instead of vanishing, and `accessibility` is always
 /// available to VoiceOver even when nothing is drawn.
@@ -96,28 +89,6 @@ enum PopoverTimestampText {
         case ..<86_400: "\(Int(age / 3_600))h ago"
         default: "\(Int(age / 86_400))d ago"
         }
-    }
-
-    /// How old a battery reading must be before its age is shown. Oura only
-    /// receives a new reading when the ring syncs through the Oura phone app,
-    /// and a ring loses roughly 0.5 to 1% an hour, so a reading under two
-    /// hours old is effectively current.
-    static let batterySyncAgeVisibleAfter: TimeInterval = 2 * 3_600
-
-    /// Describes when Oura last received a battery reading from the ring.
-    static func batterySync(timestamp: String, now: Date) -> BatterySyncPresentation? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let syncedAt = fractional.date(from: timestamp)
-            ?? ISO8601DateFormatter().date(from: timestamp) else { return nil }
-        let age = max(0, now.timeIntervalSince(syncedAt))
-        let value = age < 3_600
-            ? "\(max(1, Int(age / 60)))m ago"
-            : "\(Int(age / 3_600))h ago"
-        return BatterySyncPresentation(
-            label: age >= batterySyncAgeVisibleAfter ? "Synced \(value)" : nil,
-            description: "Ring last synced \(value)"
-        )
     }
 }
 

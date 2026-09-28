@@ -166,9 +166,9 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 
 ### Battery Row
 - A native macOS battery symbol followed by percentage and charging state.
-- Oura only receives a battery reading when the ring syncs through the Oura phone app. Once that reading is at least two hours old, the row adds “Synced 5h ago”; younger readings show no age, because a ring loses only about 0.5 to 1% an hour. The exact age is always in the tooltip and the VoiceOver label (“Ring last synced 1h ago”).
-- “Battery 92%” and “Not charging” are separate text elements with no middle dot; the primary battery text uses full emphasis, charging state 68% ink, and sample age 62% ink (both at least 4.5:1).
-- When the battery request fails, the last reading stays and the sample age is replaced by “Not updated” in Alert Text.
+- The row shows no reading age. Oura only receives a battery reading when the ring syncs through the Oura phone app, and a ring loses only about 0.5 to 1% an hour, so the age adds noise without changing what the user does.
+- “Battery 92%” and “Not charging” are separate text elements with no middle dot; the primary battery text uses full emphasis and charging state 68% ink (at least 4.5:1).
+- When the battery request fails, the last reading stays and the row adds “Not updated” in Alert Text.
 - When the battery permission is missing, the row reads “Needs access” and the popover offers Enable Battery Access.
 - In Landscape, the battery glyph and primary battery text are pure white.
 - In the Ring Stats theme, Alert is permitted on the battery icon only below 20% or when the reading is unavailable; text follows the theme’s foreground hierarchy.

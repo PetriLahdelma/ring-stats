@@ -318,8 +318,7 @@ struct GalleryFixture {
                 level: lowBattery ? 12 : 76,
                 charging: false,
                 inCharger: false,
-                // The low-battery state also shows an old ring sync.
-                timestamp: formatter.string(from: date.addingTimeInterval(lowBattery ? -5 * 3_600 : -900))
+                timestamp: formatter.string(from: date.addingTimeInterval(-900))
             ),
             fetchedAt: date,
             coveredMetrics: metrics

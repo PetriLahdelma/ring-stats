@@ -19,7 +19,7 @@ versioned GitHub releases and annotated tags for new releases.
 - "Updated now" no longer freezes while the popover stays open.
 - Tile details no longer truncate: earlier-day values read "From yesterday",
   and missing permission reads "Needs access".
-- Small failure text and the battery sample age now meet 4.5:1 contrast.
+- Small failure text now meets 4.5:1 contrast.
 - Opening the popover no longer puts a focus ring on the first stat.
 
 ### Changed
@@ -28,8 +28,7 @@ versioned GitHub releases and annotated tags for new releases.
   "Updated just now" for three seconds and then fades, and stays visible when
   data is old or a refresh failed or was partial.
 - Landscape keeps score labels, so both themes show the same information.
-- The battery row shows "Synced 5h ago" only once Oura's newest reading is at
-  least two hours old; the exact age is in the tooltip and VoiceOver label.
+- The battery row no longer shows when the reading was sampled.
 - Customize left the metric strip; stats are customized from Appearance in
   the menu. The strip fades at edges where more stats continue.
 - Connection is now a three-step guided setup that ends on "Connected

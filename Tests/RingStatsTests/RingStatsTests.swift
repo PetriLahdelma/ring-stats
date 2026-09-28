@@ -32,21 +32,6 @@ import Testing
     #expect(envelope.data.first?.inCharger == true)
 }
 
-@Test func batterySyncAgeAppearsOnlyOnceItMatters() {
-    let now = Date(timeIntervalSince1970: 100_000)
-    func sync(hoursAgo: Double) -> BatterySyncPresentation? {
-        let syncedAt = ISO8601DateFormatter().string(from: now.addingTimeInterval(-hoursAgo * 3_600))
-        return PopoverTimestampText.batterySync(timestamp: syncedAt, now: now)
-    }
-    // Recent: nothing drawn, but the age stays available.
-    #expect(sync(hoursAgo: 1.1)?.label == nil)
-    #expect(sync(hoursAgo: 1.1)?.description == "Ring last synced 1h ago")
-    // Old enough that level or charging may have changed.
-    #expect(sync(hoursAgo: 2)?.label == "Synced 2h ago")
-    #expect(sync(hoursAgo: 5.5)?.label == "Synced 5h ago")
-    #expect(PopoverTimestampText.batterySync(timestamp: "invalid", now: now) == nil)
-}
-
 @Test func refreshStatusShowsSpinnerWhileRefreshing() throws {
     let now = Date(timeIntervalSince1970: 10_000)
     let status = try #require(

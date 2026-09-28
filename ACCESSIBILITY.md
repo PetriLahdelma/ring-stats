@@ -44,7 +44,7 @@ the worst case; the 95th-percentile background is `rgb(69, 72, 80)`.
 | Token | Use | Ratio | Target |
 | --- | --- | --- | --- |
 | Ink `#181B1F` | Values and titles | 15.34:1 | 4.5:1 |
-| Ink at 62% | Details, status, sample age | 4.65:1 | 4.5:1 |
+| Ink at 62% | Details and status | 4.65:1 | 4.5:1 |
 | Ink at 68% | Charging state | 5.64:1 | 4.5:1 |
 | Alert text `#B23A2E` | "Not updated", failures | 5.27:1 | 4.5:1 |
 | Alert `#E05C4E` | Low-battery icon only | 3.21:1 | 3:1 (non-text) |

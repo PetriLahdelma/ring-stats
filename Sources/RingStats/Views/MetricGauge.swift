@@ -229,17 +229,10 @@ struct BatteryRow: View {
         return battery.charging == true || battery.inCharger == true ? "Charging" : "Not charging"
     }
 
-    private var sync: BatterySyncPresentation? {
-        guard let timestamp = battery?.timestamp else { return nil }
-        return PopoverTimestampText.batterySync(timestamp: timestamp, now: Date())
-    }
-
     private var accessibilityDescription: String {
         var parts = [batteryStatus, chargingStatus]
         if stale {
             parts.append("Not updated")
-        } else if let sync {
-            parts.append(sync.description)
         }
         return parts.joined(separator: ", ")
     }
@@ -253,14 +246,9 @@ struct BatteryRow: View {
                 Text(chargingStatus)
                     .foregroundStyle(theme.primaryContent.opacity(0.68))
             }
-            if showsTrailing {
-                if stale {
-                    Text("Not updated")
-                        .foregroundStyle(theme.alert)
-                } else if let label = sync?.label {
-                    Text(label)
-                        .foregroundStyle(theme.secondaryContent)
-                }
+            if showsTrailing, stale {
+                Text("Not updated")
+                    .foregroundStyle(theme.alert)
             }
         }
         .lineLimit(1)
@@ -283,7 +271,6 @@ struct BatteryRow: View {
             }
         }
         .scaledFont(size: 12, weight: .medium)
-        .help(sync?.description ?? "")
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
     }
