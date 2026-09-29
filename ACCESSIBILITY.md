@@ -83,8 +83,9 @@ date, macOS version, and result in the log below.
    popover at its narrowest width and every window for clipping.
 6. **Reduced motion.** Enable Reduce Motion. Refresh and confirm the status
    label and spinner do not animate; drag a stat and confirm it moves without
-   interpolation.
-7. **Increase Contrast.** Enable Increase Contrast and check both themes for
+   interpolation. In Holographic, move the pointer over the popover and confirm
+   the background stays flat.
+7. **Increase Contrast.** Enable Increase Contrast and check every theme for
    legibility of details and the footer.
 8. **Focus.** Tab through Appearance and Connection and confirm a visible focus
    ring on every control.

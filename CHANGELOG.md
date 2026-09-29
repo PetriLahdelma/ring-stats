@@ -8,7 +8,7 @@ versioned GitHub releases and annotated tags for new releases.
 ### Added
 
 - Holographic theme: black gauges, icons, and text on pastel marbled
-  holographic foil.
+  holographic foil, which twists slightly and pinches under the pointer.
 
 - Background refresh: Ring Stats refreshes the visible stats every 30 minutes,
   so they are current when you open the popover. On battery power or in Low

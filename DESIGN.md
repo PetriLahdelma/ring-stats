@@ -131,6 +131,7 @@ Use native macOS popover/window elevation. The Ring Stats theme adds no custom s
 - Gauges, icons, numbers, labels, the battery glyph, and actions use Holographic Ink (`#0D0F10`); details use Ink at 68%.
 - Failure text and the low-battery icon use Holographic Alert (`#8C2A1F`), because the standard alert reds fall below 4.5:1 on the marble's darkest pink.
 - Like Ring Stats, it keeps score gauges; only color and background change.
+- Under the pointer the foil twists up to 3 degrees toward the pointer's side and pinches in at the pointer (Core Image `CIPinchDistortion`), then eases back when the pointer leaves. Only the background moves; text and gauges stay still. Reduce Motion keeps it flat.
 
 ### Metric Tile Anatomy
 Every tile has the same zones in the same order (`MetricTileAnatomy` in code), so themes and metrics vary content, never layout:
