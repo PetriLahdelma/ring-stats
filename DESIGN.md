@@ -109,7 +109,7 @@ Users resize the popover horizontally only. Its height follows its content and i
 
 ## Elevation & Depth
 
-Use native macOS popover/window elevation. The Ring Stats theme adds no custom shadows, glass layers, gradients, or visual effects; Landscape permits only a dark photographic contrast veil.
+Use native macOS popover/window elevation. The Ring Stats theme adds no custom shadows, glass layers, gradients, or visual effects; Landscape permits only a dark photographic contrast veil, and Holographic only its bundled pastel marble.
 
 ## Themes
 
@@ -125,11 +125,13 @@ Use native macOS popover/window elevation. The Ring Stats theme adds no custom s
 - The photo contains no embedded UI, text, logos, people, or product imagery.
 - Settings stays on the stable Ring Stats surface so theme selection remains predictable and legible.
 
-## Shapes
-
-Circular status geometry is the signature language. Buttons and window surfaces follow native macOS corner behavior. The menu-bar item uses the original Ring Stats split-ring silhouette as a monochrome template image; battery uses the native macOS battery symbol family.
-
-## Components
+### Holographic
+- "Black on holographic": pastel marbled foil like the examples in OpenReplay's "Creating Holographic Effects in CSS". Flowing, warped bands of pink, butter yellow, pale cyan, lavender, and mint.
+- The marble is domain-warped noise mapped through a repeating pastel ramp, rendered once by `scripts/assets/holographic_marble.swift` (2400 by 1200, seed 21) and bundled like the Landscape photo. It fills the popover at every width and height.
+- Gauges, icons, numbers, labels, the battery glyph, and actions use Holographic Ink (`#0D0F10`); details use Ink at 68%.
+- Failure text and the low-battery icon use Holographic Alert (`#8C2A1F`), because the standard alert reds fall below 4.5:1 on the marble's darkest pink.
+- Like Ring Stats, it keeps score gauges; only color and background change.
+- Under the pointer the foil twists up to 3 degrees toward the pointer's side and pinches in at the pointer (Core Image `CIPinchDistortion`), then eases back when the pointer leaves. Only the background moves; text and gauges stay still. Reduce Motion keeps it flat.
 
 ### Metric Tile Anatomy
 Every tile has the same zones in the same order (`MetricTileAnatomy` in code), so themes and metrics vary content, never layout:

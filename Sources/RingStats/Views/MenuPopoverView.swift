@@ -508,7 +508,7 @@ struct MenuPopoverView: View {
                     } else {
                         Button("Connect", action: showConnection)
                             .buttonStyle(.borderedProminent)
-                            .tint(Palette.signalBlue)
+                            .tint(theme.action)
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 132)

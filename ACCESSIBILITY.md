@@ -14,7 +14,7 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 
 | Area | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
-| Contrast | Small text meets 4.5:1 in both themes | Verified (automated) | `themeTextColorsMeetWCAGContrastForSmallText`; ratios below |
+| Contrast | Small text meets 4.5:1 in every theme | Verified (automated) | `themeTextColorsMeetWCAGContrastForSmallText`; ratios below |
 | Contrast | Icons and arcs meet 3:1 | Verified (calculated) | Signal blue 6.99:1, alert icon 3.21:1 on canvas |
 | Color independence | Every value and state appears as text | Verified (automated) | `staleTileSaysSoInTextAndToVoiceOver`, detail copy tests, state gallery |
 | Truncation | Tile detail text is never cut off | Verified (automated) | `everyTileDetailFitsTheTileWithoutTruncation` |
@@ -40,6 +40,8 @@ Ratios use WCAG 2.x relative luminance. Default theme text is measured on
 Canvas Warm (`#F4F1EC`). Landscape is measured against the brightest pixel of
 the bundled photograph under its lightest veil, `rgb(108, 92, 81)`, which is
 the worst case; the 95th-percentile background is `rgb(69, 72, 80)`.
+Holographic is measured against the darkest pixel of the bundled marble, pink
+`rgb(243, 185, 223)`, which is the worst case for its black text.
 
 | Token | Use | Ratio | Target |
 | --- | --- | --- | --- |
@@ -52,6 +54,9 @@ the worst case; the 95th-percentile background is `rgb(69, 72, 80)`.
 | White | Landscape values and titles | 6.37:1 worst, 9.08:1 typical | 4.5:1 |
 | White at 78% | Landscape details | 4.63:1 worst, 6.30:1 typical | 4.5:1 |
 | Landscape alert `#FFD4CC` | Landscape failures | 4.73:1 worst | 4.5:1 |
+| Holographic ink `#0D0F10` | Holographic values, titles, arcs | 11.73:1 worst | 4.5:1 |
+| Holographic ink at 68% | Holographic details | 5.39:1 worst | 4.5:1 |
+| Holographic alert `#8C2A1F` | Holographic failures and low-battery icon | 5.20:1 worst | 4.5:1 |
 
 Before this pass, the battery sample age used ink at 50% (3.23:1) and failure
 text used the icon red (3.21:1). Both failed 4.5:1 and were changed.
@@ -78,8 +83,9 @@ date, macOS version, and result in the log below.
    popover at its narrowest width and every window for clipping.
 6. **Reduced motion.** Enable Reduce Motion. Refresh and confirm the status
    label and spinner do not animate; drag a stat and confirm it moves without
-   interpolation.
-7. **Increase Contrast.** Enable Increase Contrast and check both themes for
+   interpolation. In Holographic, move the pointer over the popover and confirm
+   the background stays flat.
+7. **Increase Contrast.** Enable Increase Contrast and check every theme for
    legibility of details and the footer.
 8. **Focus.** Tab through Appearance and Connection and confirm a visible focus
    ring on every control.

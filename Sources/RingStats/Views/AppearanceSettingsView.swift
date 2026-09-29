@@ -17,7 +17,7 @@ struct AppearanceSettingsView: View {
     }
     @Environment(\.textScale) private var textScale
 
-    static let baseSize = CGSize(width: 500, height: 750)
+    static let baseSize = CGSize(width: 500, height: 815)
     @State private var configuration: MetricConfiguration
     @FocusState private var focusedReorderMetric: Metric?
 
@@ -105,6 +105,10 @@ struct AppearanceSettingsView: View {
                     .overlay(Palette.separator)
                     .padding(.leading, 46)
                 themeOption(.landscape)
+                Divider()
+                    .overlay(Palette.separator)
+                    .padding(.leading, 46)
+                themeOption(.holographic)
             }
             .background(.white.opacity(0.66))
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

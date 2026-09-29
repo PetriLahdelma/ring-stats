@@ -272,6 +272,10 @@ struct GalleryFixture {
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/RingStats/Resources/Assets.xcassets/LandscapeBackground.imageset/LandscapeBackground.png")
         MenuPopoverBackground.landscapeImageOverride = NSImage(contentsOf: photo)
+        HolographicBackground.imageOverride = NSImage(
+            contentsOf: photo.deletingLastPathComponent().deletingLastPathComponent()
+                .appendingPathComponent("HolographicMarble.imageset/HolographicMarble.jpg")
+        )
     }
 
     private static func connected(

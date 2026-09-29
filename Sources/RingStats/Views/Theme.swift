@@ -11,33 +11,66 @@ enum Palette {
     /// Alert red dark enough for small text on the warm canvas (at least 4.5:1).
     /// `alert` stays for icons, where 3:1 is the requirement.
     static let alertText = Color(red: 178 / 255, green: 58 / 255, blue: 46 / 255)
+
+    /// The Holographic theme's text colors. Contrast is measured against the
+    /// darkest pixel of the marble, pink `#F3B9DF`.
+    enum Holographic {
+        /// 11.7:1; details use it at 68% (5.4:1).
+        static let ink = Color(red: 13 / 255, green: 15 / 255, blue: 16 / 255)
+        /// 5.2:1, for failure text and the low-battery icon.
+        static let alert = Color(red: 140 / 255, green: 42 / 255, blue: 31 / 255)
+    }
 }
 
 extension AppTheme {
     var primaryContent: Color {
-        self == .landscape ? .white : Palette.ink
+        switch self {
+        case .ringStats: Palette.ink
+        case .landscape: .white
+        case .holographic: Palette.Holographic.ink
+        }
     }
 
     var secondaryContent: Color {
-        self == .landscape ? .white.opacity(0.78) : Palette.ink.opacity(0.62)
+        switch self {
+        case .ringStats: Palette.ink.opacity(0.62)
+        case .landscape: .white.opacity(0.78)
+        case .holographic: Palette.Holographic.ink.opacity(0.68)
+        }
     }
 
     var action: Color {
-        self == .landscape ? .white : Palette.signalBlue
+        switch self {
+        case .ringStats: Palette.signalBlue
+        case .landscape: .white
+        case .holographic: Palette.Holographic.ink
+        }
     }
 
     var divider: Color {
-        self == .landscape ? .white.opacity(0.28) : Palette.separator
+        switch self {
+        case .ringStats: Palette.separator
+        case .landscape: .white.opacity(0.28)
+        case .holographic: Palette.Holographic.ink.opacity(0.16)
+        }
     }
 
     /// Failure and staleness text. Landscape uses a lighter tint that stays
     /// legible on the darkened photograph.
     var alert: Color {
-        self == .landscape ? Color(red: 1, green: 212 / 255, blue: 204 / 255) : Palette.alertText
+        switch self {
+        case .ringStats: Palette.alertText
+        case .landscape: Color(red: 1, green: 212 / 255, blue: 204 / 255)
+        case .holographic: Palette.Holographic.alert
+        }
     }
 
     var score: Color {
-        self == .landscape ? .white : Palette.signalBlue
+        switch self {
+        case .ringStats: Palette.signalBlue
+        case .landscape: .white
+        case .holographic: Palette.Holographic.ink
+        }
     }
 }
 

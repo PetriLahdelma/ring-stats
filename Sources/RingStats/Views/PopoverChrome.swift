@@ -9,6 +9,8 @@ struct MenuPopoverBackground: View {
     @MainActor static var landscapeImageOverride: NSImage?
 
     let theme: AppTheme
+    /// The pointer over the popover, for the Holographic hover effect.
+    var hover: CGPoint?
 
     private var landscapeImage: Image {
         Self.landscapeImageOverride.map(Image.init(nsImage:)) ?? Image("LandscapeBackground")
@@ -30,6 +32,8 @@ struct MenuPopoverBackground: View {
                     )
                 }
             }
+        } else if theme == .holographic {
+            HolographicBackground(hover: hover)
         } else {
             Palette.canvasWarm
         }
@@ -114,6 +118,7 @@ struct MenuPopoverBubbleShape: Shape {
 struct MenuPopoverShell<Content: View>: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @ObservedObject private var geometry: PopoverGeometryModel
+    @State private var hoverLocation: CGPoint?
     private let content: Content
 
     private var theme: AppTheme {
@@ -131,13 +136,20 @@ struct MenuPopoverShell<Content: View>: View {
             content
         }
         .environment(\.popoverIsPresented, geometry.isPresented)
+        .onContinuousHover(coordinateSpace: .local) { phase in
+            guard theme == .holographic else { return }
+            switch phase {
+            case .active(let location): hoverLocation = location
+            case .ended: hoverLocation = nil
+            }
+        }
         .followsTextSizePreference()
         .frame(minWidth: 420, maxWidth: .infinity)
         // Clip only the background. Clipping the whole popover to this custom
         // shape masks the content layer, which renders multi-layer SF Symbols
         // such as the battery gauge white instead of their foreground color.
         .background {
-            MenuPopoverBackground(theme: theme)
+            MenuPopoverBackground(theme: theme, hover: theme == .holographic ? hoverLocation : nil)
                 .clipShape(MenuPopoverBubbleShape(arrowX: geometry.arrowX))
         }
         .overlay {
