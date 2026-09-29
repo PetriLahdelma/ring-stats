@@ -86,13 +86,15 @@ login key is used. Configure it for this repository only:
 ssh-keygen -t ed25519 -C "Ring Stats release signing" -f ~/.ssh/ring_stats_release_signing
 git config gpg.format ssh
 git config user.signingkey ~/.ssh/ring_stats_release_signing.pub
-printf '%s namespaces="git" %s\n' "$(git config user.email)" \
+printf '%s namespaces="git,ring-stats-release" %s\n' "$(git config user.email)" \
   "$(cut -d' ' -f1,2 ~/.ssh/ring_stats_release_signing.pub)" \
   > ~/.config/git/ring-stats-allowed-signers
 git config gpg.ssh.allowedSignersFile ~/.config/git/ring-stats-allowed-signers
 ```
 
-Publish the allowed-signers line in `SECURITY.md` whenever the key changes.
+The key signs both the tag (namespace `git`) and the release attestation
+(namespace `ring-stats-release`), so the allowed-signers line must list both.
+Publish that line in `SECURITY.md` whenever the key changes.
 
 Add the same public key to GitHub as a signing key so the tag shows as
 verified.

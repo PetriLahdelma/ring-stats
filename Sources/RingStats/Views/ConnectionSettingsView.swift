@@ -213,8 +213,10 @@ struct ConnectionSettingsView: View {
                     Button("Cancel") {
                         Task { await model.cancelAuthorization() }
                     }
+                    .buttonStyle(.secondaryAction)
                 } else {
                     Button("Back") { step = .registerCallback }
+                        .buttonStyle(.secondaryAction)
                 }
                 Spacer()
                 Button(model.state == .authorizing ? "Connecting…" : "Connect in Browser") {
@@ -227,8 +229,7 @@ struct ConnectionSettingsView: View {
                     }
                 }
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .tint(Palette.signalBlue)
+                .buttonStyle(.primaryAction)
                 .disabled(model.loading || clientID.isEmpty || clientSecret.isEmpty)
             }
         }
@@ -258,8 +259,7 @@ struct ConnectionSettingsView: View {
                     onConnected()
                 }
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .tint(Palette.signalBlue)
+                .buttonStyle(.primaryAction)
             }
         }
     }
@@ -268,12 +268,12 @@ struct ConnectionSettingsView: View {
         HStack {
             if let back {
                 Button("Back") { step = back }
+                    .buttonStyle(.secondaryAction)
             }
             Spacer()
             Button(nextTitle) { step = next }
                 .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .tint(Palette.signalBlue)
+                .buttonStyle(.primaryAction)
         }
     }
 
