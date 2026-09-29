@@ -12,10 +12,11 @@ artwork, proprietary typefaces, or extracted application assets.
 | `HolographicMarble.jpg` | Bundled Holographic theme | Project-owned procedural marble rendered by `scripts/assets/holographic_marble.swift` (domain-warped noise, seed 21); no third-party imagery |
 | `LandscapeBackground.png` | Bundled Landscape theme | Project-owned generated landscape created for Ring Stats; no Oura, person, or product imagery |
 | `.github/assets/ring-stats-banner.*` | README identity banner | Maintainer-provided export from the project Figma file |
-| `.github/assets/ring-stats-themes-v3.png` | README theme showcase | Maintainer-provided Figma export of reconstructed Ring Stats states |
+| `.github/assets/ring-stats-themes-v4.png` | README theme showcase | Maintainer-provided export of the Landscape, Holographic, and Default themes |
 
-The numeric health values in the README theme showcase are synthetic fixtures
-chosen to demonstrate layout. They are not a user's Oura data and should not be
+In the README theme showcase, the Landscape and Default values are synthetic
+fixtures chosen to demonstrate layout. The Holographic panel shows the
+maintainer's own readings, published with their consent. None of them should be
 used as product, health, or API evidence.
 
 SF Symbols referenced by name in Swift source are supplied and rendered by

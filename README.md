@@ -57,7 +57,7 @@ treatment, and Holographic, black on pastel marbled foil. All three
 present the same configurable metrics and battery state.
 
 <p align="center">
-  <img src=".github/assets/ring-stats-themes-v3.png" alt="Ring Stats menu-bar popover shown in Landscape and Default themes" width="760">
+  <img src=".github/assets/ring-stats-themes-v4.png" alt="Ring Stats menu-bar popover shown in the Landscape, Holographic, and Default themes" width="760">
 </p>
 
 ## Features
