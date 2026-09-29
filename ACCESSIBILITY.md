@@ -40,8 +40,8 @@ Ratios use WCAG 2.x relative luminance. Default theme text is measured on
 Canvas Warm (`#F4F1EC`). Landscape is measured against the brightest pixel of
 the bundled photograph under its lightest veil, `rgb(108, 92, 81)`, which is
 the worst case; the 95th-percentile background is `rgb(69, 72, 80)`.
-Holographic is measured against periwinkle (`#B4C3FE`), the darkest color in
-its foil and so the worst case for its black text.
+Holographic is measured against the darkest pixel of the bundled marble, pink
+`rgb(243, 185, 223)`, which is the worst case for its black text.
 
 | Token | Use | Ratio | Target |
 | --- | --- | --- | --- |
@@ -54,9 +54,9 @@ its foil and so the worst case for its black text.
 | White | Landscape values and titles | 6.37:1 worst, 9.08:1 typical | 4.5:1 |
 | White at 78% | Landscape details | 4.63:1 worst, 6.30:1 typical | 4.5:1 |
 | Landscape alert `#FFD4CC` | Landscape failures | 4.73:1 worst | 4.5:1 |
-| Holographic ink `#0D0F10` | Holographic values, titles, arcs | 11.14:1 worst | 4.5:1 |
-| Holographic ink at 68% | Holographic details | 5.21:1 worst | 4.5:1 |
-| Holographic alert `#8C2A1F` | Holographic failures and low-battery icon | 4.94:1 worst | 4.5:1 |
+| Holographic ink `#0D0F10` | Holographic values, titles, arcs | 11.73:1 worst | 4.5:1 |
+| Holographic ink at 68% | Holographic details | 5.39:1 worst | 4.5:1 |
+| Holographic alert `#8C2A1F` | Holographic failures and low-battery icon | 5.20:1 worst | 4.5:1 |
 
 Before this pass, the battery sample age used ink at 50% (3.23:1) and failure
 text used the icon red (3.21:1). Both failed 4.5:1 and were changed.

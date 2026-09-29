@@ -534,9 +534,9 @@ import Testing
     // The brightest pixel of the landscape photograph under its darkest-at-top
     // veil, measured from the bundled asset. See ACCESSIBILITY.md.
     let landscapeWorstCase = (108.0 / 255, 92.0 / 255, 81.0 / 255)
-    // Periwinkle, the darkest color in the holographic foil and so the worst
-    // case for its black text.
-    let holographicWorstCase = (180.0 / 255, 195.0 / 255, 254.0 / 255)
+    // The darkest pixel of the bundled holographic marble, measured from the
+    // asset. See ACCESSIBILITY.md.
+    let holographicWorstCase = (243.0 / 255, 185.0 / 255, 223.0 / 255)
     let cases: [(String, Color, (Double, Double, Double))] = [
         ("ring-stats primary", AppTheme.ringStats.primaryContent, canvas),
         ("ring-stats secondary", AppTheme.ringStats.secondaryContent, canvas),

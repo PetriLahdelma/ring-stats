@@ -53,7 +53,7 @@ place across ordinary updates.
 ## Themes
 
 Choose between the warm, minimal Ring Stats theme, the photographic Landscape
-treatment, and Holographic, black on a pastel holographic foil. All three
+treatment, and Holographic, black on pastel marbled foil. All three
 present the same configurable metrics and battery state.
 
 <p align="center">

@@ -9,6 +9,7 @@ artwork, proprietary typefaces, or extracted application assets.
 | `Sources/RingStats/Resources/ring-stats-logo.svg` | In-app split-ring mark | Maintainer-designed Ring Stats vector, finalized in the project Figma file |
 | `Sources/RingStats/Resources/Assets.xcassets/RingStatsMenuIcon.imageset/` | 17 pt menu-bar template icon | Raster exports of the project split-ring vector at 1× and 2× |
 | `native/AppIcon.svg` and `AppIcon.appiconset/` | Finder/Spotlight application icon | Project-owned derivative of the Ring Stats identity |
+| `HolographicMarble.jpg` | Bundled Holographic theme | Project-owned procedural marble rendered by `scripts/assets/holographic_marble.swift` (domain-warped noise, seed 21); no third-party imagery |
 | `LandscapeBackground.png` | Bundled Landscape theme | Project-owned generated landscape created for Ring Stats; no Oura, person, or product imagery |
 | `.github/assets/ring-stats-banner.*` | README identity banner | Maintainer-provided export from the project Figma file |
 | `.github/assets/ring-stats-themes-v3.png` | README theme showcase | Maintainer-provided Figma export of reconstructed Ring Stats states |

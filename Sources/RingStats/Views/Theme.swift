@@ -12,19 +12,12 @@ enum Palette {
     /// `alert` stays for icons, where 3:1 is the requirement.
     static let alertText = Color(red: 178 / 255, green: 58 / 255, blue: 46 / 255)
 
-    /// The Holographic theme, sampled from the holographic app icon.
+    /// The Holographic theme's text colors. Contrast is measured against the
+    /// darkest pixel of the marble, pink `#F3B9DF`.
     enum Holographic {
+        /// 11.7:1; details use it at 68% (5.4:1).
         static let ink = Color(red: 13 / 255, green: 15 / 255, blue: 16 / 255)
-        static let periwinkle = Color(red: 180 / 255, green: 195 / 255, blue: 254 / 255)
-        static let lavender = Color(red: 200 / 255, green: 210 / 255, blue: 252 / 255)
-        static let sky = Color(red: 174 / 255, green: 215 / 255, blue: 252 / 255)
-        static let mint = Color(red: 205 / 255, green: 241 / 255, blue: 229 / 255)
-        static let pistachio = Color(red: 225 / 255, green: 247 / 255, blue: 223 / 255)
-        static let peach = Color(red: 248 / 255, green: 226 / 255, blue: 214 / 255)
-        static let blush = Color(red: 255 / 255, green: 194 / 255, blue: 211 / 255)
-        static let pink = Color(red: 255 / 255, green: 183 / 255, blue: 231 / 255)
-        /// Alert red dark enough for small text on the darkest foil color
-        /// (at least 4.5:1 on periwinkle).
+        /// 5.2:1, for failure text and the low-battery icon.
         static let alert = Color(red: 140 / 255, green: 42 / 255, blue: 31 / 255)
     }
 }
