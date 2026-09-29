@@ -2,6 +2,7 @@
 //
 //   xcrun swiftc -O scripts/assets/holographic_marble.swift -o /tmp/holographic_marble
 //   /tmp/holographic_marble 2400 1200 21 HolographicMarble.png
+//   /tmp/holographic_marble 1888 1888 <seed> icon.png <unitsWide>   (app icon)
 //   sips -s format jpeg -s formatOptions 92 HolographicMarble.png \
 //     --out Sources/RingStats/Resources/Assets.xcassets/HolographicMarble.imageset/HolographicMarble.jpg
 //
@@ -43,10 +44,12 @@ func ramp(_ t: Double) -> (Double, Double, Double) {
 }
 let args = CommandLine.arguments
 let width = Int(args[1])!, height = Int(args[2])!, seed = Int(args[3])!, out = args[4]
-// The approved prototype spans 1680 x 520 px at 1.15 / 520 noise units per px.
-let unitsWide = 1680.0 * 1.15 / 520.0
+// The approved popover marble spans 1680 x 520 px at 1.15 / 520 noise units
+// per px. An optional fifth argument sets how many noise units span the width;
+// fewer units give larger swirls, as the app icon uses.
+let unitsWide = args.count > 5 ? Double(args[5])! : 1680.0 * 1.15 / 520.0
 let scale = unitsWide / Double(width)
-let yOffset = (Double(height) * scale - 1.15) / 2
+let yOffset = args.count > 5 ? 0 : (Double(height) * scale - 1.15) / 2
 var pixels = [UInt8](repeating: 255, count: width * height * 4)
 for py in 0..<height {
     for px in 0..<width {
