@@ -109,7 +109,7 @@ Users resize the popover horizontally only. Its height follows its content and i
 
 ## Elevation & Depth
 
-Use native macOS popover/window elevation. The Ring Stats theme adds no custom shadows, glass layers, gradients, or visual effects; Landscape permits only a dark photographic contrast veil.
+Use native macOS popover/window elevation. The Ring Stats theme adds no custom shadows, glass layers, gradients, or visual effects; Landscape permits only a dark photographic contrast veil, and Holographic only its drawn pastel foil.
 
 ## Themes
 
@@ -124,6 +124,13 @@ Use native macOS popover/window elevation. The Ring Stats theme adds no custom s
 - Numbers, labels, battery artwork, dividers, and actions use white with controlled opacity hierarchy.
 - The photo contains no embedded UI, text, logos, people, or product imagery.
 - Settings stays on the stable Ring Stats surface so theme selection remains predictable and legible.
+
+### Holographic
+- "Black on holographic", from the holographic app icon. A pastel foil runs from periwinkle and lavender at the top leading corner, through sky and mint, into peach and pink at the bottom trailing corner.
+- The foil is drawn from layered gradients rather than a bundled image, so it fills every popover width without stretching.
+- Gauges, icons, numbers, labels, the battery glyph, and actions use Holographic Ink (`#0D0F10`); details use Ink at 68%.
+- Failure text and the low-battery icon use Holographic Alert (`#8C2A1F`), because the standard alert reds fall below 4.5:1 on periwinkle.
+- Like Ring Stats, it keeps score gauges; only color and background change.
 
 ## Shapes
 

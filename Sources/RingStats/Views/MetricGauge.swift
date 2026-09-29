@@ -307,8 +307,11 @@ struct BatteryStatusIcon: View {
 
     private var tint: Color {
         if theme == .landscape { return .white }
-        guard let level else { return Palette.alert }
-        return level < 20 ? Palette.alert : Palette.signalBlue
+        // Alert red is too light for 3:1 on the pastel foil, so Holographic
+        // uses its darker text red for the icon too.
+        let low = theme == .holographic ? theme.alert : Palette.alert
+        guard let level else { return low }
+        return level < 20 ? low : theme.action
     }
 
     var body: some View {

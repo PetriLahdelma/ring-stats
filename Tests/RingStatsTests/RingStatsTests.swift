@@ -462,7 +462,8 @@ import Testing
     #expect(AppTheme.ringStats.rawValue == "ring-stats")
     #expect(AppTheme.landscape.rawValue == "landscape")
     #expect(AppTheme.resolve("oura-original") == .landscape)
-    #expect(AppTheme.allCases.map(\.title) == ["Ring Stats", "Landscape"])
+    #expect(AppTheme.holographic.rawValue == "holographic")
+    #expect(AppTheme.allCases.map(\.title) == ["Ring Stats", "Landscape", "Holographic"])
 }
 
 @Test(arguments: TextSizePreference.allCases)
@@ -533,6 +534,9 @@ import Testing
     // The brightest pixel of the landscape photograph under its darkest-at-top
     // veil, measured from the bundled asset. See ACCESSIBILITY.md.
     let landscapeWorstCase = (108.0 / 255, 92.0 / 255, 81.0 / 255)
+    // Periwinkle, the darkest color in the holographic foil and so the worst
+    // case for its black text.
+    let holographicWorstCase = (180.0 / 255, 195.0 / 255, 254.0 / 255)
     let cases: [(String, Color, (Double, Double, Double))] = [
         ("ring-stats primary", AppTheme.ringStats.primaryContent, canvas),
         ("ring-stats secondary", AppTheme.ringStats.secondaryContent, canvas),
@@ -540,6 +544,9 @@ import Testing
         ("landscape primary", AppTheme.landscape.primaryContent, landscapeWorstCase),
         ("landscape secondary", AppTheme.landscape.secondaryContent, landscapeWorstCase),
         ("landscape alert", AppTheme.landscape.alert, landscapeWorstCase),
+        ("holographic primary", AppTheme.holographic.primaryContent, holographicWorstCase),
+        ("holographic secondary", AppTheme.holographic.secondaryContent, holographicWorstCase),
+        ("holographic alert", AppTheme.holographic.alert, holographicWorstCase),
     ]
     for (name, color, background) in cases {
         let ratio = contrast(try components(color, over: background), background)

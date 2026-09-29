@@ -52,8 +52,9 @@ place across ordinary updates.
 
 ## Themes
 
-Choose between the photographic Landscape treatment and the warm, minimal
-Ring Stats theme. Both present the same configurable metrics and battery state.
+Choose between the warm, minimal Ring Stats theme, the photographic Landscape
+treatment, and Holographic, black on a pastel holographic foil. All three
+present the same configurable metrics and battery state.
 
 <p align="center">
   <img src=".github/assets/ring-stats-themes-v3.png" alt="Ring Stats menu-bar popover shown in Landscape and Default themes" width="760">
@@ -67,8 +68,8 @@ Ring Stats theme. Both present the same configurable metrics and battery state.
 - Reorder and hide visible metrics, and resize the popover horizontally.
 - Honest freshness: a stat that fails to refresh keeps its last known value,
   marked "Not updated", and the status line says when data last updated.
-- Two visual treatments that show the same information, including a
-  project-owned landscape.
+- Three themes that show the same information: Ring Stats, a project-owned
+  Landscape photograph, and Holographic.
 - Guided three-step connection with a Keychain-only credential note.
 - Shortcuts actions, "Get Ring Stat" and "Get Ring Battery", which also work
   from Raycast, Alfred, and Stream Deck through Shortcuts. They answer from

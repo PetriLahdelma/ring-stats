@@ -5,6 +5,7 @@ import RingStatsOura
 enum AppTheme: String, CaseIterable, Identifiable, Sendable {
     case ringStats = "ring-stats"
     case landscape
+    case holographic
 
     static let storageKey = "selected-theme"
 
@@ -19,6 +20,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .ringStats: "Ring Stats"
         case .landscape: "Landscape"
+        case .holographic: "Holographic"
         }
     }
 
@@ -28,6 +30,8 @@ enum AppTheme: String, CaseIterable, Identifiable, Sendable {
             "Warm canvas with signal-blue gauges and dark text."
         case .landscape:
             "Full-width landscape with white icons, numbers, and labels."
+        case .holographic:
+            "Pastel holographic gradient with black gauges, icons, and text."
         }
     }
 }

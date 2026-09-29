@@ -11,33 +11,73 @@ enum Palette {
     /// Alert red dark enough for small text on the warm canvas (at least 4.5:1).
     /// `alert` stays for icons, where 3:1 is the requirement.
     static let alertText = Color(red: 178 / 255, green: 58 / 255, blue: 46 / 255)
+
+    /// The Holographic theme, sampled from the holographic app icon.
+    enum Holographic {
+        static let ink = Color(red: 13 / 255, green: 15 / 255, blue: 16 / 255)
+        static let periwinkle = Color(red: 180 / 255, green: 195 / 255, blue: 254 / 255)
+        static let lavender = Color(red: 200 / 255, green: 210 / 255, blue: 252 / 255)
+        static let sky = Color(red: 174 / 255, green: 215 / 255, blue: 252 / 255)
+        static let mint = Color(red: 205 / 255, green: 241 / 255, blue: 229 / 255)
+        static let pistachio = Color(red: 225 / 255, green: 247 / 255, blue: 223 / 255)
+        static let peach = Color(red: 248 / 255, green: 226 / 255, blue: 214 / 255)
+        static let blush = Color(red: 255 / 255, green: 194 / 255, blue: 211 / 255)
+        static let pink = Color(red: 255 / 255, green: 183 / 255, blue: 231 / 255)
+        /// Alert red dark enough for small text on the darkest foil color
+        /// (at least 4.5:1 on periwinkle).
+        static let alert = Color(red: 140 / 255, green: 42 / 255, blue: 31 / 255)
+    }
 }
 
 extension AppTheme {
     var primaryContent: Color {
-        self == .landscape ? .white : Palette.ink
+        switch self {
+        case .ringStats: Palette.ink
+        case .landscape: .white
+        case .holographic: Palette.Holographic.ink
+        }
     }
 
     var secondaryContent: Color {
-        self == .landscape ? .white.opacity(0.78) : Palette.ink.opacity(0.62)
+        switch self {
+        case .ringStats: Palette.ink.opacity(0.62)
+        case .landscape: .white.opacity(0.78)
+        case .holographic: Palette.Holographic.ink.opacity(0.68)
+        }
     }
 
     var action: Color {
-        self == .landscape ? .white : Palette.signalBlue
+        switch self {
+        case .ringStats: Palette.signalBlue
+        case .landscape: .white
+        case .holographic: Palette.Holographic.ink
+        }
     }
 
     var divider: Color {
-        self == .landscape ? .white.opacity(0.28) : Palette.separator
+        switch self {
+        case .ringStats: Palette.separator
+        case .landscape: .white.opacity(0.28)
+        case .holographic: Palette.Holographic.ink.opacity(0.16)
+        }
     }
 
     /// Failure and staleness text. Landscape uses a lighter tint that stays
     /// legible on the darkened photograph.
     var alert: Color {
-        self == .landscape ? Color(red: 1, green: 212 / 255, blue: 204 / 255) : Palette.alertText
+        switch self {
+        case .ringStats: Palette.alertText
+        case .landscape: Color(red: 1, green: 212 / 255, blue: 204 / 255)
+        case .holographic: Palette.Holographic.alert
+        }
     }
 
     var score: Color {
-        self == .landscape ? .white : Palette.signalBlue
+        switch self {
+        case .ringStats: Palette.signalBlue
+        case .landscape: .white
+        case .holographic: Palette.Holographic.ink
+        }
     }
 }
 

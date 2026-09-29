@@ -30,9 +30,54 @@ struct MenuPopoverBackground: View {
                     )
                 }
             }
+        } else if theme == .holographic {
+            HolographicBackground()
         } else {
             Palette.canvasWarm
         }
+    }
+}
+
+/// The holographic foil from the app icon, drawn rather than bundled so it
+/// fills any popover width without stretching: periwinkle and lavender at the
+/// top leading corner, sky and mint through the middle, and peach into pink at
+/// the bottom trailing corner.
+struct HolographicBackground: View {
+    private typealias Holo = Palette.Holographic
+
+    var body: some View {
+        GeometryReader { geometry in
+            let size = geometry.size
+            let reach = max(size.width, size.height)
+            ZStack {
+                LinearGradient(
+                    stops: [
+                        .init(color: Holo.lavender, location: 0),
+                        .init(color: Holo.sky, location: 0.34),
+                        .init(color: Holo.mint, location: 0.58),
+                        .init(color: Holo.peach, location: 0.8),
+                        .init(color: Holo.blush, location: 1),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                blob(Holo.periwinkle, at: UnitPoint(x: 0.08, y: 0.1), radius: reach * 0.42)
+                blob(Holo.sky, at: UnitPoint(x: 0.42, y: 0.3), radius: reach * 0.34)
+                blob(Holo.pistachio, at: UnitPoint(x: 0.78, y: 0.22), radius: reach * 0.3)
+                blob(Holo.mint, at: UnitPoint(x: 0.3, y: 0.95), radius: reach * 0.3)
+                blob(Holo.pink, at: UnitPoint(x: 0.95, y: 0.92), radius: reach * 0.4)
+            }
+            .frame(width: size.width, height: size.height)
+        }
+    }
+
+    private func blob(_ color: Color, at center: UnitPoint, radius: CGFloat) -> some View {
+        RadialGradient(
+            colors: [color, color.opacity(0)],
+            center: center,
+            startRadius: 0,
+            endRadius: radius
+        )
     }
 }
 
