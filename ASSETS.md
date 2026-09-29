@@ -11,7 +11,7 @@ artwork, proprietary typefaces, or extracted application assets.
 | `native/AppIcon.svg` and `AppIcon.appiconset/` | Finder/Spotlight application icon | Project-owned derivative of the Ring Stats identity |
 | `LandscapeBackground.png` | Bundled Landscape theme | Project-owned generated landscape created for Ring Stats; no Oura, person, or product imagery |
 | `.github/assets/ring-stats-banner.*` | README identity banner | Maintainer-provided export from the project Figma file |
-| `.github/assets/ring-stats-themes-v2.png` | README theme showcase | Maintainer-provided Figma export of reconstructed Ring Stats states |
+| `.github/assets/ring-stats-themes-v3.png` | README theme showcase | Maintainer-provided Figma export of reconstructed Ring Stats states |
 
 The numeric health values in the README theme showcase are synthetic fixtures
 chosen to demonstrate layout. They are not a user's Oura data and should not be
