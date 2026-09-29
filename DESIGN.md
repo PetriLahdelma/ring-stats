@@ -174,6 +174,11 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - In Landscape, the battery glyph and primary battery text are pure white.
 - In the Ring Stats theme, Alert is permitted on the battery icon only below 20% or when the reading is unavailable; text follows the theme’s foreground hierarchy.
 
+### Action Buttons
+- A step's main action uses the primary style: Signal Blue fill with white text (about 8:1). Back and Cancel use the secondary style: a 1pt Signal Blue outline with Signal Blue text on the canvas (about 7:1).
+- Both are custom styles because `.borderedProminent` turns grey whenever its window is not the active one, which erased the hierarchy in the connection window. A disabled primary fades to 45% rather than turning grey.
+- In-content utilities such as Copy keep the neutral system style, so only one button per step reads as the next step.
+
 ### About & Credits
 - Lives inside a compact native hamburger menu; no persistent icon-and-text link appears in the popover.
 - Opens a focused native window containing only the creator credit “Digitaltableteur,” Oura attribution, independence disclaimer, and app version.
