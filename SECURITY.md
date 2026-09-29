@@ -77,7 +77,7 @@ The release signing key, from 1.2.0 on, has the fingerprint
 line is:
 
 ```text
-ring-stats@users.noreply.github.com namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINQXXxIgMfjNgnc6sMAnZswZe/ZjSiHRW+JBYTCYzdRr
+ring-stats@users.noreply.github.com namespaces="git,ring-stats-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINQXXxIgMfjNgnc6sMAnZswZe/ZjSiHRW+JBYTCYzdRr
 ```
 
 Then verify:
