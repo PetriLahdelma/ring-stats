@@ -121,7 +121,7 @@ struct AppearanceSettingsView: View {
             }
             .padding(.top, 4)
 
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Low battery alert")
                         .scaledFont(.headline)
