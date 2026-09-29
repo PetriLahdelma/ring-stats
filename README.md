@@ -73,6 +73,8 @@ Ring Stats theme. Both present the same configurable metrics and battery state.
 - Shortcuts actions, "Get Ring Stat" and "Get Ring Battery", which also work
   from Raycast, Alfred, and Stream Deck through Shortcuts. They answer from
   memory and write nothing to disk.
+- Background refresh every 30 minutes, less often on battery power, and an
+  optional low ring battery notification.
 - Text size setting, full keyboard access to the stats row, and App Sandbox
   confinement.
 - A local Diagnostics report you can review before sharing; it never contains

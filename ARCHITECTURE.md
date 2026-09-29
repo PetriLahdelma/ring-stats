@@ -139,6 +139,16 @@ credential.
 - A stable bundle identifier and Developer ID signature support consistent
   Keychain access across releases.
 
+## Background refresh and low battery alert
+
+`Background/BackgroundRefresher.swift` schedules an `NSBackgroundActivityScheduler`
+every 30 minutes. Each pass calls the same `refreshOnOpen` as the popover, so
+it fetches only visible stats and reuses fresh data. `BackgroundRefreshPolicy`
+(Core) skips a pass on battery power or in Low Power Mode until the data is
+about two hours old. `LowBatteryWatcher` observes every snapshot the model
+publishes and uses `LowBatteryAlert` (Core) to notify once below 20% until the
+ring charges, never for a stale reading. Its state is in memory only.
+
 ## Shortcuts actions
 
 `Shortcuts/RingStatsIntents.swift` defines the App Intents and

@@ -83,6 +83,13 @@ macOS manages retention of the unified log.
 these recent events. You can read it in full and then copy or save it yourself.
 Ring Stats never sends it anywhere.
 
+While the app runs, it refreshes the visible statistics in the background
+every 30 minutes, or at most every two hours on battery power or in Low Power
+Mode, using the same in-memory handling. If you turn on the low battery alert
+in Appearance, macOS shows a local notification with the ring's battery
+percentage when it drops below 20%. The notification is created on your Mac
+and is not sent anywhere.
+
 ## Data sharing
 
 Ring Stats does not operate an analytics, telemetry, advertising, crash-report,

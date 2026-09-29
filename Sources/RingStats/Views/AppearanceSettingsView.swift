@@ -6,6 +6,8 @@ struct AppearanceSettingsView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var rawConfiguration = MetricConfiguration.default.encoded
     @AppStorage(TextSizePreference.storageKey) private var textSizeRaw = TextSizePreference.standard.rawValue
+    @AppStorage(LowBatteryPreference.storageKey) private var lowBatteryAlerts = false
+    @State private var notificationsDenied = false
 
     private var textSize: Binding<TextSizePreference> {
         Binding(
@@ -15,7 +17,7 @@ struct AppearanceSettingsView: View {
     }
     @Environment(\.textScale) private var textScale
 
-    static let baseSize = CGSize(width: 500, height: 690)
+    static let baseSize = CGSize(width: 500, height: 750)
     @State private var configuration: MetricConfiguration
     @FocusState private var focusedReorderMetric: Metric?
 
@@ -90,7 +92,7 @@ struct AppearanceSettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Appearance")
                 .scaledFont(.title)
-            Text("Choose the popover theme, visible stats, and their order.")
+            Text("Choose the theme, text size, battery alert, and which stats show.")
                 .foregroundStyle(.secondary)
 
             Text("Theme")
@@ -118,6 +120,33 @@ struct AppearanceSettingsView: View {
                 TextSizeSlider(selection: textSize)
             }
             .padding(.top, 4)
+
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Low battery alert")
+                        .scaledFont(.headline)
+                    Text(notificationsDenied
+                        ? "Notifications are off for Ring Stats. Allow them in System Settings, Notifications."
+                        : "Notifies you once when the ring drops below \(LowBatteryAlert.threshold)%, and again only after it has charged.")
+                        .scaledFont(.caption)
+                        .foregroundStyle(notificationsDenied ? Palette.alertText : .secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Toggle("Low battery alert", isOn: $lowBatteryAlerts)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .tint(Palette.signalBlue)
+                    .accessibilityHint("Notifies you when the ring battery drops below \(LowBatteryAlert.threshold)%")
+            }
+            .onChange(of: lowBatteryAlerts) { _, enabled in
+                guard enabled else { return }
+                Task {
+                    let granted = await UserNotificationsNotifier().requestAuthorization()
+                    notificationsDenied = !granted
+                    if !granted { lowBatteryAlerts = false }
+                }
+            }
 
             Divider()
                 .overlay(Palette.separator)

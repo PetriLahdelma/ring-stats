@@ -154,6 +154,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 
 ### Stat Customization
 - Appearance, from the options menu or the status-item menu, holds the shared stats configuration. The popover has no separate customize control.
+- Below Text size, a Low battery alert switch (off by default) explains itself in one caption line. Turning it on asks macOS for notification permission; if denied, the switch returns to off and the caption says where to allow notifications.
 - Every available metric can be shown or hidden; at least one remains visible.
 - Ordering persists and can be changed by native row dragging in Appearance or direct dragging in the popover; nonvisual Move Up/Down accessibility actions remain available.
 - Keyboard: Tab reaches the tiles; Left and Right Arrow move focus and scroll the tile into view; Option-Left and Option-Right move the focused stat and announce its position. Nothing is focused when the popover opens.

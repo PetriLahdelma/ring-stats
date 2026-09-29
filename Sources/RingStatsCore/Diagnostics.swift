@@ -22,6 +22,8 @@ package enum DiagnosticEvent: Sendable, Equatable {
     case callbackRejected
     case callbackAccepted
     case disconnected
+    case backgroundRefreshSkipped(BackgroundRefreshSkip)
+    case lowBatteryNotified
 
     package var category: DiagnosticCategory {
         switch self {
@@ -30,6 +32,8 @@ package enum DiagnosticEvent: Sendable, Equatable {
              .authorizationFailed, .tokenRefreshed, .tokenRefreshFailed, .disconnected: .authorization
         case .endpointResponse, .endpointUnreachable: .network
         case .callbackRejected, .callbackAccepted: .callback
+        case .backgroundRefreshSkipped: .refresh
+        case .lowBatteryNotified: .notification
         }
     }
 
@@ -79,6 +83,10 @@ package enum DiagnosticEvent: Sendable, Equatable {
             "Rejected an invalid loopback callback request"
         case .callbackAccepted:
             "Accepted the OAuth callback"
+        case .backgroundRefreshSkipped(let reason):
+            "Background refresh skipped: \(reason.rawValue)"
+        case .lowBatteryNotified:
+            "Low ring battery notification sent"
         case .disconnected:
             "Disconnected and deleted local authorization"
         }
@@ -94,6 +102,13 @@ package enum DiagnosticCategory: String, Sendable {
     case authorization
     case network
     case callback
+    case notification
+}
+
+/// Why a scheduled background refresh did not fetch.
+package enum BackgroundRefreshSkip: String, Sendable {
+    case notConnected = "not connected"
+    case constrainedPower = "on battery power or in Low Power Mode"
 }
 
 /// The name of a provider endpoint. It is created only from a string literal,

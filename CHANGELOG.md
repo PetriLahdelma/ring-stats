@@ -5,6 +5,20 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Added
+
+- Background refresh: Ring Stats refreshes the visible stats every 30 minutes,
+  so they are current when you open the popover. On battery power or in Low
+  Power Mode it waits at least two hours between fetches.
+- Low battery alert, off by default in Appearance: one notification when the
+  ring drops below 20%, and another only after it has charged.
+
+### Changed
+
+- The connection window's main action is now a solid blue button and Back is
+  a blue outline, so the next step stands out even when the window is not
+  active.
+
 ## 1.2.0 (2026-09-28)
 
 ### Fixed
