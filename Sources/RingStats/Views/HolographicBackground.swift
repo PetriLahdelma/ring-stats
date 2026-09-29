@@ -135,6 +135,25 @@ final class HolographicDistorter: ObservableObject {
         }
     }
 
+    /// The image surrounded on all eight sides by copies mirrored across its
+    /// edges, so it continues seamlessly past its bounds.
+    static func mirrorPadded(_ image: CIImage) -> CIImage {
+        let e = image.extent
+        func flip(_ sx: CGFloat, _ sy: CGFloat, _ tx: CGFloat, _ ty: CGFloat) -> CIImage {
+            image.transformed(by: CGAffineTransform(a: sx, b: 0, c: 0, d: sy, tx: tx, ty: ty))
+        }
+        var result = image
+        // Each copy overlaps the original by a pixel. The scaled marble's edges
+        // fall between pixels, and without the overlap the seam is only
+        // partly covered.
+        for (sx, tx) in [(CGFloat(1), CGFloat(0)), (-1, 2 * e.minX + 1), (-1, 2 * e.maxX - 1)] {
+            for (sy, ty) in [(CGFloat(1), CGFloat(0)), (-1, 2 * e.minY + 1), (-1, 2 * e.maxY - 1)] where sx != 1 || sy != 1 {
+                result = result.composited(over: flip(sx, sy, tx, ty))
+            }
+        }
+        return result
+    }
+
     func render(source: NSImage, pointer: CGPoint, strength: Double, canvas: CGSize, scale: CGFloat) -> CGImage? {
         let id = ObjectIdentifier(source)
         if base?.source != id {
@@ -150,7 +169,10 @@ final class HolographicDistorter: ObservableObject {
             y: (pixels.height - placed.extent.height) / 2 - placed.extent.minY
         ))
         guard let pinch = CIFilter(name: "CIPinchDistortion") else { return nil }
-        pinch.setValue(placed, forKey: kCIInputImageKey)
+        // The pinch pulls pixels in from around the pointer. Near an edge it
+        // would pull in nothing and bend the edge, so surround the marble with
+        // mirrored copies of itself for it to draw from.
+        pinch.setValue(Self.mirrorPadded(placed), forKey: kCIInputImageKey)
         // Core Image's origin is at the bottom.
         pinch.setValue(CIVector(x: pointer.x * scale, y: pixels.height - pointer.y * scale), forKey: kCIInputCenterKey)
         pinch.setValue(min(pixels.width, pixels.height) * 0.6, forKey: kCIInputRadiusKey)
