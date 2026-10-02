@@ -16,19 +16,22 @@ package enum OAuthLoopback {
 
 package actor CallbackServer {
     private static let maximumHeaderBytes = 16_384
-    /// How long a connection may take to send its request headers.
-    private static let readTimeout = timeval(tv_sec: 10, tv_usec: 0)
 
     private let expectedState: String
     private let queue = DispatchQueue(label: "local.ringstats.oauth-callback")
     private var sockets: [Int32] = []
     private var sources: [DispatchSourceRead] = []
+    private let clients: CallbackClients
     private var callbackContinuation: CheckedContinuation<URL, any Error>?
     private var bufferedResult: Result<URL, any Error>?
 
-    package init(expectedState: String) {
+    package init(expectedState: String, headerDeadline: DispatchTimeInterval = CallbackClients.headerDeadline) {
         self.expectedState = expectedState
+        self.clients = CallbackClients(queue: queue, headerDeadline: headerDeadline)
     }
+
+    /// Connections still sending headers. Tests read it.
+    var openClientCount: Int { clients.count }
 
     /// Opens the callback listener on `127.0.0.1` and `::1`.
     ///
@@ -56,13 +59,14 @@ package actor CallbackServer {
         sockets = opened
         for fd in opened {
             let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+            let clients = clients
             source.setEventHandler { [weak self] in
                 guard let server = self else { return }
                 while true {
                     let client = accept(fd, nil, nil)
                     guard client >= 0 else { break }
-                    Self.readHeaders(from: client) { result in
-                        Task { await server.handleRequest(result, client: client) }
+                    clients.admit(client) { request in
+                        Task { await server.handleRequest(request, client: client) }
                     }
                 }
             }
@@ -135,65 +139,21 @@ package actor CallbackServer {
         return fd
     }
 
-    private func handleRequest(_ result: Result<String, any Error>, client: Int32) {
-        switch result {
-        case .failure:
-            // Browsers, health checks, and local processes can open or reset a
-            // loopback connection while OAuth is pending. A single malformed
-            // connection must not terminate the authorization flow.
-            close(client)
-        case .success(let request):
-            guard let url = Self.validatedCallbackURL(
-                from: request,
-                expectedState: expectedState
-            ) else {
-                DiagnosticsLog.shared.record(.callbackRejected)
-                Self.sendResponse(status: "400 Bad Request", body: "Invalid callback request.", to: client)
-                return
-            }
-            DiagnosticsLog.shared.record(.callbackAccepted)
-            Self.sendResponse(status: "200 OK", body: "Connected. You can close this window.", to: client)
-            completeCallback(with: .success(url))
+    /// Handles one complete request. Connections that send malformed,
+    /// oversized, or no headers in time are closed by `CallbackClients` and
+    /// never reach here, so a stray connection cannot end the flow.
+    private func handleRequest(_ request: String, client: Int32) {
+        guard let url = Self.validatedCallbackURL(
+            from: request,
+            expectedState: expectedState
+        ) else {
+            DiagnosticsLog.shared.record(.callbackRejected)
+            Self.sendResponse(status: "400 Bad Request", body: "Invalid callback request.", to: client)
+            return
         }
-    }
-
-    /// Reads up to the end of the request headers on a background queue, so a
-    /// slow or silent connection cannot hold up other connections.
-    private nonisolated static func readHeaders(
-        from client: Int32,
-        completion: @escaping @Sendable (Result<String, any Error>) -> Void
-    ) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            // Accepted sockets inherit non-blocking mode; read them blocking,
-            // with a timeout.
-            _ = fcntl(client, F_SETFL, fcntl(client, F_GETFL) & ~O_NONBLOCK)
-            var timeout = readTimeout
-            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-            var one: Int32 = 1
-            setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
-            var buffer = Data()
-            var chunk = [UInt8](repeating: 0, count: 4_096)
-            while true {
-                let count = read(client, &chunk, chunk.count)
-                guard count > 0 else {
-                    completion(.failure(CallbackServerError.incompleteHeaders))
-                    return
-                }
-                buffer.append(contentsOf: chunk[0..<count])
-                if buffer.count > maximumHeaderBytes {
-                    completion(.failure(CallbackServerError.headersTooLarge))
-                    return
-                }
-                if let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) {
-                    guard let request = String(data: buffer[..<headerEnd.upperBound], encoding: .utf8) else {
-                        completion(.failure(CallbackServerError.invalidEncoding))
-                        return
-                    }
-                    completion(.success(request))
-                    return
-                }
-            }
-        }
+        DiagnosticsLog.shared.record(.callbackAccepted)
+        Self.sendResponse(status: "200 OK", body: "Connected. You can close this window.", to: client)
+        completeCallback(with: .success(url))
     }
 
     package nonisolated static func validatedCallbackURL(
@@ -220,18 +180,14 @@ package actor CallbackServer {
         return OAuthLoopback.acceptedHostHeaders.contains(host) ? url : nil
     }
 
+    /// Writes the short response without blocking and closes the connection.
+    /// The response is far smaller than a socket buffer, so one non-blocking
+    /// write delivers it; a peer that is not reading simply loses it.
     private nonisolated static func sendResponse(status: String, body: String, to client: Int32) {
         let response = "HTTP/1.1 \(status)\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'\r\nConnection: close\r\n\r\n\(body)"
-        DispatchQueue.global(qos: .userInitiated).async {
-            let bytes = Array(response.utf8)
-            var sent = 0
-            while sent < bytes.count {
-                let count = bytes[sent...].withUnsafeBytes { write(client, $0.baseAddress, $0.count) }
-                guard count > 0 else { break }
-                sent += count
-            }
-            close(client)
-        }
+        let bytes = Array(response.utf8)
+        _ = bytes.withUnsafeBytes { write(client, $0.baseAddress, $0.count) }
+        close(client)
     }
 
     /// Closes the listening sockets before reporting the result, so the port
@@ -239,8 +195,10 @@ package actor CallbackServer {
     private func completeCallback(with result: Result<URL, any Error>) {
         if !sources.isEmpty {
             sources.forEach { $0.cancel() }
-            // Wait out any accept already running on the queue before closing.
-            queue.sync {}
+            // Wait out any accept already running on the queue, then drop
+            // every connection still sending headers.
+            let clients = clients
+            queue.sync { clients.closeAll() }
             sources.removeAll()
             sockets.forEach { close($0) }
             sockets.removeAll()
@@ -254,19 +212,111 @@ package actor CallbackServer {
     }
 }
 
-private enum CallbackServerError: LocalizedError {
-    case headersTooLarge
-    case incompleteHeaders
-    case invalidEncoding
+/// Reads request headers from accepted connections without blocking a thread.
+///
+/// Each connection gets a non-blocking read source on the server's serial
+/// queue and an absolute deadline for its whole request, not a per-read
+/// timeout, so a peer trickling bytes cannot hold it open. At most
+/// `maximumClients` connections are open; admitting another drops the oldest,
+/// so idle connections cannot keep the browser's callback out. Confined to the
+/// server's queue.
+package final class CallbackClients: @unchecked Sendable {
+    static let maximumClients = 16
+    package static let headerDeadline: DispatchTimeInterval = .seconds(10)
+    private static let maximumHeaderBytes = 16_384
 
-    package var errorDescription: String? {
-        switch self {
-        case .headersTooLarge:
-            "The OAuth callback headers exceeded the allowed size."
-        case .incompleteHeaders:
-            "The OAuth callback ended before its headers were complete."
-        case .invalidEncoding:
-            "The OAuth callback headers were not valid UTF-8."
+    private final class Client: @unchecked Sendable {
+        let fd: Int32
+        let source: DispatchSourceRead
+        var buffer = Data()
+        init(fd: Int32, source: DispatchSourceRead) {
+            self.fd = fd
+            self.source = source
         }
+    }
+
+    private let queue: DispatchQueue
+    private let deadline: DispatchTimeInterval
+    /// Open connections, oldest first.
+    private var open: [Client] = []
+
+    init(queue: DispatchQueue, headerDeadline: DispatchTimeInterval = CallbackClients.headerDeadline) {
+        self.queue = queue
+        self.deadline = headerDeadline
+    }
+
+    /// Number of connections still sending headers. Tests read it.
+    var count: Int { queue.sync { open.count } }
+
+    /// Starts reading `fd`. Calls `onRequest` with the headers once complete;
+    /// the receiver then owns `fd`. Must be called on the server's queue.
+    func admit(_ fd: Int32, onRequest: @escaping @Sendable (String) -> Void) {
+        var one: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
+        // Accepted sockets inherit non-blocking mode from the listener; keep it.
+        _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+        if open.count >= Self.maximumClients, let oldest = open.first {
+            drop(oldest)
+        }
+        let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+        let client = Client(fd: fd, source: source)
+        open.append(client)
+        source.setEventHandler { [weak self, weak client] in
+            guard let self, let client else { return }
+            self.read(client, onRequest: onRequest)
+        }
+        source.resume()
+        queue.asyncAfter(deadline: .now() + deadline) { [weak self, weak client] in
+            guard let self, let client else { return }
+            self.drop(client)
+        }
+    }
+
+    /// Closes every connection still sending headers. Must be called on the
+    /// server's queue.
+    func closeAll() {
+        open.forEach(drop)
+    }
+
+    private func read(_ client: Client, onRequest: @escaping @Sendable (String) -> Void) {
+        var chunk = [UInt8](repeating: 0, count: 4_096)
+        while true {
+            let count = Darwin.read(client.fd, &chunk, chunk.count)
+            if count < 0, errno == EAGAIN || errno == EWOULDBLOCK { return }
+            guard count > 0 else {
+                // Closed or failed before the headers were complete.
+                drop(client)
+                return
+            }
+            client.buffer.append(contentsOf: chunk[0..<count])
+            guard client.buffer.count <= Self.maximumHeaderBytes else {
+                drop(client)
+                return
+            }
+            if let end = client.buffer.range(of: Data("\r\n\r\n".utf8)) {
+                guard let request = String(data: client.buffer[..<end.upperBound], encoding: .utf8) else {
+                    drop(client)
+                    return
+                }
+                // Hand the connection over without closing it.
+                release(client)
+                onRequest(request)
+                return
+            }
+        }
+    }
+
+    private func release(_ client: Client) {
+        guard let index = open.firstIndex(where: { $0 === client }) else { return }
+        open.remove(at: index)
+        client.source.setEventHandler {}
+        client.source.cancel()
+    }
+
+    private func drop(_ client: Client) {
+        guard let index = open.firstIndex(where: { $0 === client }) else { return }
+        open.remove(at: index)
+        client.source.cancel()
+        close(client.fd)
     }
 }
