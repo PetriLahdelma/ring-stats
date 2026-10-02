@@ -175,6 +175,24 @@ struct InfrastructureSecurityTests {
             .queryItems?.first(where: { $0.name == "code" })?.value == "good")
     }
 
+    /// A browser opening `http://localhost:43828` may connect over IPv6, so the
+    /// callback must arrive over `::1` too.
+    @Test func callbackArrivesOverIPv6LoopbackForLocalhost() async throws {
+        let server = CallbackServer(expectedState: "ipv6-state")
+        try await server.start()
+        let waiter = Task { try await server.waitForCallback() }
+
+        let response = try await Self.sendRequestFragments([
+            "GET /oauth/callback?code=v6&state=ipv6-state HTTP/1.1\r\n",
+            "Host: localhost:43828\r\n\r\n",
+        ], host: "::1")
+        let callback = try await waiter.value
+
+        #expect(response.contains("200 OK"))
+        #expect(URLComponents(url: callback, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "code" })?.value == "v6")
+    }
+
     @Test func cancellingCallbackWaitStopsListenerAndUnblocksWaiter() async throws {
         let server = CallbackServer(expectedState: "cancel-state")
         try await server.start()
@@ -206,9 +224,9 @@ struct InfrastructureSecurityTests {
         ]
     }
 
-    private static func sendRequestFragments(_ fragments: [String]) async throws -> String {
+    private static func sendRequestFragments(_ fragments: [String], host: String = "127.0.0.1") async throws -> String {
         let connection = NWConnection(
-            host: NWEndpoint.Host("127.0.0.1"),
+            host: NWEndpoint.Host(host),
             port: NWEndpoint.Port(rawValue: 43_828)!,
             using: .tcp
         )

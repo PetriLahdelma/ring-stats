@@ -164,7 +164,7 @@ struct ConnectionSettingsView: View {
                 }
                 .accessibilityLabel(callbackCopied ? "Callback URL copied" : "Copy callback URL")
             }
-            Text("It uses 127.0.0.1 rather than localhost so the callback can only reach this Mac’s IPv4 loopback address.")
+            Text("Ring Stats listens for it on this Mac only, during sign-in, so the callback never leaves your Mac.")
                 .scaledFont(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

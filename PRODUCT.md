@@ -37,7 +37,7 @@ The Oura Ring continues syncing through the official phone app. Ring Stats reads
 - Use an AppKit-owned status item so left-click opens the SwiftUI popover and right-click or Control-click reliably opens native Appearance, Connection, About & Credits, Refresh Now, Reauthorize Permissions, and Quit Ring Stats actions.
 - Let the user switch persistently between the default Ring Stats theme, an independent Landscape photo theme, and a Holographic theme from the Appearance view.
 - Permit a separate first-run connection window only until OAuth is configured.
-- Authenticate with Oura OAuth2 authorization-code flow through `http://127.0.0.1:43828/oauth/callback`; derive `daily`, `heartrate`, and `stress` from enabled metrics and always request `ring_configuration` for battery.
+- Authenticate with Oura OAuth2 authorization-code flow through `http://localhost:43828/oauth/callback` (`127.0.0.1` for connections made before 1.3.2); derive `daily`, `heartrate`, and `stress` from enabled metrics and always request `ring_configuration` for battery.
 - Refresh on open when the last successful snapshot is at least five minutes old; allow an explicit refresh at any time.
 - Preserve the last successful in-memory snapshot across transient failures and label it stale; expose source-day or sample-age context when values are older.
 - Fetch only enabled statistics plus battery. Hiding a statistic changes collection as well as presentation.

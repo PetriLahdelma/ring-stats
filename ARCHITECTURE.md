@@ -68,7 +68,7 @@ NSStatusItem / AppDelegate
   orchestration, and explicit refresh/cancel/disconnect actions.
 - `OAuthClient.swift` is an actor that creates authorization requests, exchanges
   and refreshes tokens, shares one in-flight token refresh, and revokes access.
-- `CallbackServer.swift` owns the temporary `127.0.0.1:43828` listener and
+- `CallbackServer.swift` owns the temporary loopback listener on port 43828 and
   validates the callback method, path, host, and OAuth state.
 - `OuraAPI.swift` is an actor that fetches enabled metrics and battery
   concurrently, converts API failures into typed errors, and records source
@@ -84,7 +84,7 @@ NSStatusItem / AppDelegate
 
 ## Data lifecycle
 
-1. The user registers `http://127.0.0.1:43828/oauth/callback` and supplies their
+1. The user registers `http://localhost:43828/oauth/callback` and supplies their
    own Oura Client ID and Client Secret.
 2. Ring Stats saves those credentials in Keychain and requests scopes derived
    from enabled metrics plus `ring_configuration` for battery.

@@ -6,7 +6,12 @@ package enum OAuthLoopback {
     package static let port: UInt16 = 43_828
     package static let path = "/oauth/callback"
     package static let origin = "http://\(host):\(port)"
-    package static let callbackURL = "\(origin)\(path)"
+    /// The redirect URI new connections register. Oura's developer portal
+    /// accepts plain http only for `localhost`.
+    package static let callbackURL = "http://localhost:\(port)\(path)"
+    /// The numeric redirect URI registered by connections made before Oura
+    /// required `localhost`. Credentials saved then keep using it.
+    package static let legacyCallbackURL = "\(origin)\(path)"
     package static let acceptedHostHeaders = ["\(host):\(port)", "localhost:\(port)"]
 }
 
@@ -34,12 +39,17 @@ package actor CallbackServer {
             guard listener == nil else { return }
 
             do {
+                // Listen on the loopback interface only, for both 127.0.0.1 and
+                // ::1. A browser may resolve `localhost` to either, and holding
+                // both means no other local process can wait on one of them for
+                // the authorization code (RFC 8252 section 8.3). Nothing off
+                // this Mac can reach it.
                 let parameters = NWParameters.tcp
-                parameters.requiredLocalEndpoint = .hostPort(
-                    host: NWEndpoint.Host(OAuthLoopback.host),
-                    port: NWEndpoint.Port(rawValue: OAuthLoopback.port)!
+                parameters.requiredInterfaceType = .loopback
+                let newListener = try NWListener(
+                    using: parameters,
+                    on: NWEndpoint.Port(rawValue: OAuthLoopback.port)!
                 )
-                let newListener = try NWListener(using: parameters)
                 listener = newListener
                 newListener.stateUpdateHandler = { [weak self] state in
                     Task { await self?.handleListenerState(state) }
