@@ -65,6 +65,10 @@ registered.
   used a Network.framework loopback listener that let another process bind
   `127.0.0.1:43828` alongside it with `SO_REUSEADDR`; 1.3.3 fixes that, and
   `listenerHoldsBothLoopbackAddressesExclusively` guards it.
+- **Mitigated:** connections are read with event sources, not blocked threads.
+  Each has a 10-second deadline for its whole request, and at most 16 are open
+  at once, the oldest dropped first, so slow or idle local connections cannot
+  exhaust threads or descriptors or keep the browser's callback out.
 - **Mitigated:** the listener exists only during an
   authorization attempt, and shuts down after one valid callback, a timeout,
   cancellation, or disconnect.

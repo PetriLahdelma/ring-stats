@@ -219,6 +219,71 @@ struct InfrastructureSecurityTests {
         await #expect(throws: (any Error).self) { try await server.start() }
     }
 
+    /// A peer trickling a byte at a time is closed at the deadline for its
+    /// whole request, not kept alive by a per-read timeout.
+    @Test func tricklingConnectionIsClosedAtItsTotalDeadline() async throws {
+        let server = CallbackServer(expectedState: "trickle-state", headerDeadline: .milliseconds(400))
+        try await server.start()
+        let fd = try #require(Self.connectedSocket(ipv6: false))
+        defer { close(fd) }
+        let start = Date()
+        var closed = false
+        for byte in Array("GET /oauth/callback?state=trickle-state HTTP/1.1\r\n".utf8) {
+            var b = byte
+            if write(fd, &b, 1) <= 0 { closed = true; break }
+            var probe = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            if poll(&probe, 1, 100) > 0 { closed = true; break }
+            if Date().timeIntervalSince(start) > 3 { break }
+        }
+        #expect(closed, "the trickling connection was never closed")
+        #expect(Date().timeIntervalSince(start) < 2)
+        await server.cancel()
+    }
+
+    /// Idle connections cannot exhaust the listener or keep the browser's
+    /// callback out: at most 16 are held, the oldest dropped first.
+    @Test func idleConnectionFloodCannotBlockTheCallback() async throws {
+        let server = CallbackServer(expectedState: "flood-state")
+        try await server.start()
+        let waiter = Task { try await server.waitForCallback() }
+        var idle: [Int32] = []
+        defer { idle.forEach { close($0) } }
+        for _ in 0..<40 {
+            if let fd = Self.connectedSocket(ipv6: idle.count % 2 == 1) { idle.append(fd) }
+        }
+        #expect(idle.count == 40)
+        await eventually("connections to be admitted") { await server.openClientCount == CallbackClients.maximumClients }
+        let response = try await Self.sendRequestFragments([
+            "GET /oauth/callback?code=real&state=flood-state HTTP/1.1\r\nHost: localhost:43828\r\n\r\n",
+        ])
+        #expect(response.contains("200 OK"))
+        #expect(URLComponents(url: try await waiter.value, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "code" })?.value == "real")
+    }
+
+    /// A process listening on the wildcard address, with any reuse option,
+    /// never receives a loopback callback while the server holds the port.
+    @Test(arguments: [false, true])
+    func wildcardListenerNeverReceivesTheCallback(ipv6: Bool) async throws {
+        let server = CallbackServer(expectedState: "wildcard-state")
+        try await server.start()
+        let waiter = Task { try await server.waitForCallback() }
+        var wildcards: [Int32] = []
+        defer { wildcards.forEach { close($0) } }
+        for family in [false, true] {
+            if let fd = Self.wildcardListener(ipv6: family) { wildcards.append(fd) }
+        }
+        let response = try await Self.sendRequestFragments([
+            "GET /oauth/callback?code=mine&state=wildcard-state HTTP/1.1\r\nHost: localhost:43828\r\n\r\n",
+        ], host: ipv6 ? "::1" : "127.0.0.1")
+        #expect(response.contains("200 OK"))
+        _ = try await waiter.value
+        for fd in wildcards {
+            var probe = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            #expect(poll(&probe, 1, 100) == 0, "a wildcard listener received a connection")
+        }
+    }
+
     @Test func cancellingCallbackWaitStopsListenerAndUnblocksWaiter() async throws {
         let server = CallbackServer(expectedState: "cancel-state")
         try await server.start()
@@ -259,6 +324,65 @@ struct InfrastructureSecurityTests {
         if reuseAddress { setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size)) }
         if reusePort { setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, socklen_t(MemoryLayout<Int32>.size)) }
         return bindLoopback(fd, ipv6: ipv6) == 0 ? 0 : errno
+    }
+
+    private static func connectedSocket(ipv6: Bool) -> Int32? {
+        let fd = socket(ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP)
+        var one: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
+        let result: Int32
+        if ipv6 {
+            var address = sockaddr_in6()
+            address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            address.sin6_family = sa_family_t(AF_INET6)
+            address.sin6_port = OAuthLoopback.port.bigEndian
+            address.sin6_addr = in6addr_loopback
+            result = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in6>.size)) }
+            }
+        } else {
+            var address = sockaddr_in()
+            address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family = sa_family_t(AF_INET)
+            address.sin_port = OAuthLoopback.port.bigEndian
+            address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+            result = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+            }
+        }
+        guard result == 0 else { close(fd); return nil }
+        return fd
+    }
+
+    /// A wildcard listener with every reuse option, as a hostile process would
+    /// open; nil when the system refuses the bind.
+    private static func wildcardListener(ipv6: Bool) -> Int32? {
+        let fd = socket(ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP)
+        var one: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
+        setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, socklen_t(MemoryLayout<Int32>.size))
+        let result: Int32
+        if ipv6 {
+            var address = sockaddr_in6()
+            address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            address.sin6_family = sa_family_t(AF_INET6)
+            address.sin6_port = OAuthLoopback.port.bigEndian
+            address.sin6_addr = in6addr_any
+            result = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in6>.size)) }
+            }
+        } else {
+            var address = sockaddr_in()
+            address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family = sa_family_t(AF_INET)
+            address.sin_port = OAuthLoopback.port.bigEndian
+            address.sin_addr = in_addr(s_addr: INADDR_ANY)
+            result = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+            }
+        }
+        guard result == 0, listen(fd, 4) == 0 else { close(fd); return nil }
+        return fd
     }
 
     private static func listeningSocket(ipv6: Bool) -> Int32? {
