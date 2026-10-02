@@ -5,6 +5,13 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.3.1 (2026-10-02)
+
+### Fixed
+
+- The Stress and Resilience icons were swapped compared with the Oura app.
+  Stress now shows waves and Resilience shows wind lines.
+
 ## 1.3.0 (2026-09-30)
 
 ### Added
