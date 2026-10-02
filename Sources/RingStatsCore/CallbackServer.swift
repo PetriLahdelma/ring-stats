@@ -25,9 +25,18 @@ package actor CallbackServer {
     private var callbackContinuation: CheckedContinuation<URL, any Error>?
     private var bufferedResult: Result<URL, any Error>?
 
+    /// Closed by the sockets' cancellation handlers; waited on before a
+    /// result is reported, so the port is free when the caller continues.
+    private let closed = DispatchGroup()
+
     package init(expectedState: String, headerDeadline: DispatchTimeInterval = CallbackClients.headerDeadline) {
         self.expectedState = expectedState
-        self.clients = CallbackClients(queue: queue, headerDeadline: headerDeadline)
+        self.clients = CallbackClients(
+            queue: queue,
+            expectedState: expectedState,
+            closed: closed,
+            headerDeadline: headerDeadline
+        )
     }
 
     /// Connections still sending headers. Tests read it.
@@ -57,18 +66,30 @@ package actor CallbackServer {
             throw error
         }
         sockets = opened
+        let clients = clients
+        // Set on the queue, which is the only place it is read.
+        queue.sync {
+            clients.onCallback = { [weak self] url in
+                Task { await self?.completeCallback(with: .success(url)) }
+            }
+        }
         for fd in opened {
             let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
-            let clients = clients
-            source.setEventHandler { [weak self] in
-                guard let server = self else { return }
-                while true {
+            source.setEventHandler {
+                // Accept a bounded batch, then return to the queue so reads,
+                // deadlines, and shutdown run even while a peer keeps
+                // connecting. The source fires again while connections wait.
+                for _ in 0..<CallbackClients.maximumClients {
                     let client = accept(fd, nil, nil)
                     guard client >= 0 else { break }
-                    clients.admit(client) { request in
-                        Task { await server.handleRequest(request, client: client) }
-                    }
+                    clients.admit(client)
                 }
+            }
+            // Close only after the source has stopped using the descriptor.
+            closed.enter()
+            source.setCancelHandler { [closed] in
+                close(fd)
+                closed.leave()
             }
             source.resume()
             sources.append(source)
@@ -139,23 +160,6 @@ package actor CallbackServer {
         return fd
     }
 
-    /// Handles one complete request. Connections that send malformed,
-    /// oversized, or no headers in time are closed by `CallbackClients` and
-    /// never reach here, so a stray connection cannot end the flow.
-    private func handleRequest(_ request: String, client: Int32) {
-        guard let url = Self.validatedCallbackURL(
-            from: request,
-            expectedState: expectedState
-        ) else {
-            DiagnosticsLog.shared.record(.callbackRejected)
-            Self.sendResponse(status: "400 Bad Request", body: "Invalid callback request.", to: client)
-            return
-        }
-        DiagnosticsLog.shared.record(.callbackAccepted)
-        Self.sendResponse(status: "200 OK", body: "Connected. You can close this window.", to: client)
-        completeCallback(with: .success(url))
-    }
-
     package nonisolated static func validatedCallbackURL(
         from request: String,
         expectedState: String
@@ -180,27 +184,17 @@ package actor CallbackServer {
         return OAuthLoopback.acceptedHostHeaders.contains(host) ? url : nil
     }
 
-    /// Writes the short response without blocking and closes the connection.
-    /// The response is far smaller than a socket buffer, so one non-blocking
-    /// write delivers it; a peer that is not reading simply loses it.
-    private nonisolated static func sendResponse(status: String, body: String, to client: Int32) {
-        let response = "HTTP/1.1 \(status)\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'\r\nConnection: close\r\n\r\n\(body)"
-        let bytes = Array(response.utf8)
-        _ = bytes.withUnsafeBytes { write(client, $0.baseAddress, $0.count) }
-        close(client)
-    }
-
     /// Closes the listening sockets before reporting the result, so the port
     /// is free again by the time the caller continues.
     private func completeCallback(with result: Result<URL, any Error>) {
         if !sources.isEmpty {
             sources.forEach { $0.cancel() }
-            // Wait out any accept already running on the queue, then drop
-            // every connection still sending headers.
             let clients = clients
             queue.sync { clients.closeAll() }
+            // Every listening and client socket closes in its source's
+            // cancellation handler; wait for them so the port is free.
+            closed.wait()
             sources.removeAll()
-            sockets.forEach { close($0) }
             sockets.removeAll()
         }
         if let callbackContinuation {
@@ -212,14 +206,17 @@ package actor CallbackServer {
     }
 }
 
-/// Reads request headers from accepted connections without blocking a thread.
+/// Reads, checks, and answers callback requests without blocking a thread.
 ///
 /// Each connection gets a non-blocking read source on the server's serial
 /// queue and an absolute deadline for its whole request, not a per-read
 /// timeout, so a peer trickling bytes cannot hold it open. At most
 /// `maximumClients` connections are open; admitting another drops the oldest,
-/// so idle connections cannot keep the browser's callback out. Confined to the
-/// server's queue.
+/// so idle connections cannot keep the browser's callback out. A complete
+/// request is validated and answered here, on the same queue, so every socket
+/// stays counted and closable until it is gone. A descriptor is closed only in
+/// its source's cancellation handler, so it cannot be reused while the source
+/// still watches it. Confined to the server's queue.
 package final class CallbackClients: @unchecked Sendable {
     static let maximumClients = 16
     package static let headerDeadline: DispatchTimeInterval = .seconds(10)
@@ -236,87 +233,117 @@ package final class CallbackClients: @unchecked Sendable {
     }
 
     private let queue: DispatchQueue
+    private let expectedState: String
+    private let closed: DispatchGroup
     private let deadline: DispatchTimeInterval
     /// Open connections, oldest first.
     private var open: [Client] = []
+    /// Called once, on the queue, with a valid callback.
+    var onCallback: (@Sendable (URL) -> Void)?
 
-    init(queue: DispatchQueue, headerDeadline: DispatchTimeInterval = CallbackClients.headerDeadline) {
+    init(
+        queue: DispatchQueue,
+        expectedState: String,
+        closed: DispatchGroup,
+        headerDeadline: DispatchTimeInterval = CallbackClients.headerDeadline
+    ) {
         self.queue = queue
+        self.expectedState = expectedState
+        self.closed = closed
         self.deadline = headerDeadline
     }
 
-    /// Number of connections still sending headers. Tests read it.
+    /// Number of open connections. Tests read it.
     var count: Int { queue.sync { open.count } }
 
-    /// Starts reading `fd`. Calls `onRequest` with the headers once complete;
-    /// the receiver then owns `fd`. Must be called on the server's queue.
-    func admit(_ fd: Int32, onRequest: @escaping @Sendable (String) -> Void) {
+    /// Starts reading `fd`. Must be called on the server's queue.
+    func admit(_ fd: Int32) {
         var one: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
         // Accepted sockets inherit non-blocking mode from the listener; keep it.
         _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
         if open.count >= Self.maximumClients, let oldest = open.first {
-            drop(oldest)
+            finish(oldest)
         }
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
         let client = Client(fd: fd, source: source)
         open.append(client)
+        closed.enter()
         source.setEventHandler { [weak self, weak client] in
             guard let self, let client else { return }
-            self.read(client, onRequest: onRequest)
+            self.read(client)
+        }
+        source.setCancelHandler { [closed] in
+            close(fd)
+            closed.leave()
         }
         source.resume()
         queue.asyncAfter(deadline: .now() + deadline) { [weak self, weak client] in
             guard let self, let client else { return }
-            self.drop(client)
+            self.finish(client)
         }
     }
 
-    /// Closes every connection still sending headers. Must be called on the
-    /// server's queue.
+    /// Closes every open connection. Must be called on the server's queue.
     func closeAll() {
-        open.forEach(drop)
+        open.forEach(finish)
+        onCallback = nil
     }
 
-    private func read(_ client: Client, onRequest: @escaping @Sendable (String) -> Void) {
+    private func read(_ client: Client) {
         var chunk = [UInt8](repeating: 0, count: 4_096)
         while true {
             let count = Darwin.read(client.fd, &chunk, chunk.count)
             if count < 0, errno == EAGAIN || errno == EWOULDBLOCK { return }
             guard count > 0 else {
                 // Closed or failed before the headers were complete.
-                drop(client)
+                finish(client)
                 return
             }
             client.buffer.append(contentsOf: chunk[0..<count])
             guard client.buffer.count <= Self.maximumHeaderBytes else {
-                drop(client)
+                finish(client)
                 return
             }
             if let end = client.buffer.range(of: Data("\r\n\r\n".utf8)) {
-                guard let request = String(data: client.buffer[..<end.upperBound], encoding: .utf8) else {
-                    drop(client)
-                    return
-                }
-                // Hand the connection over without closing it.
-                release(client)
-                onRequest(request)
+                answer(client, request: String(data: client.buffer[..<end.upperBound], encoding: .utf8))
                 return
             }
         }
     }
 
-    private func release(_ client: Client) {
-        guard let index = open.firstIndex(where: { $0 === client }) else { return }
-        open.remove(at: index)
-        client.source.setEventHandler {}
-        client.source.cancel()
+    /// Checks a complete request, answers it, and closes the connection.
+    private func answer(_ client: Client, request: String?) {
+        guard let request,
+              let url = CallbackServer.validatedCallbackURL(from: request, expectedState: expectedState) else {
+            if request != nil {
+                DiagnosticsLog.shared.record(.callbackRejected)
+                Self.respond(to: client.fd, status: "400 Bad Request", body: "Invalid callback request.")
+            }
+            finish(client)
+            return
+        }
+        DiagnosticsLog.shared.record(.callbackAccepted)
+        Self.respond(to: client.fd, status: "200 OK", body: "Connected. You can close this window.")
+        finish(client)
+        let onCallback = onCallback
+        self.onCallback = nil
+        onCallback?(url)
     }
 
-    private func drop(_ client: Client) {
+    /// Writes the short response without blocking. It is far smaller than a
+    /// socket buffer, so one non-blocking write delivers it; a peer that is
+    /// not reading simply loses it.
+    private static func respond(to fd: Int32, status: String, body: String) {
+        let response = "HTTP/1.1 \(status)\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'\r\nConnection: close\r\n\r\n\(body)"
+        let bytes = Array(response.utf8)
+        _ = bytes.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
+    }
+
+    /// Stops watching a connection; its cancellation handler closes it.
+    private func finish(_ client: Client) {
         guard let index = open.firstIndex(where: { $0 === client }) else { return }
         open.remove(at: index)
         client.source.cancel()
-        close(client.fd)
     }
 }

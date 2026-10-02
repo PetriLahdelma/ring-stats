@@ -332,6 +332,31 @@ expect_failure "$PROJECT_DIR/scripts/verify_release_tag.sh" "$tag_repo" 9.8 main
 /usr/bin/git -C "$tag_repo" checkout -q v9.9
 expect_failure verify_tag
 
+# Release records never publish local paths: redaction rewrites them, and the
+# archive check rejects any that remain, including in nested archives.
+paths_dir="$TEST_ROOT/paths/release-metadata"
+/bin/mkdir -p "$paths_dir"
+fake_checkout="/Users/example-user/Projects/ring-stats"
+printf 'abc123  %s/dist/Ring Stats.app/Contents/MacOS/RingStats\n' "$fake_checkout" > "$paths_dir/binary.sha256"
+printf '{"path": "%s", "cache": "/Users/example-user/Library"}\n' "$fake_checkout" > "$paths_dir/deps.json"
+printf 'Executable=%s/dist/Ring-Stats.dmg\n' "$fake_checkout" > "$paths_dir/codesign.txt"
+"$PROJECT_DIR/scripts/redact_local_paths.sh" "$paths_dir" "$fake_checkout" "/Users/example-user"
+/usr/bin/grep -q 'abc123  ./dist/Ring Stats.app' "$paths_dir/binary.sha256" || fail "checkout path was not rewritten to ."
+/usr/bin/grep -q '"cache": "~/Library"' "$paths_dir/deps.json" || fail "home path was not rewritten to ~"
+! /usr/bin/grep -rq '/Users/' "$paths_dir" || fail "a local path survived redaction"
+"$PROJECT_DIR/scripts/redact_local_paths.sh" "$paths_dir" "" "/Users/example-user" >/dev/null 2>&1 \
+  && fail "redaction accepted an empty checkout path"
+/usr/bin/ditto -c -k --keepParent "$paths_dir" "$TEST_ROOT/paths/clean.zip"
+"$PROJECT_DIR/scripts/verify_no_local_paths.sh" "$TEST_ROOT/paths/clean.zip" >/dev/null || fail "clean archive was rejected"
+nested="$TEST_ROOT/paths/nested"
+/bin/mkdir -p "$nested/inner"
+printf 'path /Users/example-user/secret-layout\n' > "$nested/inner/note.txt"
+/usr/bin/ditto -c -k --keepParent "$nested/inner" "$nested/inner.zip"
+/bin/rm -rf "$nested/inner"
+/usr/bin/ditto -c -k --keepParent "$nested" "$TEST_ROOT/paths/leaky.zip"
+"$PROJECT_DIR/scripts/verify_no_local_paths.sh" "$TEST_ROOT/paths/leaky.zip" >/dev/null 2>&1 \
+  && fail "a path inside a nested archive was not caught"
+
 # The SBOM describes the built executable and is valid CycloneDX JSON.
 if [[ -x "$PROJECT_DIR/dist/Ring Stats.app/Contents/MacOS/RingStats" ]]; then
   "$PROJECT_DIR/scripts/generate_sbom.sh" "$PROJECT_DIR/dist/Ring Stats.app" "$TEST_ROOT/sbom.json" >/dev/null

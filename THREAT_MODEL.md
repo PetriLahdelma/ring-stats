@@ -68,7 +68,15 @@ registered.
 - **Mitigated:** connections are read with event sources, not blocked threads.
   Each has a 10-second deadline for its whole request, and at most 16 are open
   at once, the oldest dropped first, so slow or idle local connections cannot
-  exhaust threads or descriptors or keep the browser's callback out.
+  exhaust threads or descriptors or keep the browser's callback out. Requests
+  are answered on the queue that reads them, a socket is closed only in its
+  dispatch source's cancellation handler, and accepts run in bounded batches
+  so a peer connecting nonstop cannot starve reads, deadlines, or shutdown.
+- **Mitigated:** release provenance records have local paths rewritten to `.`
+  and `~` (`scripts/redact_local_paths.sh`), and
+  `scripts/verify_no_local_paths.sh` fails publication if any remain,
+  including inside nested archives. Archives for 1.2.0 to 1.3.3 contain the
+  maintainer's build paths but no credentials.
 - **Mitigated:** the listener exists only during an
   authorization attempt, and shuts down after one valid callback, a timeout,
   cancellation, or disconnect.
