@@ -1,5 +1,4 @@
 import Foundation
-import Network
 
 package enum OAuthLoopback {
     package static let host = "127.0.0.1"
@@ -17,51 +16,58 @@ package enum OAuthLoopback {
 
 package actor CallbackServer {
     private static let maximumHeaderBytes = 16_384
+    /// How long a connection may take to send its request headers.
+    private static let readTimeout = timeval(tv_sec: 10, tv_usec: 0)
 
     private let expectedState: String
     private let queue = DispatchQueue(label: "local.ringstats.oauth-callback")
-    private var listener: NWListener?
-    private var listenerIsReady = false
-    private var readyContinuations: [CheckedContinuation<Void, any Error>] = []
+    private var sockets: [Int32] = []
+    private var sources: [DispatchSourceRead] = []
     private var callbackContinuation: CheckedContinuation<URL, any Error>?
     private var bufferedResult: Result<URL, any Error>?
-    private var pendingResultAfterListenerShutdown: Result<URL, any Error>?
 
     package init(expectedState: String) {
         self.expectedState = expectedState
     }
 
+    /// Opens the callback listener on `127.0.0.1` and `::1`.
+    ///
+    /// Each address gets its own BSD socket, bound to that exact address with
+    /// no `SO_REUSEPORT` and the IPv6 one set to IPv6 only. While they are
+    /// open, no other process can bind either address and port, even with
+    /// `SO_REUSEADDR` or `SO_REUSEPORT`, so nothing else can receive the
+    /// authorization code (RFC 8252 section 8.3). A process on the wildcard
+    /// address does not receive loopback connections either, because the
+    /// exact-address socket wins. Network.framework's loopback listener left
+    /// the IPv4 address open to such a bind, which is why this uses sockets.
+    /// `SO_REUSEADDR` on these sockets only lets a retry rebind while earlier
+    /// connections sit in TIME_WAIT.
     package func start() async throws {
-        if listenerIsReady { return }
-
-        try await withCheckedThrowingContinuation { ready in
-            readyContinuations.append(ready)
-            guard listener == nil else { return }
-
-            do {
-                // Listen on the loopback interface only, for both 127.0.0.1 and
-                // ::1. A browser may resolve `localhost` to either, and holding
-                // both means no other local process can wait on one of them for
-                // the authorization code (RFC 8252 section 8.3). Nothing off
-                // this Mac can reach it.
-                let parameters = NWParameters.tcp
-                parameters.requiredInterfaceType = .loopback
-                let newListener = try NWListener(
-                    using: parameters,
-                    on: NWEndpoint.Port(rawValue: OAuthLoopback.port)!
-                )
-                listener = newListener
-                newListener.stateUpdateHandler = { [weak self] state in
-                    Task { await self?.handleListenerState(state) }
+        guard sources.isEmpty else { return }
+        var opened: [Int32] = []
+        do {
+            opened.append(try Self.listeningSocket(ipv6: false))
+            opened.append(try Self.listeningSocket(ipv6: true))
+        } catch {
+            opened.forEach { close($0) }
+            completeCallback(with: .failure(error))
+            throw error
+        }
+        sockets = opened
+        for fd in opened {
+            let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+            source.setEventHandler { [weak self] in
+                guard let server = self else { return }
+                while true {
+                    let client = accept(fd, nil, nil)
+                    guard client >= 0 else { break }
+                    Self.readHeaders(from: client) { result in
+                        Task { await server.handleRequest(result, client: client) }
+                    }
                 }
-                newListener.newConnectionHandler = { [weak self] connection in
-                    Task { await self?.handle(connection) }
-                }
-                newListener.start(queue: queue)
-            } catch {
-                completeReady(with: .failure(error))
-                completeCallback(with: .failure(error))
             }
+            source.resume()
+            sources.append(source)
         }
     }
 
@@ -82,115 +88,111 @@ package actor CallbackServer {
     }
 
     package func cancel() {
-        completeReady(with: .failure(CancellationError()))
         completeCallback(with: .failure(CancellationError()))
     }
 
-    private func handleListenerState(_ state: NWListener.State) {
-        switch state {
-        case .ready:
-            listenerIsReady = true
-            completeReady(with: .success(()))
-        case .failed(let error):
-            completeReady(with: .failure(error))
-            completeCallback(with: .failure(error))
-        case .waiting(let error):
-            // A listener waits rather than fails when, for example, the port is
-            // already bound. Treat that as a failure so start() cannot hang and
-            // the browser is never opened toward a port another process holds.
-            completeReady(with: .failure(error))
-            completeCallback(with: .failure(error))
-            listener?.cancel()
-        case .cancelled:
-            listenerIsReady = false
-            listener = nil
-            completeReady(with: .failure(CancellationError()))
-            if let pendingResultAfterListenerShutdown {
-                self.pendingResultAfterListenerShutdown = nil
-                deliverCallback(pendingResultAfterListenerShutdown)
+    private nonisolated static func listeningSocket(ipv6: Bool) throws -> Int32 {
+        let fd = socket(ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP)
+        guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        func fail() -> POSIXError {
+            let error = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            close(fd)
+            return error
+        }
+        var one: Int32 = 1
+        let size = socklen_t(MemoryLayout<Int32>.size)
+        guard setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, size) == 0,
+              setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, size) == 0 else { throw fail() }
+        if ipv6, setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, size) != 0 { throw fail() }
+        let result: Int32
+        if ipv6 {
+            var address = sockaddr_in6()
+            address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            address.sin6_family = sa_family_t(AF_INET6)
+            address.sin6_port = OAuthLoopback.port.bigEndian
+            address.sin6_addr = in6addr_loopback
+            result = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in6>.size))
+                }
             }
-        default:
-            break
+        } else {
+            var address = sockaddr_in()
+            address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family = sa_family_t(AF_INET)
+            address.sin_port = OAuthLoopback.port.bigEndian
+            address.sin_addr = in_addr(s_addr: inet_addr(OAuthLoopback.host))
+            result = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
         }
+        guard result == 0, listen(fd, 8) == 0 else { throw fail() }
+        // Accept without blocking the dispatch queue; each event drains the
+        // pending connections.
+        _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+        return fd
     }
 
-    private func handle(_ connection: NWConnection) {
-        connection.start(queue: queue)
-        Self.receiveHeaders(over: connection) { [weak self] result in
-            Task { await self?.handleRequest(result, over: connection) }
-        }
-    }
-
-    private func handleRequest(
-        _ result: Result<String, any Error>,
-        over connection: NWConnection
-    ) {
+    private func handleRequest(_ result: Result<String, any Error>, client: Int32) {
         switch result {
         case .failure:
             // Browsers, health checks, and local processes can open or reset a
             // loopback connection while OAuth is pending. A single malformed
             // connection must not terminate the authorization flow.
-            connection.cancel()
+            close(client)
         case .success(let request):
             guard let url = Self.validatedCallbackURL(
                 from: request,
                 expectedState: expectedState
             ) else {
                 DiagnosticsLog.shared.record(.callbackRejected)
-                sendResponse(
-                    status: "400 Bad Request",
-                    body: "Invalid callback request.",
-                    over: connection
-                )
+                Self.sendResponse(status: "400 Bad Request", body: "Invalid callback request.", to: client)
                 return
             }
             DiagnosticsLog.shared.record(.callbackAccepted)
-            sendResponse(
-                status: "200 OK",
-                body: "Connected. You can close this window.",
-                over: connection
-            )
+            Self.sendResponse(status: "200 OK", body: "Connected. You can close this window.", to: client)
             completeCallback(with: .success(url))
         }
     }
 
-    nonisolated private static func receiveHeaders(
-        over connection: NWConnection,
-        accumulated: Data = Data(),
+    /// Reads up to the end of the request headers on a background queue, so a
+    /// slow or silent connection cannot hold up other connections.
+    private nonisolated static func readHeaders(
+        from client: Int32,
         completion: @escaping @Sendable (Result<String, any Error>) -> Void
     ) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 4_096) {
-            data,
-            _,
-            isComplete,
-            error in
-            if let error {
-                completion(.failure(error))
-                return
-            }
-
-            var buffer = accumulated
-            if let data { buffer.append(data) }
-            if buffer.count > maximumHeaderBytes {
-                completion(.failure(CallbackServerError.headersTooLarge))
-                return
-            }
-
-            if let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) {
-                let headerData = buffer[..<headerEnd.upperBound]
-                guard let request = String(data: headerData, encoding: .utf8) else {
-                    completion(.failure(CallbackServerError.invalidEncoding))
+        DispatchQueue.global(qos: .userInitiated).async {
+            // Accepted sockets inherit non-blocking mode; read them blocking,
+            // with a timeout.
+            _ = fcntl(client, F_SETFL, fcntl(client, F_GETFL) & ~O_NONBLOCK)
+            var timeout = readTimeout
+            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+            var one: Int32 = 1
+            setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
+            var buffer = Data()
+            var chunk = [UInt8](repeating: 0, count: 4_096)
+            while true {
+                let count = read(client, &chunk, chunk.count)
+                guard count > 0 else {
+                    completion(.failure(CallbackServerError.incompleteHeaders))
                     return
                 }
-                completion(.success(request))
-                return
+                buffer.append(contentsOf: chunk[0..<count])
+                if buffer.count > maximumHeaderBytes {
+                    completion(.failure(CallbackServerError.headersTooLarge))
+                    return
+                }
+                if let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) {
+                    guard let request = String(data: buffer[..<headerEnd.upperBound], encoding: .utf8) else {
+                        completion(.failure(CallbackServerError.invalidEncoding))
+                        return
+                    }
+                    completion(.success(request))
+                    return
+                }
             }
-
-            guard !isComplete else {
-                completion(.failure(CallbackServerError.incompleteHeaders))
-                return
-            }
-            receiveHeaders(over: connection, accumulated: buffer, completion: completion)
         }
     }
 
@@ -218,34 +220,31 @@ package actor CallbackServer {
         return OAuthLoopback.acceptedHostHeaders.contains(host) ? url : nil
     }
 
-    private func sendResponse(status: String, body: String, over connection: NWConnection) {
+    private nonisolated static func sendResponse(status: String, body: String, to client: Int32) {
         let response = "HTTP/1.1 \(status)\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: \(body.utf8.count)\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'\r\nConnection: close\r\n\r\n\(body)"
-        connection.send(
-            content: response.data(using: .utf8),
-            completion: .contentProcessed { _ in connection.cancel() }
-        )
-    }
-
-    private func completeReady(with result: Result<Void, any Error>) {
-        let pending = readyContinuations
-        readyContinuations.removeAll()
-        pending.forEach { $0.resume(with: result) }
-    }
-
-    private func completeCallback(with result: Result<URL, any Error>) {
-        listenerIsReady = false
-        if let listener {
-            if pendingResultAfterListenerShutdown == nil {
-                pendingResultAfterListenerShutdown = result
+        DispatchQueue.global(qos: .userInitiated).async {
+            let bytes = Array(response.utf8)
+            var sent = 0
+            while sent < bytes.count {
+                let count = bytes[sent...].withUnsafeBytes { write(client, $0.baseAddress, $0.count) }
+                guard count > 0 else { break }
+                sent += count
             }
-            listener.cancel()
-            return
+            close(client)
         }
-
-        deliverCallback(result)
     }
 
-    private func deliverCallback(_ result: Result<URL, any Error>) {
+    /// Closes the listening sockets before reporting the result, so the port
+    /// is free again by the time the caller continues.
+    private func completeCallback(with result: Result<URL, any Error>) {
+        if !sources.isEmpty {
+            sources.forEach { $0.cancel() }
+            // Wait out any accept already running on the queue before closing.
+            queue.sync {}
+            sources.removeAll()
+            sockets.forEach { close($0) }
+            sockets.removeAll()
+        }
         if let callbackContinuation {
             self.callbackContinuation = nil
             callbackContinuation.resume(with: result)

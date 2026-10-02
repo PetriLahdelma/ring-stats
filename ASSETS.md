@@ -12,7 +12,7 @@ artwork, proprietary typefaces, or extracted application assets.
 | `HolographicMarble.jpg` | Bundled Holographic theme | Project-owned procedural marble rendered by `scripts/assets/holographic_marble.swift` (domain-warped noise, seed 21); no third-party imagery |
 | `LandscapeBackground.png` | Bundled Landscape theme | Project-owned generated landscape created for Ring Stats; no Oura, person, or product imagery |
 | `.github/assets/ring-stats-banner.*` | README identity banner | Maintainer-provided export from the project Figma file |
-| `.github/assets/ring-stats-themes-v4.png` | README theme showcase | Maintainer-provided export of the Landscape, Holographic, and Default themes |
+| `.github/assets/ring-stats-themes-v5.png` | README theme showcase | Maintainer-provided layout of the Landscape, Holographic, and Default themes; the popovers are rendered by the app's state-gallery harness |
 
 In the README theme showcase, the Landscape and Default values are synthetic
 fixtures chosen to demonstrate layout. The Holographic panel shows the

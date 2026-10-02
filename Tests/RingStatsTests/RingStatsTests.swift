@@ -575,11 +575,28 @@ import Testing
 }
 
 /// Stress and Resilience follow the Oura app's icons: waves for Stress, wind
-/// for Resilience. Every symbol must exist on the minimum macOS.
-@Test func metricSymbolsMatchOurasConventionAndExist() {
+/// for Resilience.
+@Test func metricSymbolsMatchOurasConvention() {
     #expect(Metric.stress.symbolName == "water.waves")
     #expect(Metric.resilience.symbolName == "wind")
     for metric in Metric.allCases {
         #expect(NSImage(systemSymbolName: metric.symbolName, accessibilityDescription: nil) != nil, "\(metric)")
+    }
+}
+
+/// Every metric symbol was introduced no later than macOS 14, the minimum
+/// supported version. Checking `NSImage` alone would only prove the symbol
+/// exists on the test Mac, so this reads the system's own SF Symbols
+/// availability metadata.
+@Test func metricSymbolsExistOnTheMinimumMacOS() throws {
+    let url = URL(fileURLWithPath: "/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist")
+    let plist = try #require(NSDictionary(contentsOf: url))
+    let symbols = try #require(plist["symbols"] as? [String: String])
+    let releases = try #require(plist["year_to_release"] as? [String: [String: String]])
+    for metric in Metric.allCases {
+        let year = try #require(symbols[metric.symbolName], "\(metric.symbolName) has no availability entry")
+        let macOS = try #require(releases[year]?["macOS"], "no macOS release for \(year)")
+        let major = Int(macOS.split(separator: ".").first ?? "") ?? .max
+        #expect(major <= 14 || macOS.hasPrefix("10."), "\(metric.symbolName) needs macOS \(macOS)")
     }
 }

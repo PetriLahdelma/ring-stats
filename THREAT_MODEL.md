@@ -55,10 +55,16 @@ first, where another local process could be listening. Connections set up
 before 1.3.2 keep the numeric `http://127.0.0.1:43828/oauth/callback` they
 registered.
 
-- **Mitigated:** the listener holds port 43828 on the loopback interface for
-  both `127.0.0.1` and `::1`, so no other process can wait on either address,
-  and nothing off the Mac can reach it. If another process already holds the
-  port, authorization stops instead of opening the browser.
+- **Mitigated:** the listener opens one BSD socket bound to `127.0.0.1` and
+  one IPv6-only socket bound to `::1`, both on port 43828 without
+  `SO_REUSEPORT`. While they are open, no other process can bind either
+  address and port, even with `SO_REUSEADDR` or `SO_REUSEPORT`, and a process
+  on the wildcard address does not receive loopback connections. Nothing off
+  the Mac can reach them. If another process already holds the port on either
+  address, authorization stops instead of opening the browser. Ring Stats 1.3.2
+  used a Network.framework loopback listener that let another process bind
+  `127.0.0.1:43828` alongside it with `SO_REUSEADDR`; 1.3.3 fixes that, and
+  `listenerHoldsBothLoopbackAddressesExclusively` guards it.
 - **Mitigated:** the listener exists only during an
   authorization attempt, and shuts down after one valid callback, a timeout,
   cancellation, or disconnect.

@@ -343,7 +343,7 @@ app = bom["metadata"]["component"]
 assert app["name"] == "Ring Stats"
 assert app["hashes"][0]["content"] == sys.argv[2]
 names = {component["name"] for component in bom["components"]}
-assert {"Foundation", "SwiftUI", "AppKit", "Security", "Network"} <= names, names
+assert {"Foundation", "SwiftUI", "AppKit", "Security", "CFNetwork"} <= names, names
 assert all(c.get("supplier", {}).get("name") == "Apple Inc." for c in bom["components"]), "unexpected third-party component"
 paths = [p["value"] for c in bom["components"] for p in c.get("properties", []) if p["name"] == "ringstats:path"]
 assert paths and all(p.startswith(("/System/", "/usr/lib/")) for p in paths), paths
