@@ -573,3 +573,13 @@ import Testing
     #expect(MetricStripNavigation.moving(.readiness, .left, in: configuration) == nil)
     #expect(MetricStripNavigation.moving(.stress, .right, in: configuration) == nil)
 }
+
+/// Stress and Resilience follow the Oura app's icons: waves for Stress, wind
+/// for Resilience. Every symbol must exist on the minimum macOS.
+@Test func metricSymbolsMatchOurasConventionAndExist() {
+    #expect(Metric.stress.symbolName == "water.waves")
+    #expect(Metric.resilience.symbolName == "wind")
+    for metric in Metric.allCases {
+        #expect(NSImage(systemSymbolName: metric.symbolName, accessibilityDescription: nil) != nil, "\(metric)")
+    }
+}
