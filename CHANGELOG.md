@@ -5,6 +5,18 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.3.4 (2026-10-02)
+
+### Security
+
+- The sign-in listener closes each connection only after macOS has stopped
+  watching it, answers requests where it reads them so every connection stays
+  counted and closable, and accepts connections in bounded batches so a
+  program connecting nonstop cannot starve sign-in.
+- Release provenance archives no longer include the build machine's local
+  folder paths, and publishing fails if any remain. Earlier archives contain
+  the maintainer's build paths; they hold no credentials or keys.
+
 ## 1.3.3 (2026-10-02)
 
 ### Security

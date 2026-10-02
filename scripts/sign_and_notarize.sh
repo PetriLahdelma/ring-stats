@@ -123,9 +123,15 @@ DMG_PATH="$DMG_PATH" "$PROJECT_DIR/scripts/verify_release_artifacts.sh"
 sbom="$OUTPUT_DIR/Ring-Stats-$VERSION.cdx.json"
 "$PROJECT_DIR/scripts/generate_sbom.sh" "$APP_DIR" "$sbom"
 /bin/cp "$sbom" "$METADATA_DIR/"
+# The records above name absolute build paths, which reveal the maintainer's
+# account name and folder layout. Rewrite them to "." (the checkout) and "~"
+# (the home folder) before publishing; hashes and signatures are unaffected.
+"$PROJECT_DIR/scripts/redact_local_paths.sh" "$METADATA_DIR" "$PROJECT_DIR" "$HOME"
+
 provenance_zip="$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip"
 /bin/rm -f "$provenance_zip"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$METADATA_DIR" "$provenance_zip"
+"$PROJECT_DIR/scripts/verify_no_local_paths.sh" "$provenance_zip"
 (cd "$OUTPUT_DIR" && /usr/bin/shasum -a 256 "Ring-Stats-$VERSION-provenance.zip") \
   > "$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip.sha256"
 echo "Provenance archive: $provenance_zip"

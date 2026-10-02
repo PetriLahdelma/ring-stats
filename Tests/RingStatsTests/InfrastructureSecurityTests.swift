@@ -261,6 +261,29 @@ struct InfrastructureSecurityTests {
             .queryItems?.first(where: { $0.name == "code" })?.value == "real")
     }
 
+    /// A peer connecting nonstop cannot starve the queue: the real callback is
+    /// still read and answered while connections keep arriving.
+    @Test func continuousConnectionsCannotStarveTheCallback() async throws {
+        let server = CallbackServer(expectedState: "storm-state")
+        try await server.start()
+        let waiter = Task { try await server.waitForCallback() }
+        let storm = Task.detached {
+            var opened = 0
+            while !Task.isCancelled, opened < 3_000 {
+                if let fd = Self.connectedSocket(ipv6: opened % 2 == 1) { close(fd) }
+                opened += 1
+            }
+        }
+        defer { storm.cancel() }
+        let response = try await Self.sendRequestFragments([
+            "GET /oauth/callback?code=through&state=storm-state HTTP/1.1\r\nHost: localhost:43828\r\n\r\n",
+        ])
+        #expect(response.contains("200 OK"))
+        #expect(URLComponents(url: try await waiter.value, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "code" })?.value == "through")
+        storm.cancel()
+    }
+
     /// A process listening on the wildcard address, with any reuse option,
     /// never receives a loopback callback while the server holds the port.
     @Test(arguments: [false, true])
