@@ -332,6 +332,33 @@ extension HTTPStubbedTests {
             #expect(scope == "daily")
         }
 
+        /// New connections register `localhost`, which Oura's portal requires;
+        /// credentials saved before that keep the numeric URI they registered.
+        @Test func redirectURIFollowsTheSavedCredentials() async throws {
+            for (credentials, expected) in [
+                (ClientCredentials(clientID: "c", clientSecret: "s", redirectURI: OAuthLoopback.callbackURL),
+                 "http://localhost:43828/oauth/callback"),
+                (ClientCredentials(clientID: "c", clientSecret: "s"),
+                 "http://127.0.0.1:43828/oauth/callback"),
+            ] {
+                let store = TestCredentialStore()
+                try store.save(credentials, account: "client-credentials")
+                let recorder = HTTPStubRecorder { request in stubResponse(request, 500, "unused") }
+                let client = OAuthClient(store: store, session: recorder.session)
+                let url = try await client.authorizationRequest(state: "s", scopes: [OuraScope.daily.authorizationScope])
+                let redirect = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first(where: { $0.name == "redirect_uri" })?.value
+                #expect(redirect == expected)
+            }
+        }
+
+        @Test func credentialsSavedWithoutARedirectDecodeAsLegacy() throws {
+            let saved = Data(#"{"clientID":"c","clientSecret":"s"}"#.utf8)
+            let decoded = try JSONDecoder().decode(ClientCredentials.self, from: saved)
+            #expect(decoded.redirectURI == nil)
+            #expect(decoded.callbackURL == "http://127.0.0.1:43828/oauth/callback")
+        }
+
         @Test func credentialLoadFailureIsSurfacedInsteadOfTreatedAsSignedOut() async {
             let recorder = HTTPStubRecorder { request in stubResponse(request, 500, "unused") }
             let client = OAuthClient(

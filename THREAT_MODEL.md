@@ -22,7 +22,7 @@ through [SECURITY.md](SECURITY.md).
    access control, and the user's account. A process already running as the
    same user with Keychain access can read what Ring Stats can read.
 2. **The loopback interface.** The OAuth callback crosses from the browser to
-   the app over `127.0.0.1:43828` during one authorization attempt.
+   the app over loopback port 43828 during one authorization attempt.
 3. **The network.** All Oura traffic is HTTPS to documented Oura hosts.
 4. **Oura.** Ring Stats trusts Oura's OAuth and API responses only after
    status and schema checks. It never displays raw upstream bodies.
@@ -48,11 +48,18 @@ application and enters its Client ID and Client Secret.
 
 ## OAuth callback
 
-The redirect URI is the numeric `http://127.0.0.1:43828/oauth/callback`, not
-`localhost`, following RFC 8252 section 8.3. A browser resolving `localhost` may
-try `::1` first, where another local process could be listening.
+The redirect URI is `http://localhost:43828/oauth/callback`, because Oura's
+developer portal accepts plain http only for `localhost`. RFC 8252 section 8.3
+prefers a numeric address because a browser resolving `localhost` may try `::1`
+first, where another local process could be listening. Connections set up
+before 1.3.2 keep the numeric `http://127.0.0.1:43828/oauth/callback` they
+registered.
 
-- **Mitigated:** the listener binds only to `127.0.0.1`, exists only during an
+- **Mitigated:** the listener holds port 43828 on the loopback interface for
+  both `127.0.0.1` and `::1`, so no other process can wait on either address,
+  and nothing off the Mac can reach it. If another process already holds the
+  port, authorization stops instead of opening the browser.
+- **Mitigated:** the listener exists only during an
   authorization attempt, and shuts down after one valid callback, a timeout,
   cancellation, or disconnect.
 - **Mitigated:** requests are validated for method, path, host header, and a
@@ -115,7 +122,7 @@ Ring Stats runs in the App Sandbox with the hardened runtime. Its entitlements
 | --- | --- |
 | `app-sandbox` | Confines the app to its container |
 | `network.client` | HTTPS to Oura's OAuth and API endpoints |
-| `network.server` | The short-lived OAuth listener on `127.0.0.1:43828` |
+| `network.server` | The short-lived OAuth listener on loopback port 43828 |
 | `files.user-selected.read-write` | Save… in Diagnostics, only where the user chooses |
 
 - **Verified:** `scripts/tests/test_sandbox_keychain.sh` compiles the

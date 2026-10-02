@@ -40,8 +40,8 @@ mitigations, and accepted residual risks in detail.
   files are migrated only when the protected write succeeds.
 - Health responses are held in memory for display and are not persisted by the
   application; API and OAuth requests use ephemeral, no-cache URL sessions.
-- OAuth completes through a short-lived callback listener bound to the numeric
-  IPv4 loopback address `127.0.0.1`.
+- OAuth completes through a short-lived callback listener on the loopback
+  interface only, for both `127.0.0.1` and `::1`.
 - The application talks directly to documented Oura HTTPS endpoints. It has no
   project-operated analytics, advertising, telemetry, or health-data server.
 - Operational diagnostics use a typed event model with no free-text payloads,

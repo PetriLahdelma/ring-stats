@@ -57,7 +57,8 @@ container at `~/Library/Containers/com.digitaltableteur.ringstats/`. Local
 interface preferences are stored there using macOS `UserDefaults`; on the
 first sandboxed launch, macOS moves existing preferences into the container. The OAuth
 callback is received by a temporary IPv4 loopback listener at
-`http://127.0.0.1:43828/oauth/callback`; it is not a remote project server.
+`http://localhost:43828/oauth/callback` (or `http://127.0.0.1:43828/oauth/callback`
+for connections set up before 1.3.2); it is not a remote project server.
 
 Early development builds could store OAuth JSON under
 `~/Library/Application Support/Ring Stats Public/Legacy Secrets/`. Current

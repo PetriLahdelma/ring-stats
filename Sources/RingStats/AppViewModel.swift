@@ -193,7 +193,11 @@ final class AppViewModel: ObservableObject {
             let trimmedID = clientID.trimmingCharacters(in: .whitespacesAndNewlines)
             let trimmedSecret = clientSecret.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmedID.isEmpty, !trimmedSecret.isEmpty else { throw RingStatsError.notConfigured }
-            try await auth.configure(ClientCredentials(clientID: trimmedID, clientSecret: trimmedSecret))
+            try await auth.configure(ClientCredentials(
+                clientID: trimmedID,
+                clientSecret: trimmedSecret,
+                redirectURI: OAuthLoopback.callbackURL
+            ))
         }
     }
 

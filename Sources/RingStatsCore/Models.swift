@@ -396,11 +396,17 @@ package enum QueryDates {
 package struct ClientCredentials: Codable, Sendable, Equatable {
     package let clientID: String
     package let clientSecret: String
+    /// The redirect URI registered with this application. Credentials saved
+    /// before Oura required `localhost` have none and keep the numeric one.
+    package let redirectURI: String?
 
-    package init(clientID: String, clientSecret: String) {
+    package init(clientID: String, clientSecret: String, redirectURI: String? = nil) {
         self.clientID = clientID
         self.clientSecret = clientSecret
+        self.redirectURI = redirectURI
     }
+
+    package var callbackURL: String { redirectURI ?? OAuthLoopback.legacyCallbackURL }
 }
 
 package enum RingStatsError: LocalizedError, Sendable, Equatable {

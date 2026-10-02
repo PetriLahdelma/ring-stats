@@ -5,6 +5,17 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.3.2 (2026-10-02)
+
+### Fixed
+
+- New connections could not be set up: Oura's developer portal now rejects
+  the `http://127.0.0.1:43828/oauth/callback` redirect with "http protocol is
+  only allowed for localhost". Ring Stats now uses
+  `http://localhost:43828/oauth/callback` for new connections and listens on
+  both loopback addresses. Existing connections keep the address they
+  registered.
+
 ## 1.3.1 (2026-10-02)
 
 ### Fixed

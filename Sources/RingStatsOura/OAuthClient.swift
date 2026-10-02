@@ -104,7 +104,7 @@ package actor OAuthClient: OAuthServicing {
         components.queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: credentials.clientID),
-            URLQueryItem(name: "redirect_uri", value: Self.callbackURL),
+            URLQueryItem(name: "redirect_uri", value: credentials.callbackURL),
             URLQueryItem(name: "scope", value: scopes.map(\.rawValue).sorted().joined(separator: " ")),
             URLQueryItem(name: "state", value: state),
         ]
@@ -121,7 +121,7 @@ package actor OAuthClient: OAuthServicing {
             parameters: [
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": Self.callbackURL,
+                "redirect_uri": credentials.callbackURL,
             ],
             credentials: credentials,
             context: .authorizationCode

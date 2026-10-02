@@ -108,7 +108,7 @@ license does not grant access to Oura services or override their terms.
 2. Register this redirect URI exactly:
 
    ```text
-   http://127.0.0.1:43828/oauth/callback
+   http://localhost:43828/oauth/callback
    ```
 
 3. Launch Ring Stats. Connection opens on first launch and walks through the
@@ -227,7 +227,10 @@ See [PRIVACY.md](PRIVACY.md) for migration and deletion details.
 ## Troubleshooting
 
 - **Authorization never returns:** confirm the registered redirect is exactly
-  `http://127.0.0.1:43828/oauth/callback`; `localhost` is not interchangeable.
+  `http://localhost:43828/oauth/callback`. Connections set up before Ring Stats
+  1.3.2 registered `http://127.0.0.1:43828/oauth/callback` and keep using it.
+- **Oura says "http protocol is only allowed for localhost":** register the
+  `localhost` address above, not `127.0.0.1`.
 - **A statistic says permission is required:** enable it in Appearance, then
   choose **Reauthorize Permissions**.
 - **Values are old:** check the per-value date/time and footer update label,
