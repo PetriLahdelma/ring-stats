@@ -34,8 +34,10 @@ package enum Metric: String, CaseIterable, Codable, Identifiable, Sendable {
         case .sleep: "moon"
         case .activity: "flame"
         case .heartRate: "heart"
-        case .stress: "waveform.path.ecg"
-        case .resilience: "water.waves"
+        // Follows the Oura app's convention: zigzag waves for Stress and
+        // flowing wind lines for Resilience.
+        case .stress: "water.waves"
+        case .resilience: "wind"
         }
     }
 
