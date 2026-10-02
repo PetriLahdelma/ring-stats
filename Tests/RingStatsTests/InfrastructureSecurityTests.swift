@@ -193,6 +193,32 @@ struct InfrastructureSecurityTests {
             .queryItems?.first(where: { $0.name == "code" })?.value == "v6")
     }
 
+    /// While authorization waits, no other socket may take the callback port
+    /// on either loopback address, even with the reuse options a hostile
+    /// process would set. Network.framework's loopback listener failed this
+    /// for 127.0.0.1.
+    @Test(arguments: [false, true])
+    func listenerHoldsBothLoopbackAddressesExclusively(ipv6: Bool) async throws {
+        let server = CallbackServer(expectedState: "exclusive-state")
+        try await server.start()
+        defer { Task { await server.cancel() } }
+        for (reuseAddress, reusePort) in [(false, false), (true, false), (false, true), (true, true)] {
+            let result = Self.competingBind(ipv6: ipv6, reuseAddress: reuseAddress, reusePort: reusePort)
+            #expect(result == EADDRINUSE, "\(ipv6 ? "::1" : "127.0.0.1") reuseaddr=\(reuseAddress) reuseport=\(reusePort) bound")
+        }
+        await server.cancel()
+    }
+
+    /// If another process already holds the callback port on either loopback
+    /// address, authorization must not start.
+    @Test(arguments: [false, true])
+    func startFailsWhenEitherLoopbackAddressIsTaken(ipv6: Bool) async throws {
+        let holder = try #require(Self.listeningSocket(ipv6: ipv6))
+        defer { close(holder) }
+        let server = CallbackServer(expectedState: "taken-state")
+        await #expect(throws: (any Error).self) { try await server.start() }
+    }
+
     @Test func cancellingCallbackWaitStopsListenerAndUnblocksWaiter() async throws {
         let server = CallbackServer(expectedState: "cancel-state")
         try await server.start()
@@ -222,6 +248,49 @@ struct InfrastructureSecurityTests {
             kSecAttrAccount as String: account,
             kSecUseDataProtectionKeychain as String: useDataProtectionKeychain,
         ]
+    }
+
+    /// Tries to bind the callback port the way another process would and
+    /// returns 0 on success or the errno.
+    private static func competingBind(ipv6: Bool, reuseAddress: Bool, reusePort: Bool) -> Int32 {
+        let fd = socket(ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP)
+        defer { close(fd) }
+        var one: Int32 = 1
+        if reuseAddress { setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size)) }
+        if reusePort { setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, socklen_t(MemoryLayout<Int32>.size)) }
+        return bindLoopback(fd, ipv6: ipv6) == 0 ? 0 : errno
+    }
+
+    private static func listeningSocket(ipv6: Bool) -> Int32? {
+        let fd = socket(ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP)
+        // Earlier tests leave the port in TIME_WAIT.
+        var one: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
+        guard bindLoopback(fd, ipv6: ipv6) == 0, listen(fd, 1) == 0 else { close(fd); return nil }
+        return fd
+    }
+
+    private static func bindLoopback(_ fd: Int32, ipv6: Bool) -> Int32 {
+        if ipv6 {
+            var one: Int32 = 1
+            setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, socklen_t(MemoryLayout<Int32>.size))
+            var address = sockaddr_in6()
+            address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            address.sin6_family = sa_family_t(AF_INET6)
+            address.sin6_port = OAuthLoopback.port.bigEndian
+            address.sin6_addr = in6addr_loopback
+            return withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in6>.size)) }
+            }
+        }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = OAuthLoopback.port.bigEndian
+        address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        return withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
     }
 
     private static func sendRequestFragments(_ fragments: [String], host: String = "127.0.0.1") async throws -> String {

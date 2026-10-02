@@ -352,6 +352,49 @@ extension HTTPStubbedTests {
             }
         }
 
+        /// The token exchange must send the same redirect URI the application
+        /// registered, or Oura rejects it after the user has approved access.
+        @Test func tokenExchangeSendsTheRegisteredRedirect() async throws {
+            for (credentials, expected) in [
+                (ClientCredentials(clientID: "c", clientSecret: "s", redirectURI: OAuthLoopback.callbackURL),
+                 "http://localhost:43828/oauth/callback"),
+                (ClientCredentials(clientID: "c", clientSecret: "s"),
+                 "http://127.0.0.1:43828/oauth/callback"),
+            ] {
+                let store = TestCredentialStore()
+                try store.save(credentials, account: "client-credentials")
+                let recorder = HTTPStubRecorder { request in
+                    stubResponse(request, 200, #"{"access_token":"a","refresh_token":"r","expires_in":3600}"#)
+                }
+                let client = OAuthClient(store: store, session: recorder.session)
+                try await client.exchange(code: "code")
+                let token = try #require(recorder.requests.first { $0.url?.path.hasSuffix("oauth/token") == true })
+                let body = try #require(Self.body(of: token))
+                let fields = Dictionary(uniqueKeysWithValues: body.split(separator: "&").map { pair -> (String, String) in
+                    let parts = pair.split(separator: "=", maxSplits: 1).map { String($0).removingPercentEncoding ?? String($0) }
+                    return (parts[0], parts.count > 1 ? parts[1] : "")
+                })
+                #expect(fields["grant_type"] == "authorization_code")
+                #expect(fields["redirect_uri"] == expected)
+            }
+        }
+
+        /// URLProtocol moves a request body into a stream.
+        private static func body(of request: URLRequest) -> String? {
+            if let data = request.httpBody { return String(data: data, encoding: .utf8) }
+            guard let stream = request.httpBodyStream else { return nil }
+            stream.open()
+            defer { stream.close() }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 1_024)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                guard count > 0 else { break }
+                data.append(buffer, count: count)
+            }
+            return String(data: data, encoding: .utf8)
+        }
+
         @Test func credentialsSavedWithoutARedirectDecodeAsLegacy() throws {
             let saved = Data(#"{"clientID":"c","clientSecret":"s"}"#.utf8)
             let decoded = try JSONDecoder().decode(ClientCredentials.self, from: saved)

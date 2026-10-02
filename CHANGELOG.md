@@ -5,6 +5,16 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.3.3 (2026-10-02)
+
+### Security
+
+- During sign-in, another app on the Mac could listen on the
+  `127.0.0.1:43828` callback address alongside Ring Stats 1.3.2 and receive
+  the authorization code. Ring Stats now holds the callback port exclusively
+  on both `127.0.0.1` and `::1`. The code alone cannot be exchanged without
+  your Client Secret.
+
 ## 1.3.2 (2026-10-02)
 
 ### Fixed
