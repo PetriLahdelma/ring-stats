@@ -32,6 +32,11 @@ gallery tests assert bounds, theme parity, and width-independent height;
 `everyTileDetailFitsTheTileWithoutTruncation` and
 `themeTextColorsMeetWCAGContrastForSmallText` guard copy length and contrast.
 
+`RING_STATS_LIVE_SANDBOX=1 swift test --filter OuraSandboxTests` runs the real
+Oura client against Oura's public sandbox, which needs the network but no
+account or ring. Run it after changing `OuraAPI` or its response models. The
+regular suite skips it and stays offline.
+
 `scripts/coverage_report.sh` prints line coverage grouped by the boundaries in
 [ARCHITECTURE.md](ARCHITECTURE.md). Use it to find untested boundaries, not as a
 target to maximize.
