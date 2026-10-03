@@ -94,6 +94,24 @@ enum PopoverTimestampText {
     }
 }
 
+/// What VoiceOver says when a refresh someone asked for finishes. The status
+/// label changes silently, so without this a VoiceOver user gets no answer.
+enum RefreshAnnouncement {
+    static func text(for outcome: RefreshOutcome) -> String? {
+        switch outcome {
+        case .none: nil
+        case .succeeded: "Stats updated"
+        case .partial: "Some stats could not be updated and show their last known values"
+        case .failed: "Update failed"
+        }
+    }
+
+    @MainActor static func post(for outcome: RefreshOutcome) {
+        guard let text = text(for: outcome) else { return }
+        AccessibilityNotification.Announcement(text).post()
+    }
+}
+
 struct MenuPopoverView: View {
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

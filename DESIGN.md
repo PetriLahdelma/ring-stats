@@ -76,6 +76,7 @@ Use dark ink and white as the functional base, with signal blue and a warm separ
 
 ### Neutral
 - **Ink** (`#181B1F`): primary text and menu-bar template artwork.
+- **Secondary Ink** (Ink at 62%, 4.65:1 on Canvas Warm): captions, theme circles, and the reorder grip in the windows. Never the system secondary gray, which is 3.88:1 on the canvas. Solid Ink under Increase Contrast, as is every theme's secondary text.
 - **Canvas Warm** (`#F4F1EC`): popover canvas.
 - **White** (`#FFFFFF`): setup/about window surfaces where native separation helps.
 
@@ -209,6 +210,8 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - The visible control is the `line.3.horizontal` SF Symbol without an additional disclosure indicator.
 - Menu items are Appearance, Connection, About & Credits, Diagnostics…, a divider, Refresh Now, Reauthorize Permissions, another divider, and Quit Ring Stats.
 - The glyph uses the theme action color.
+- Every item has an SF Symbol: `paintpalette`, `person.crop.circle`, `info.circle`, `stethoscope`, `arrow.clockwise`, `key`, and `power`. macOS 27 hides menu icons by default, so the items use the title-and-icon label style. The icons are decorative; the titles carry the meaning.
+- Refresh Now announces its result to VoiceOver.
 - Reauthorize Permissions is disabled when stored credentials are unavailable or authorization is already running.
 
 ### Menu-Bar Context Menu
@@ -226,7 +229,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - **Do** refresh automatically when the popover appears.
 - **Do** show refresh progress, confirm success briefly, and keep old or failed states visible; retain each stat's prior value with an explicit “Not updated” after a transient failure.
 - **Do** identify Oura as the data provider in Credits.
-- **Do** use native macOS focus, keyboard, and VoiceOver behavior.
+- **Do** use native macOS focus, keyboard, and VoiceOver behavior, and follow the rules in [ACCESSIBILITY.md](ACCESSIBILITY.md).
 
 ### Don't:
 - **Don't** use Oura's name as the product name or theme name, or reproduce its logo, product silhouette, named palette, proprietary fonts, slogans, or application chrome.

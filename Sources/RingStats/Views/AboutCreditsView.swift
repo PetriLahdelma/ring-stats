@@ -12,12 +12,12 @@ struct AboutCreditsView: View {
                 .scaledFont(.title)
             Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
                 .scaledFont(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("Created by")
                     .scaledFont(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryInk)
                 Text("Digitaltableteur")
                     .scaledFont(.callout, weight: .medium)
             }
@@ -27,7 +27,7 @@ struct AboutCreditsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text("Oura and Oura Ring are trademarks of Oura Health Oy. Data supplied by the Oura API. Built with SwiftUI.")
                 .scaledFont(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 16) {
                 Link("GitHub", destination: URL(string: "https://github.com/PetriLahdelma/ring-stats")!)

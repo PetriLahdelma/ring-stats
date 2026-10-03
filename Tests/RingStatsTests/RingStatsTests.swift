@@ -539,19 +539,45 @@ import Testing
     let holographicWorstCase = (243.0 / 255, 185.0 / 255, 223.0 / 255)
     let cases: [(String, Color, (Double, Double, Double))] = [
         ("ring-stats primary", AppTheme.ringStats.primaryContent, canvas),
-        ("ring-stats secondary", AppTheme.ringStats.secondaryContent, canvas),
+        ("ring-stats secondary", AppTheme.ringStats.secondaryContent(increasedContrast: false), canvas),
         ("ring-stats alert", AppTheme.ringStats.alert, canvas),
         ("landscape primary", AppTheme.landscape.primaryContent, landscapeWorstCase),
-        ("landscape secondary", AppTheme.landscape.secondaryContent, landscapeWorstCase),
+        ("landscape secondary", AppTheme.landscape.secondaryContent(increasedContrast: false), landscapeWorstCase),
         ("landscape alert", AppTheme.landscape.alert, landscapeWorstCase),
         ("holographic primary", AppTheme.holographic.primaryContent, holographicWorstCase),
-        ("holographic secondary", AppTheme.holographic.secondaryContent, holographicWorstCase),
+        ("holographic secondary", AppTheme.holographic.secondaryContent(increasedContrast: false), holographicWorstCase),
         ("holographic alert", AppTheme.holographic.alert, holographicWorstCase),
+        ("ring-stats secondary, Increase Contrast", AppTheme.ringStats.secondaryContent(increasedContrast: true), canvas),
+        ("landscape secondary, Increase Contrast", AppTheme.landscape.secondaryContent(increasedContrast: true), landscapeWorstCase),
+        ("holographic secondary, Increase Contrast", AppTheme.holographic.secondaryContent(increasedContrast: true), holographicWorstCase),
+        // Window captions and control glyphs, which replaced the system
+        // secondary label color (3.88:1 on the canvas).
+        ("window secondary ink", Palette.secondaryInk(increasedContrast: false), canvas),
+        ("window secondary ink, Increase Contrast", Palette.secondaryInk(increasedContrast: true), canvas),
     ]
     for (name, color, background) in cases {
         let ratio = contrast(try components(color, over: background), background)
         #expect(ratio >= 4.5, "\(name) is \(ratio):1")
     }
+}
+
+/// Increase Contrast turns every faded text token solid.
+@Test func increaseContrastMakesSecondaryTextSolid() {
+    for theme in AppTheme.allCases {
+        #expect(theme.secondaryContent(increasedContrast: true) == theme.primaryContent, "\(theme)")
+        #expect(theme.secondaryContent(increasedContrast: false) != theme.primaryContent, "\(theme)")
+    }
+    #expect(Palette.secondaryInk(increasedContrast: true) == Palette.ink)
+}
+
+/// A refresh someone asked for always ends with something VoiceOver says.
+@Test func explicitRefreshAnnouncesEveryOutcome() {
+    let now = Date(timeIntervalSince1970: 1_000)
+    #expect(RefreshAnnouncement.text(for: .succeeded(at: now)) == "Stats updated")
+    #expect(RefreshAnnouncement.text(for: .partial(at: now))
+        == "Some stats could not be updated and show their last known values")
+    #expect(RefreshAnnouncement.text(for: .failed(at: now)) == "Update failed")
+    #expect(RefreshAnnouncement.text(for: .none) == nil)
 }
 
 @Test func arrowKeysMoveFocusAcrossVisibleStatsOnly() {

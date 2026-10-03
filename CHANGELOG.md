@@ -5,6 +5,17 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Accessibility
+
+- VoiceOver announces the result of Refresh Now: "Stats updated", that some
+  stats could not be updated, or "Update failed".
+- Increase Contrast now turns faded detail text, window captions, and
+  control glyphs solid.
+- Small text in the Appearance, Connection, Diagnostics, and About windows
+  now meets 4.5:1 contrast; the system gray it used measured 3.88:1. The
+  unselected theme circle and the reorder grip are now clearly visible.
+- ACCESSIBILITY.md now starts with the rules every change must follow.
+
 ### Fixed
 
 - The popover menu shows its icons again on macOS 27, which hides menu item

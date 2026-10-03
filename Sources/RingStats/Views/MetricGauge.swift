@@ -256,7 +256,7 @@ struct BatteryRow: View {
                 .foregroundStyle(theme.primaryContent)
             if showsCharging, let chargingStatus {
                 Text(chargingStatus)
-                    .foregroundStyle(theme.primaryContent.opacity(0.68))
+                    .foregroundStyle(theme.primaryContent.opacity(AppTheme.increasesContrast ? 1 : 0.68))
             }
             if showsTrailing, stale {
                 Text("Not updated")
