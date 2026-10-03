@@ -163,6 +163,51 @@ struct AppShellTests {
         #expect(AppDelegate.menuOrigin(below: button, inHeight: 260, flipped: false) == NSPoint(x: 380, y: 28))
     }
 
+    /// Escape closes every Ring Stats window.
+    @Test func escapeClosesEveryWindow() async throws {
+        let delegate = await delegate()
+        delegate.showAppearanceWindow()
+        delegate.showAboutWindow()
+        delegate.showDiagnosticsWindow()
+        delegate.showConnectionWindow()
+        let windows = [
+            delegate.appearanceWindowController, delegate.aboutWindowController,
+            delegate.diagnosticsWindowController, delegate.connectionWindowController,
+        ].compactMap { $0?.window }
+        #expect(windows.count == 4)
+        for window in windows {
+            #expect(window.isVisible)
+            window.cancelOperation(nil)
+            #expect(!window.isVisible, "\(window.title)")
+        }
+    }
+
+    /// Tab reaches the theme choices as well as the stats list, with the
+    /// system Keyboard navigation setting off.
+    @Test func tabReachesTheThemeChoicesInAppearance() async throws {
+        let delegate = await delegate()
+        delegate.showAppearanceWindow()
+        let window = try #require(delegate.appearanceWindowController?.window)
+        defer { window.close() }
+        var stops: [NSRect] = []
+        for _ in 0..<8 {
+            window.selectNextKeyView(nil)
+            for _ in 0..<3 { await Task.yield() }
+            guard let view = window.firstResponder as? NSView else { continue }
+            let frame = view.convert(view.bounds, to: nil)
+            if !stops.contains(frame) { stops.append(frame) }
+        }
+        // The theme group and the stats list.
+        #expect(stops.count >= 2, "\(stops)")
+    }
+
+    @Test func themeArrowsStopAtEitherEnd() {
+        #expect(AppTheme.ringStats.neighbor(1) == .landscape)
+        #expect(AppTheme.holographic.neighbor(-1) == .landscape)
+        #expect(AppTheme.ringStats.neighbor(-1) == nil)
+        #expect(AppTheme.holographic.neighbor(1) == nil)
+    }
+
     @Test func escapeClosesThePopover() async throws {
         let delegate = await delegate()
         delegate.showPopover(anchoredTo: Self.menuBarButton, visibleFrame: Self.screen)

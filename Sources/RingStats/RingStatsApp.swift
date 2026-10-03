@@ -508,7 +508,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .scrollBounceBehavior(.basedOnSize)
         )
         let size = WindowSizing.clamped(measured, visibleFrame: NSScreen.main?.visibleFrame)
-        let window = NSWindow(
+        let window = EscapeClosingWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable],
             backing: .buffered,
@@ -673,5 +673,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowDidMove(_ notification: Notification) {
         guard notification.object as? NSWindow === popoverPanel else { return }
         updatePopoverArrowPosition()
+    }
+}
+
+/// A Ring Stats window that Escape closes, like a panel. Escape reaches the
+/// window only when no control handled it first, such as a text field.
+final class EscapeClosingWindow: NSWindow {
+    override func cancelOperation(_ sender: Any?) {
+        performClose(sender)
     }
 }

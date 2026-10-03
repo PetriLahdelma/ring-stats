@@ -20,6 +20,8 @@ struct AppearanceSettingsView: View {
     static let baseSize = CGSize(width: 500, height: 815)
     @State private var configuration: MetricConfiguration
     @FocusState private var focusedReorderMetric: Metric?
+    @FocusState private var themeGroupFocused: Bool
+    @State private var themeFocusRingVisible = false
 
     init() {
         let stored = UserDefaults.standard.string(forKey: MetricConfiguration.storageKey)
@@ -55,34 +57,78 @@ struct AppearanceSettingsView: View {
         focusedReorderMetric = metric
     }
 
+    /// The theme choices as one keyboard stop, like a macOS radio group: Tab
+    /// reaches it whatever the Keyboard navigation setting, and the arrow
+    /// keys change the theme.
+    private var themeGroup: some View {
+        VStack(spacing: 0) {
+            themeOption(.ringStats)
+            Divider()
+                .overlay(Palette.separator)
+                .padding(.leading, 46)
+            themeOption(.landscape)
+            Divider()
+                .overlay(Palette.separator)
+                .padding(.leading, 46)
+            themeOption(.holographic)
+        }
+        .background(.white.opacity(0.66))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Palette.separator, lineWidth: 1)
+        }
+        .overlay {
+            if themeFocusRingVisible && themeGroupFocused {
+                FocusRing(theme: .ringStats, cornerRadius: 12, outset: 3)
+            }
+        }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($themeGroupFocused)
+        .onChange(of: themeGroupFocused) { _, focused in
+            themeFocusRingVisible = focused && !MenuPopoverView.focusCameFromPointer(NSApp.currentEvent?.type)
+        }
+        .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow]) { press in
+            themeFocusRingVisible = true
+            let offset = press.key == .upArrow || press.key == .leftArrow ? -1 : 1
+            guard let next = selectedTheme.neighbor(offset) else { return .handled }
+            selectedThemeRaw = next.rawValue
+            AccessibilityNotification.Announcement("\(next.title) theme").post()
+            return .handled
+        }
+    }
+
     private func themeOption(_ theme: AppTheme) -> some View {
         let selected = selectedTheme == theme
-        return Button {
-            selectedThemeRaw = theme.rawValue
-        } label: {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .scaledFont(size: 16, weight: .medium)
-                    .foregroundStyle(selected ? Palette.signalBlue : Palette.secondaryInk)
-                    .frame(width: 20, height: 20)
+        // Not a Button: the whole group is one keyboard stop (see
+        // themeGroup), so the rows must not add stops of their own when
+        // macOS Keyboard navigation is on.
+        return HStack(alignment: .top, spacing: 12) {
+            Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                .scaledFont(size: 16, weight: .medium)
+                .foregroundStyle(selected ? Palette.signalBlue : Palette.secondaryInk)
+                .frame(width: 20, height: 20)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(theme.title)
-                        .scaledFont(size: 14, weight: .medium)
-                        .foregroundStyle(Palette.ink)
-                    Text(theme.summary)
-                        .scaledFont(.caption)
-                        .foregroundStyle(Palette.secondaryInk)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(theme.title)
+                    .scaledFont(size: 14, weight: .medium)
+                    .foregroundStyle(Palette.ink)
+                Text(theme.summary)
+                    .scaledFont(.caption)
+                    .foregroundStyle(Palette.secondaryInk)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
+            Spacer(minLength: 0)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+        .onTapGesture { selectedThemeRaw = theme.rawValue }
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { selectedThemeRaw = theme.rawValue }
         .accessibilityLabel(theme.title)
         .accessibilityValue(selected ? "Selected" : "Not selected")
         .accessibilityHint(theme.summary)
@@ -99,23 +145,7 @@ struct AppearanceSettingsView: View {
                 .scaledFont(.headline)
                 .padding(.top, 6)
 
-            VStack(spacing: 0) {
-                themeOption(.ringStats)
-                Divider()
-                    .overlay(Palette.separator)
-                    .padding(.leading, 46)
-                themeOption(.landscape)
-                Divider()
-                    .overlay(Palette.separator)
-                    .padding(.leading, 46)
-                themeOption(.holographic)
-            }
-            .background(.white.opacity(0.66))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Palette.separator, lineWidth: 1)
-            }
+            themeGroup
 
             HStack(alignment: .firstTextBaseline) {
                 Text("Text size")

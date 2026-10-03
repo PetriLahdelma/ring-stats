@@ -192,11 +192,13 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 
 ### Appearance
 - Opens as its own fixed-size native window and contains theme plus stat configuration.
-- Uses two stacked full-width selection rows with persistent descriptions; the choices never compete for horizontal space.
+- Uses three stacked full-width selection rows with persistent descriptions; the choices never compete for horizontal space.
+- The theme rows are one keyboard stop, like a macOS radio group: Tab reaches the group whatever the system Keyboard navigation setting, the arrow keys change the theme, and keyboard focus draws a 2pt Signal Blue ring 3pt outside the card with a 12pt corner. Each row is still its own VoiceOver button with a Selected state.
 - A stepped Text size slider sits below the theme choices, running from a small "Aa" to a large "Aa" as in macOS. Its three steps are Standard, Large, and Extra Large, and VoiceOver reads the step name. The two "Aa" labels show fixed sizes and do not scale.
 - Keeps both theme descriptions rendered at all times and uses a fixed 500×690pt content size (scaled by Text size), so switching themes or stats cannot resize the window.
 - Provides visibility toggles, native row reordering with a focusable passive grip, keyboard Up/Down movement while that grip is focused, boundary-aware nonvisual Move Up/Down accessibility actions, and a reset action for every metric.
 - Contains nothing related to credits or OAuth.
+- Escape closes every Ring Stats window (Appearance, Connection, About & Credits, Diagnostics) unless a control such as a text field handles it first.
 
 ### Connection
 - Opens independently from the disconnected Connect action and from both menu surfaces in every configured state, at a fixed 460×440pt.
