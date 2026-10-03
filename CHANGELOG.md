@@ -5,6 +5,17 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.3.5 (2026-10-03)
+
+### Security
+
+- Release provenance archives are now free of local paths in every form. The
+  1.3.4 archive still carried the build machine's folder path in the candidate
+  manifest, where it was written JSON-escaped, and a temporary-folder path in
+  its debug symbols. Paths are now rewritten in both forms, the build maps the
+  temporary folder out of debug symbols, and publishing fails on any local
+  path. No release has contained credentials or keys.
+
 ## 1.3.4 (2026-10-02)
 
 ### Security

@@ -340,10 +340,14 @@ fake_checkout="/Users/example-user/Projects/ring-stats"
 printf 'abc123  %s/dist/Ring Stats.app/Contents/MacOS/RingStats\n' "$fake_checkout" > "$paths_dir/binary.sha256"
 printf '{"path": "%s", "cache": "/Users/example-user/Library"}\n' "$fake_checkout" > "$paths_dir/deps.json"
 printf 'Executable=%s/dist/Ring-Stats.dmg\n' "$fake_checkout" > "$paths_dir/codesign.txt"
+escaped_checkout="${fake_checkout//\//\\/}"
+printf '{"candidate_path":"%s\\/dist\\/Ring Stats.app"}\n' "$escaped_checkout" > "$paths_dir/manifest.json"
 "$PROJECT_DIR/scripts/redact_local_paths.sh" "$paths_dir" "$fake_checkout" "/Users/example-user"
 /usr/bin/grep -q 'abc123  ./dist/Ring Stats.app' "$paths_dir/binary.sha256" || fail "checkout path was not rewritten to ."
 /usr/bin/grep -q '"cache": "~/Library"' "$paths_dir/deps.json" || fail "home path was not rewritten to ~"
 ! /usr/bin/grep -rq '/Users/' "$paths_dir" || fail "a local path survived redaction"
+! /usr/bin/grep -rqF '\/Users\/' "$paths_dir" || fail "a JSON-escaped local path survived redaction"
+/usr/bin/grep -qF '"candidate_path":".\/dist\/Ring Stats.app"' "$paths_dir/manifest.json" || fail "escaped checkout path was not rewritten"
 "$PROJECT_DIR/scripts/redact_local_paths.sh" "$paths_dir" "" "/Users/example-user" >/dev/null 2>&1 \
   && fail "redaction accepted an empty checkout path"
 /usr/bin/ditto -c -k --keepParent "$paths_dir" "$TEST_ROOT/paths/clean.zip"
@@ -356,6 +360,13 @@ printf 'path /Users/example-user/secret-layout\n' > "$nested/inner/note.txt"
 /usr/bin/ditto -c -k --keepParent "$nested" "$TEST_ROOT/paths/leaky.zip"
 "$PROJECT_DIR/scripts/verify_no_local_paths.sh" "$TEST_ROOT/paths/leaky.zip" >/dev/null 2>&1 \
   && fail "a path inside a nested archive was not caught"
+for leak in '{"p":"\/Users\/example-user\/x"}' 'build in /var/folders/ab/T/x' 'build in /private/var/folders/ab/T/x'; do
+  /bin/rm -rf "$TEST_ROOT/paths/one" && /bin/mkdir -p "$TEST_ROOT/paths/one"
+  printf '%s\n' "$leak" > "$TEST_ROOT/paths/one/record.txt"
+  /usr/bin/ditto -c -k --keepParent "$TEST_ROOT/paths/one" "$TEST_ROOT/paths/one.zip"
+  "$PROJECT_DIR/scripts/verify_no_local_paths.sh" "$TEST_ROOT/paths/one.zip" >/dev/null 2>&1 \
+    && fail "a local path was not caught: $leak"
+done
 
 # The SBOM describes the built executable and is valid CycloneDX JSON.
 if [[ -x "$PROJECT_DIR/dist/Ring Stats.app/Contents/MacOS/RingStats" ]]; then

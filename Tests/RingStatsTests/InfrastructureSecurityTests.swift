@@ -262,26 +262,37 @@ struct InfrastructureSecurityTests {
     }
 
     /// A peer connecting nonstop cannot starve the queue: the real callback is
-    /// still read and answered while connections keep arriving.
+    /// still read and answered while connections keep arriving. The callback
+    /// is sent only once the storm is underway, and the storm runs until the
+    /// callback has been answered.
     @Test func continuousConnectionsCannotStarveTheCallback() async throws {
         let server = CallbackServer(expectedState: "storm-state")
         try await server.start()
         let waiter = Task { try await server.waitForCallback() }
-        let storm = Task.detached {
-            var opened = 0
-            while !Task.isCancelled, opened < 3_000 {
-                if let fd = Self.connectedSocket(ipv6: opened % 2 == 1) { close(fd) }
-                opened += 1
+        let storm = StormCounter()
+        let producer = Task.detached {
+            var index = 0
+            while !storm.shouldStop {
+                if let fd = Self.connectedSocket(ipv6: index % 2 == 1) {
+                    close(fd)
+                    storm.recordConnection()
+                }
+                index += 1
             }
         }
-        defer { storm.cancel() }
+        await eventually("the storm to be underway") { storm.connections >= 200 }
+        let before = storm.connections
         let response = try await Self.sendRequestFragments([
             "GET /oauth/callback?code=through&state=storm-state HTTP/1.1\r\nHost: localhost:43828\r\n\r\n",
         ])
+        let callback = try await waiter.value
+        let during = storm.connections - before
+        storm.stop()
+        await producer.value
         #expect(response.contains("200 OK"))
-        #expect(URLComponents(url: try await waiter.value, resolvingAgainstBaseURL: false)?
+        #expect(URLComponents(url: callback, resolvingAgainstBaseURL: false)?
             .queryItems?.first(where: { $0.name == "code" })?.value == "through")
-        storm.cancel()
+        #expect(during > 0, "no connections arrived while the callback was being sent")
     }
 
     /// A process listening on the wildcard address, with any reuse option,
@@ -548,4 +559,15 @@ private enum KeychainTestError: Error {
 
 private enum CallbackTestError: Error {
     case missingResponse
+}
+
+/// Shared between the storm producer and the test.
+private final class StormCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    private var stopped = false
+    var connections: Int { lock.withLock { count } }
+    var shouldStop: Bool { lock.withLock { stopped } }
+    func recordConnection() { lock.withLock { count += 1 } }
+    func stop() { lock.withLock { stopped = true } }
 }
