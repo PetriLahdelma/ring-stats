@@ -26,6 +26,7 @@ https://github.com/PetriLahdelma/ring-stats/security/advisories/new -->
 - macOS version:
 - Mac architecture (`arm64` or `x86_64`):
 - Installed release or source build:
+- Ring model (for example Oura Ring 4):
 
 ## Safe diagnostics
 
