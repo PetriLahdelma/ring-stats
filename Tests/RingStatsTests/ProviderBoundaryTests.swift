@@ -31,7 +31,7 @@ struct ProviderBoundaryTests {
         let capabilities = OuraProvider.descriptor.capabilities
         #expect(capabilities.supportedMetrics == Set(Metric.allCases))
         #expect(capabilities.reportsBattery)
-        #expect(!capabilities.hasSandbox)
+        #expect(capabilities.hasSandbox)
     }
 
     @Test func ouraDiagnosticNamesMatchTheirEndpoints() {

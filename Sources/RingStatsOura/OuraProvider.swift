@@ -9,8 +9,8 @@ package struct OuraProvider: HealthProvider {
         capabilities: ProviderCapabilities(
             supportedMetrics: Set(Metric.allCases),
             reportsBattery: true,
-            // Oura documents sandbox endpoints, but they are not yet verified.
-            hasSandbox: false
+            // Verified by OuraSandboxTests against /v2/sandbox/usercollection/.
+            hasSandbox: true
         ),
         metricScopes: Dictionary(uniqueKeysWithValues: Metric.allCases.map {
             ($0, $0.requiredScope.authorizationScope)
