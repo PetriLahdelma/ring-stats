@@ -5,6 +5,12 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Fixed
+
+- The popover menu shows its icons again on macOS 27, which hides menu item
+  icons unless an app asks for them. Reauthorize Permissions and Quit now
+  have icons too.
+
 ## 1.3.5 (2026-10-03)
 
 ### Security
