@@ -116,14 +116,15 @@ struct MenuPopoverView: View {
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.textScale) private var textScale
-    let refresh: () -> Void
     let showConnection: () -> Void
-    let showAppearance: () -> Void
-    let showAbout: () -> Void
-    var showDiagnostics: () -> Void = {}
     /// Draws the keyboard focus ring on this tile without real focus, for the
     /// state gallery.
     var previewFocusRing: Metric?
+    /// Draws the ☰ button's keyboard focus ring, for the state gallery.
+    var previewMenuFocusRing = false
+    /// Opens the options menu below the given ☰ frame, in the popover's
+    /// SwiftUI global coordinates.
+    var showMenu: (CGRect) -> Void = { _ in }
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var metricConfigurationRaw = MetricConfiguration.default.encoded
     @State private var reorderSession: MetricReorderSession?
@@ -137,6 +138,10 @@ struct MenuPopoverView: View {
     /// Whether the focused tile shows its ring. Only keyboard focus does; a
     /// click or drag also focuses a tile, and a ring then is just noise.
     @State private var focusRingVisible = false
+    @FocusState private var menuButtonFocused: Bool
+    @State private var menuFocusRingVisible = false
+    @State private var menuButtonFrame = CGRect.zero
+    @GestureState private var menuButtonPressed = false
     /// Bumped to scroll a tile into view when focus itself does not change,
     /// such as after a keyboard move of the focused tile.
     @State private var scrollRequest = (metric: Metric?.none, id: 0)
@@ -366,57 +371,57 @@ struct MenuPopoverView: View {
         return reorderSession.offsetX(for: metric, sourceTranslationX: translation)
     }
 
+    /// The ☰ button. It opens the same native menu as right-clicking the
+    /// menu-bar icon, so both menus stay identical. Unlike a SwiftUI `Menu`,
+    /// it is reachable with Tab whatever the system Keyboard navigation
+    /// setting, and opens with Space, Return, or Down Arrow.
     private var optionsMenu: some View {
-        Menu {
-            // macOS 27 hides menu item icons unless a label asks for them.
-            Group {
-                Button(action: showAppearance) {
-                    Label("Appearance", systemImage: "paintpalette")
+        let side = (28 * textScale).rounded()
+        return Image(systemName: "line.3.horizontal")
+            .scaledFont(size: 16, weight: .medium)
+            .frame(width: side, height: side)
+            .contentShape(Rectangle())
+            .foregroundStyle(theme.action)
+            .overlay {
+                if previewMenuFocusRing || (menuFocusRingVisible && menuButtonFocused) {
+                    FocusRing(theme: theme, cornerRadius: (8 * textScale).rounded(), outset: 2)
                 }
-                Button(action: showConnection) {
-                    Label("Connection", systemImage: "person.crop.circle")
-                }
-                Button(action: showAbout) {
-                    Label("About & Credits", systemImage: "info.circle")
-                }
-                Button(action: showDiagnostics) {
-                    Label("Diagnostics…", systemImage: "stethoscope")
-                }
-                Divider()
-                Button(action: refresh) {
-                    Label(model.loading ? "Refreshing…" : "Refresh Now", systemImage: "arrow.clockwise")
-                }
-                .disabled(!model.connected || model.loading)
-                Button {
-                    Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
-                } label: {
-                    Label(model.loading ? "Reauthorizing…" : "Reauthorize Permissions", systemImage: "key")
-                }
-                .disabled(!model.configured || model.loading)
-                Divider()
-                Button {
-                    NSApp.terminate(nil)
-                } label: {
-                    Label("Quit Ring Stats", systemImage: "power")
-                }
-                .keyboardShortcut("q")
             }
-            .labelStyle(.titleAndIcon)
-        } label: {
-            Image(systemName: "line.3.horizontal")
-                .scaledFont(size: 16, weight: .medium)
-                .frame(width: (28 * textScale).rounded(), height: (28 * textScale).rounded())
-                .contentShape(Rectangle())
-        }
-        // A plain-styled button menu draws its label with SwiftUI, so it takes
-        // the theme color.
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .foregroundStyle(theme.action)
-        .accessibilityLabel("Ring Stats menu")
-        .accessibilityHint("Contains appearance, connection, About and Credits, diagnostics, refresh, reauthorization, and quit actions")
+            .onGeometryChange(for: CGRect.self) { geometry in
+                geometry.frame(in: .global)
+            } action: { frame in
+                menuButtonFrame = frame
+            }
+            // Menus open on mouse down on the Mac.
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($menuButtonPressed) { _, pressed, _ in
+                        guard !pressed else { return }
+                        pressed = true
+                        openOptionsMenu()
+                    }
+            )
+            .focusable()
+            .focusEffectDisabled()
+            .focused($menuButtonFocused)
+            .onChange(of: menuButtonFocused) { _, focused in
+                menuFocusRingVisible = focused && !Self.focusCameFromPointer(NSApp.currentEvent?.type)
+            }
+            .onKeyPress(keys: [.space, .return, .downArrow]) { _ in
+                menuFocusRingVisible = true
+                openOptionsMenu()
+                return .handled
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("Ring Stats menu")
+            .accessibilityHint("Contains appearance, connection, About and Credits, diagnostics, refresh, reauthorization, and quit actions")
+            .accessibilityAction { openOptionsMenu() }
+    }
+
+    private func openOptionsMenu() {
+        let frame = menuButtonFrame
+        // Leave the gesture or key callback before the menu's tracking loop.
+        DispatchQueue.main.async { showMenu(frame) }
     }
 
     var body: some View {
@@ -665,16 +670,28 @@ struct MetricFocusRing: View {
     @Environment(\.textScale) private var textScale
 
     var body: some View {
-        RoundedRectangle(cornerRadius: (14 * textScale).rounded(), style: .continuous)
-            .strokeBorder(theme.action, lineWidth: 2)
-            .padding(-MetricFocusRing.outset)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+        FocusRing(theme: theme, cornerRadius: (14 * textScale).rounded(), outset: Self.outset)
     }
 
     /// How far the ring sits outside the tile, so it never touches the
     /// gauge.
     static let outset: CGFloat = 6
+}
+
+/// A keyboard focus ring in the theme's action color, drawn outside a
+/// control. Used where the system's rectangular ring does not fit.
+struct FocusRing: View {
+    let theme: AppTheme
+    let cornerRadius: CGFloat
+    let outset: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .strokeBorder(theme.action, lineWidth: 2)
+            .padding(-outset)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
 }
 
 extension View {

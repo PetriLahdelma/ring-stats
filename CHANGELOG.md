@@ -15,15 +15,18 @@ versioned GitHub releases and annotated tags for new releases.
   now meets 4.5:1 contrast; the system gray it used measured 3.88:1. The
   unselected theme circle and the reorder grip are now clearly visible.
 - ACCESSIBILITY.md now starts with the rules every change must follow.
+- The ☰ menu is reachable from the keyboard: Tab moves past the stats to
+  it, and Space, Return, or Down Arrow opens it. Before, it could only be
+  opened with the pointer unless macOS Keyboard navigation was turned on.
 - Stat tiles no longer show the system's rectangular focus box after a
   click or drag. Keyboard focus draws a rounded ring in the theme's color
   instead, and the pointer becomes a hand over a tile and while dragging it.
 
 ### Fixed
 
-- The popover menu shows its icons again on macOS 27, which hides menu item
-  icons unless an app asks for them. Reauthorize Permissions and Quit now
-  have icons too.
+- Menu icons show again on macOS 27, which hides them unless an app asks.
+  The ☰ menu and the menu-bar icon's right-click menu are now the same menu,
+  and every item has an icon, including Reauthorize Permissions and Quit.
 
 ## 1.3.5 (2026-10-03)
 

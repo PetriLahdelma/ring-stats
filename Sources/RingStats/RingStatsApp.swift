@@ -189,11 +189,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         popoverGeometry.isPresented = false
         let rootView = MenuPopoverShell(geometry: popoverGeometry) {
             MenuPopoverView(
-                refresh: { [weak self] in self?.refreshPopover(force: true) },
                 showConnection: { [weak self] in self?.showConnectionWindow() },
-                showAppearance: { [weak self] in self?.showAppearanceWindow() },
-                showAbout: { [weak self] in self?.showAboutWindow() },
-                showDiagnostics: { [weak self] in self?.showDiagnosticsWindow() }
+                showMenu: { [weak self] frame in self?.showOptionsMenu(below: frame) }
             )
             .environmentObject(model)
         }
@@ -355,9 +352,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    /// Opens the status item's menu below the popover's ☰ button. `frame` is
+    /// in the popover's SwiftUI global coordinates, whose origin is the top
+    /// left of the hosting view.
+    func showOptionsMenu(below frame: CGRect) {
+        guard let view = popoverPanel?.contentView else { return }
+        let origin = Self.menuOrigin(below: frame, inHeight: view.bounds.height, flipped: view.isFlipped)
+        makeContextMenu().popUp(positioning: nil, at: origin, in: view)
+    }
+
+    /// The menu's top-left corner, 4 points below the button, in the view's
+    /// own coordinates.
+    static func menuOrigin(below frame: CGRect, inHeight height: CGFloat, flipped: Bool) -> NSPoint {
+        let gap: CGFloat = 4
+        return NSPoint(x: frame.minX, y: flipped ? frame.maxY + gap : height - frame.maxY - gap)
+    }
+
     private func showContextMenu(for button: NSStatusBarButton, event: NSEvent) {
         closePopover()
         NSMenu.popUpContextMenu(makeContextMenu(), with: event, for: button)
+    }
+
+    /// A menu item icon drawn from an SF Symbol. macOS 27 hides symbol images
+    /// in the menus of apps built with an earlier SDK, but still shows drawn
+    /// images, so the symbol is redrawn as a template image. With the macOS 27
+    /// SDK, set `preferredImageVisibility` instead.
+    static func menuIcon(_ symbolName: String) -> NSImage? {
+        guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 13, weight: .regular))
+        else { return nil }
+        let size = symbol.size
+        let image = NSImage(size: size, flipped: false) { rect in
+            symbol.draw(in: rect)
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 
     /// The status item's right-click menu for the current model state.
@@ -371,6 +401,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         appearanceItem.target = self
+        appearanceItem.image = Self.menuIcon("paintpalette")
         menu.addItem(appearanceItem)
 
         let connectionItem = NSMenuItem(
@@ -379,6 +410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         connectionItem.target = self
+        connectionItem.image = Self.menuIcon("person.crop.circle")
         menu.addItem(connectionItem)
 
         let aboutItem = NSMenuItem(
@@ -387,6 +419,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         aboutItem.target = self
+        aboutItem.image = Self.menuIcon("info.circle")
         menu.addItem(aboutItem)
 
         let diagnosticsItem = NSMenuItem(
@@ -395,6 +428,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         diagnosticsItem.target = self
+        diagnosticsItem.image = Self.menuIcon("stethoscope")
         menu.addItem(diagnosticsItem)
 
         menu.addItem(.separator())
@@ -405,6 +439,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: "r"
         )
         refreshItem.target = self
+        refreshItem.image = Self.menuIcon("arrow.clockwise")
         refreshItem.isEnabled = model.connected && !model.loading
         menu.addItem(refreshItem)
 
@@ -414,6 +449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         reauthorizeItem.target = self
+        reauthorizeItem.image = Self.menuIcon("key")
         reauthorizeItem.isEnabled = model.configured && !model.loading
         menu.addItem(reauthorizeItem)
 
@@ -425,6 +461,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: "q"
         )
         quitItem.target = self
+        quitItem.image = Self.menuIcon("power")
         quitItem.keyEquivalentModifierMask = .command
         menu.addItem(quitItem)
         return menu
@@ -594,10 +631,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func refreshFromMenu(_ sender: NSMenuItem) {
-        Task {
-            await model.refreshNow(metrics: visibleMetrics)
-            RefreshAnnouncement.post(for: model.lastRefreshOutcome)
-        }
+        // Announces the result and refits the popover if it is open.
+        refreshPopover(force: true)
     }
 
     @objc private func quitFromMenu(_ sender: NSMenuItem) {

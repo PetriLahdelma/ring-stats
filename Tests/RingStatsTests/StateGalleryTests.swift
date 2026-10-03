@@ -180,8 +180,10 @@ enum GalleryState: String, CaseIterable {
     case resilienceAndLowBattery = "resilience-low-battery"
     case charging
     case charged
-    /// Connected, with the keyboard focus ring on Sleep.
+    /// Connected, with the keyboard focus ring on the first stat.
     case keyboardFocus = "keyboard-focus"
+    /// Connected, with the keyboard focus ring on the ☰ button.
+    case menuFocus = "menu-focus"
 }
 
 /// A view model driven into one gallery state through its public API.
@@ -223,7 +225,7 @@ struct GalleryFixture {
                 checkConnectionOnInit: false
             )
             await model.updateConnectionState()
-        case .connected, .keyboardFocus:
+        case .connected, .keyboardFocus, .menuFocus:
             model = try await Self.connected(results: [.success(full)], metrics: metrics, now: now)
         case .refreshing:
             // The second refresh is held open, leaving the model visibly
@@ -342,11 +344,9 @@ struct GalleryFixture {
     func renderPopover(width: CGFloat) throws -> GalleryRender {
         let view = MenuPopoverShell(geometry: PopoverGeometryModel()) {
             MenuPopoverView(
-                refresh: {},
                 showConnection: {},
-                showAppearance: {},
-                showAbout: {},
-                previewFocusRing: state == .keyboardFocus ? .readiness : nil
+                previewFocusRing: state == .keyboardFocus ? .readiness : nil,
+                previewMenuFocusRing: state == .menuFocus
             )
             .environmentObject(model)
         }
