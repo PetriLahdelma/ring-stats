@@ -121,6 +121,9 @@ struct MenuPopoverView: View {
     let showAppearance: () -> Void
     let showAbout: () -> Void
     var showDiagnostics: () -> Void = {}
+    /// Draws the keyboard focus ring on this tile without real focus, for the
+    /// state gallery.
+    var previewFocusRing: Metric?
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var metricConfigurationRaw = MetricConfiguration.default.encoded
     @State private var reorderSession: MetricReorderSession?
@@ -131,6 +134,9 @@ struct MenuPopoverView: View {
     @State private var settlingSourceOffsetX: CGFloat?
     @State private var settlementID: UUID?
     @FocusState private var focusedMetric: Metric?
+    /// Whether the focused tile shows its ring. Only keyboard focus does; a
+    /// click or drag also focuses a tile, and a ring then is just noise.
+    @State private var focusRingVisible = false
     /// Bumped to scroll a tile into view when focus itself does not change,
     /// such as after a keyboard move of the focused tile.
     @State private var scrollRequest = (metric: Metric?.none, id: 0)
@@ -173,6 +179,18 @@ struct MenuPopoverView: View {
         }
     }
 
+    /// Whether the event that moved focus came from a pointer rather than
+    /// the keyboard.
+    static func focusCameFromPointer(_ eventType: NSEvent.EventType?) -> Bool {
+        switch eventType {
+        case .leftMouseDown, .leftMouseUp, .leftMouseDragged,
+             .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp:
+            true
+        default:
+            false
+        }
+    }
+
     static func metricIsPending(reading: MetricReading?, loading: Bool) -> Bool {
         reading == nil && loading
     }
@@ -180,6 +198,7 @@ struct MenuPopoverView: View {
     /// Handles arrow keys on a focused tile: arrows move focus, Option-arrows
     /// move the stat itself.
     private func handleArrow(_ press: KeyPress, on metric: Metric) -> KeyPress.Result {
+        focusRingVisible = true
         let direction: StripDirection = press.key == .leftArrow ? .left : .right
         if press.modifiers.contains(.option) {
             moveMetric(metric, direction)
@@ -232,6 +251,7 @@ struct MenuPopoverView: View {
         if reorderSession == nil {
             // A pointer drag is not keyboard navigation; drop any focus ring.
             focusedMetric = nil
+            focusRingVisible = false
             reorderSession = MetricReorderSession(
                 source: metric,
                 configuration: metricConfiguration,
@@ -408,6 +428,8 @@ struct MenuPopoverView: View {
                         ForEach(displayedMetrics) { metric in
                             let reading = model.snapshot.readings[metric]
                             let isDragging = reorderSession?.source == metric
+                            let showsFocusRing = previewFocusRing == metric
+                                || (focusRingVisible && focusedMetric == metric && reorderSession == nil)
                             MetricGauge(
                                 metric: metric,
                                 reading: reading,
@@ -415,7 +437,12 @@ struct MenuPopoverView: View {
                                 theme: theme
                             )
                             .contentShape(Rectangle())
-                            .scaleEffect(isDragging ? 1.035 : 1)
+                            .overlay {
+                                if showsFocusRing {
+                                    MetricFocusRing(theme: theme)
+                                }
+                            }
+                            .scaleEffect(isDragging ? 1.06 : 1)
                             .animation(reorderAnimation, value: isDragging)
                             .offset(x: metricOffsetX(for: metric))
                             .zIndex(isDragging ? 1 : 0)
@@ -439,8 +466,12 @@ struct MenuPopoverView: View {
                                         )
                                     }
                             )
+                            .grabCursor(isDragging: isDragging)
                             .id(metric)
                             .focusable()
+                            // The system ring is a rectangle that ignores the
+                            // tile's lift and offset; MetricFocusRing replaces it.
+                            .focusEffectDisabled()
                             .focused($focusedMetric, equals: metric)
                             .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in
                                 handleArrow(press, on: metric)
@@ -465,6 +496,10 @@ struct MenuPopoverView: View {
                     } action: { minX in
                         stripContentMinX = minX
                     }
+                    // Room for the focus ring, which the scroll view would
+                    // otherwise clip; the negative padding below gives it back
+                    // so the popover keeps its size.
+                    .padding(MetricFocusRing.outset + 1)
                 }
                 .scrollIndicators(.hidden)
                 .coordinateSpace(name: MetricStripLayout.viewportSpaceName)
@@ -474,7 +509,10 @@ struct MenuPopoverView: View {
                     stripViewportWidth = width
                 }
                 .mask { overflowMask }
+                .padding(-(MetricFocusRing.outset + 1))
                 .onChange(of: focusedMetric) { _, metric in
+                    focusRingVisible = metric != nil
+                        && !Self.focusCameFromPointer(NSApp.currentEvent?.type)
                     guard let metric else { return }
                     withAnimation(reorderAnimation) {
                         scroller.scrollTo(metric)
@@ -614,6 +652,40 @@ struct RefreshStatusView: View {
                         .accessibilitySortPriority(1)
                 }
             }
+        }
+    }
+}
+
+/// The keyboard focus ring around a stat tile: the theme's action color,
+/// 2 points wide, following the tile's rounded shape. It meets 3:1 against
+/// every theme's background (Signal Blue 6.99:1, white 6.37:1, Holographic
+/// Ink 11.7:1).
+struct MetricFocusRing: View {
+    let theme: AppTheme
+    @Environment(\.textScale) private var textScale
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: (14 * textScale).rounded(), style: .continuous)
+            .strokeBorder(theme.action, lineWidth: 2)
+            .padding(-MetricFocusRing.outset)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// How far the ring sits outside the tile, so it never touches the
+    /// gauge.
+    static let outset: CGFloat = 6
+}
+
+extension View {
+    /// An open hand over a stat tile, closed while it is dragged, where macOS
+    /// supports pointer styles.
+    @ViewBuilder
+    func grabCursor(isDragging: Bool) -> some View {
+        if #available(macOS 15, *) {
+            pointerStyle(isDragging ? .grabActive : .grabIdle)
+        } else {
+            self
         }
     }
 }

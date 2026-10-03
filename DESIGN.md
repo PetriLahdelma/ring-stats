@@ -161,6 +161,8 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Every available metric can be shown or hidden; at least one remains visible.
 - Ordering persists and can be changed by native row dragging in Appearance or direct dragging in the popover; nonvisual Move Up/Down accessibility actions remain available.
 - Keyboard: Tab reaches the tiles; Left and Right Arrow move focus and scroll the tile into view; Option-Left and Option-Right move the focused stat and announce its position. Nothing is focused when the popover opens.
+- Focus ring: keyboard focus draws a 2pt ring in the theme's action color, 6pt outside the tile, following a 14pt continuous corner. It replaces the system's rectangular ring, which ignored the tile's lift and offset. A click or drag also focuses a tile but shows no ring.
+- Pointer: an open hand over a tile and a closed hand while dragging (macOS 15 and later). The dragged tile lifts to 106% scale; no shadow, keeping the Ring Stats theme free of custom shadows.
 - Drag reordering is a contained move interaction: the active metric tracks the
   pointer directly from a stable render slot, neighboring metrics animate into
   provisional positions after their centers are crossed, and a valid release

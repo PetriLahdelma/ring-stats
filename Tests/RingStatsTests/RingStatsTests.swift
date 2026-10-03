@@ -570,6 +570,15 @@ import Testing
     #expect(Palette.secondaryInk(increasedContrast: true) == Palette.ink)
 }
 
+/// Only keyboard focus shows the stat tile's ring; clicks and drags do not.
+@Test @MainActor func focusFromThePointerShowsNoRing() {
+    #expect(MenuPopoverView.focusCameFromPointer(.leftMouseDown))
+    #expect(MenuPopoverView.focusCameFromPointer(.leftMouseDragged))
+    #expect(MenuPopoverView.focusCameFromPointer(.leftMouseUp))
+    #expect(!MenuPopoverView.focusCameFromPointer(.keyDown))
+    #expect(!MenuPopoverView.focusCameFromPointer(nil))
+}
+
 /// A refresh someone asked for always ends with something VoiceOver says.
 @Test func explicitRefreshAnnouncesEveryOutcome() {
     let now = Date(timeIntervalSince1970: 1_000)

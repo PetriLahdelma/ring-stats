@@ -15,6 +15,9 @@ versioned GitHub releases and annotated tags for new releases.
   now meets 4.5:1 contrast; the system gray it used measured 3.88:1. The
   unselected theme circle and the reorder grip are now clearly visible.
 - ACCESSIBILITY.md now starts with the rules every change must follow.
+- Stat tiles no longer show the system's rectangular focus box after a
+  click or drag. Keyboard focus draws a rounded ring in the theme's color
+  instead, and the pointer becomes a hand over a tile and while dragging it.
 
 ### Fixed
 
