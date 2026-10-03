@@ -41,8 +41,9 @@ AppKit; web techniques such as ARIA do not apply.
    a connection. Do not announce background refreshes. (4.1.3)
 7. **Everything works from the keyboard.** Every action has a keyboard path:
    Escape closes the popover, Tab reaches the stats, arrows move between
-   them, Option-arrows reorder them, and every window completes without a
-   pointer. Focus is always visible; prefer native controls, which draw the
+   them, Option-arrows reorder them, Tab then reaches the ☰ button, and
+   every window completes without a pointer. Custom controls must be
+   reachable even with the system Keyboard navigation setting off. Focus is always visible; prefer native controls, which draw the
    system focus ring. (2.1.1, 2.4.7, 2.4.11)
 8. **Dragging always has an alternative.** Every drag, such as reordering
    stats, also works with keys and with VoiceOver actions ("Move Up",
@@ -85,6 +86,7 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 | VoiceOver announcements | Reorder, copy, and connection success are announced | Needs manual check | `AccessibilityNotification.Announcement` in reorder, callback copy, diagnostics copy, and connection |
 | VoiceOver announcements | Refresh Now announces its result | Verified (automated) for text; Needs manual check in use | `explicitRefreshAnnouncesEveryOutcome`; posted after Refresh Now from either menu, never for background refreshes |
 | Keyboard | Popover dismisses with Escape | Verified (automated) | `statusPopoverEscapeInvokesCancellationHandler` |
+| Keyboard | Every popover action is reachable without a pointer, with the system Keyboard navigation setting off | Verified (automated) for reach; Needs manual check for opening | `tabReachesEveryStatAndTheOptionsMenu`: Tab visits each stat, then the ☰ button, which opens the full menu with Space, Return, or Down Arrow. The permission and Connect buttons follow the system setting; their actions are also in that menu |
 | Keyboard | Onboarding completes without a pointer | Needs manual check | Default-action buttons on every step, focused Client ID field |
 | Keyboard | Stats can be reordered without a pointer | Needs manual check | Focusable grip with Up/Down keys and Move Up/Down actions in Appearance |
 | Keyboard | Metric strip is reachable, scrollable, and reorderable without a pointer | Verified (automated) for logic and focus path; Needs manual check in use | `arrowKeysMoveFocusAcrossVisibleStatsOnly`, `optionArrowMovesAStatPastItsVisibleNeighbor`; `openingThePopoverDoesNotFocusAStatTile` proves Tab reaches a tile while nothing is focused on open |
@@ -141,9 +143,11 @@ date, macOS version, and result in the log below.
    updated" (or the failure) is announced.
 3. **Keyboard-only onboarding.** Disconnect, then complete all three
    Connection steps using only Tab, Space, and Return.
-4. **Keyboard strip.** Open the popover, press Tab to reach the first stat,
-   then Left and Right Arrow to move and scroll, and Option-Right to move a
-   stat. Confirm the new position is announced.
+4. **Keyboard strip and menu.** Open the popover, press Tab to reach the
+   first stat, then Left and Right Arrow to move and scroll, and Option-Right
+   to move a stat. Confirm the new position is announced. Press Tab until
+   the ☰ button shows its ring, press Space, and choose an item with the
+   arrow keys and Return.
 5. **Text size.** Set Appearance > Text size to Extra Large and check the
    popover at its narrowest width and every window for clipping.
 6. **Reduced motion.** Enable Reduce Motion. Refresh and confirm the status

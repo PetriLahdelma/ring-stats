@@ -135,6 +135,34 @@ struct AppShellTests {
         #expect(!nothingFocused())
     }
 
+    /// Tab reaches every stat and then the ☰ button, even with the system
+    /// Keyboard navigation setting off, as it is by default.
+    @Test func tabReachesEveryStatAndTheOptionsMenu() async throws {
+        let delegate = await delegate()
+        delegate.showPopover(anchoredTo: Self.menuBarButton, visibleFrame: Self.screen)
+        defer { delegate.closePopover() }
+        let panel = try #require(delegate.popoverPanel)
+        var stops: [NSRect] = []
+        for _ in 0..<12 {
+            panel.selectNextKeyView(nil)
+            for _ in 0..<3 { await Task.yield() }
+            guard let view = panel.firstResponder as? NSView else { continue }
+            let frame = view.convert(view.bounds, to: nil)
+            if !stops.contains(frame) { stops.append(frame) }
+        }
+        let stats = Metric.defaultVisible.count
+        #expect(stops.count == stats + 1, "\(stops)")
+        // The last stop is the 28-point ☰ button, below the stats.
+        let menu = try #require(stops.last)
+        #expect(menu.width == 28 && menu.height == 28, "\(menu)")
+    }
+
+    @Test func optionsMenuOpensBelowTheButton() {
+        let button = CGRect(x: 380, y: 200, width: 28, height: 28)
+        #expect(AppDelegate.menuOrigin(below: button, inHeight: 260, flipped: true) == NSPoint(x: 380, y: 232))
+        #expect(AppDelegate.menuOrigin(below: button, inHeight: 260, flipped: false) == NSPoint(x: 380, y: 28))
+    }
+
     @Test func escapeClosesThePopover() async throws {
         let delegate = await delegate()
         delegate.showPopover(anchoredTo: Self.menuBarButton, visibleFrame: Self.screen)
@@ -144,6 +172,16 @@ struct AppShellTests {
     }
 
     // MARK: Context menu
+
+    /// Both the ☰ button and the menu-bar icon open this menu, so every item
+    /// carries its icon.
+    @Test func everyMenuItemHasAnIcon() async {
+        let menu = await delegate(connected: true).makeContextMenu()
+        for item in menu.items where !item.isSeparatorItem {
+            #expect(item.image != nil, "\(item.title)")
+            #expect(item.image?.isTemplate == true, "\(item.title)")
+        }
+    }
 
     @Test func contextMenuReflectsConnectionState() async {
         let connected = await delegate(connected: true).makeContextMenu()

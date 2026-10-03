@@ -209,10 +209,8 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Explains that the report contains no health values, credentials, tokens, or identifiers, shows it in full as selectable monospaced text, and offers Refresh Report, Copy, and Save….
 
 ### Popover Options Menu
-- The visible control is the `line.3.horizontal` SF Symbol without an additional disclosure indicator.
-- Menu items are Appearance, Connection, About & Credits, Diagnostics…, a divider, Refresh Now, Reauthorize Permissions, another divider, and Quit Ring Stats.
-- The glyph uses the theme action color.
-- Every item has an SF Symbol: `paintpalette`, `person.crop.circle`, `info.circle`, `stethoscope`, `arrow.clockwise`, `key`, and `power`. macOS 27 hides menu icons by default, so the items use the title-and-icon label style. The icons are decorative; the titles carry the meaning.
+- The visible control is the `line.3.horizontal` SF Symbol without an additional disclosure indicator, in the theme action color.
+- It opens the same native menu as the menu-bar icon's right-click menu (below), so the two never differ. It opens on mouse down, and from the keyboard with Space, Return, or Down Arrow once Tab reaches it, which works with the system Keyboard navigation setting off. Keyboard focus draws a 2pt theme-colored ring 2pt outside the button with an 8pt corner.
 - Refresh Now announces its result to VoiceOver.
 - Reauthorize Permissions is disabled when stored credentials are unavailable or authorization is already running.
 
@@ -222,6 +220,8 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Connection remains available in every state. Refresh Now requires a connected account; Reauthorize Permissions requires stored developer credentials. Both are disabled while the app is already loading.
 - Diagnostics… sits with Appearance, Connection, and About & Credits.
 - Quit Ring Stats remains available as the final menu action.
+- Items: Appearance…, Connection…, About & Credits, Diagnostics…, a divider, Refresh Now (⌘R), Reauthorize Permissions, another divider, and Quit Ring Stats (⌘Q).
+- Every item has an SF Symbol icon: `paintpalette`, `person.crop.circle`, `info.circle`, `stethoscope`, `arrow.clockwise`, `key`, and `power`. macOS 27 hides symbol images in menus of apps built with an earlier SDK, so each symbol is redrawn as a template image (`AppDelegate.menuIcon`). The icons are decorative; the titles carry the meaning.
 
 ## Do's and Don'ts
 
