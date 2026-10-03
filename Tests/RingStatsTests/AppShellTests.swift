@@ -180,6 +180,8 @@ struct AppShellTests {
         for item in menu.items where !item.isSeparatorItem {
             #expect(item.image != nil, "\(item.title)")
             #expect(item.image?.isTemplate == true, "\(item.title)")
+            // One icon width, so every title starts at the same edge.
+            #expect(item.image?.size == NSSize(width: AppDelegate.menuIconSide, height: AppDelegate.menuIconSide), "\(item.title)")
         }
     }
 

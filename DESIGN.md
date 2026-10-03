@@ -221,7 +221,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Diagnostics… sits with Appearance, Connection, and About & Credits.
 - Quit Ring Stats remains available as the final menu action.
 - Items: Appearance…, Connection…, About & Credits, Diagnostics…, a divider, Refresh Now (⌘R), Reauthorize Permissions, another divider, and Quit Ring Stats (⌘Q).
-- Every item has an SF Symbol icon: `paintpalette`, `person.crop.circle`, `info.circle`, `stethoscope`, `arrow.clockwise`, `key`, and `power`. macOS 27 hides symbol images in menus of apps built with an earlier SDK, so each symbol is redrawn as a template image (`AppDelegate.menuIcon`). The icons are decorative; the titles carry the meaning.
+- Every item has an SF Symbol icon: `paintpalette`, `person.crop.circle`, `info.circle`, `stethoscope`, `arrow.clockwise`, `key`, and `power`. macOS 27 hides symbol images in menus of apps built with an earlier SDK, so each symbol is redrawn as a template image (`AppDelegate.menuIcon`), centered in an 18pt square so every title starts at the same edge. The icons are decorative; the titles carry the meaning.
 
 ## Do's and Don'ts
 
