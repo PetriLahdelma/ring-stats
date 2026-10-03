@@ -360,6 +360,11 @@ printf 'path /Users/example-user/secret-layout\n' > "$nested/inner/note.txt"
 /usr/bin/ditto -c -k --keepParent "$nested" "$TEST_ROOT/paths/leaky.zip"
 "$PROJECT_DIR/scripts/verify_no_local_paths.sh" "$TEST_ROOT/paths/leaky.zip" >/dev/null 2>&1 \
   && fail "a path inside a nested archive was not caught"
+# Prose that quotes the pattern without an account name is not a leak.
+/bin/rm -rf "$TEST_ROOT/paths/prose" && /bin/mkdir -p "$TEST_ROOT/paths/prose"
+printf '%s\n' 'The manifest writes paths escaped ("\/Users\/...") and as /Users/...' > "$TEST_ROOT/paths/prose/commit.txt"
+/usr/bin/ditto -c -k --keepParent "$TEST_ROOT/paths/prose" "$TEST_ROOT/paths/prose.zip"
+"$PROJECT_DIR/scripts/verify_no_local_paths.sh" "$TEST_ROOT/paths/prose.zip" >/dev/null || fail "prose quoting a path pattern was rejected"
 for leak in '{"p":"\/Users\/example-user\/x"}' 'build in /var/folders/ab/T/x' 'build in /private/var/folders/ab/T/x'; do
   /bin/rm -rf "$TEST_ROOT/paths/one" && /bin/mkdir -p "$TEST_ROOT/paths/one"
   printf '%s\n' "$leak" > "$TEST_ROOT/paths/one/record.txt"
