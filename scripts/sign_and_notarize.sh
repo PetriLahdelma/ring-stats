@@ -126,7 +126,12 @@ sbom="$OUTPUT_DIR/Ring-Stats-$VERSION.cdx.json"
 # The records above name absolute build paths, which reveal the maintainer's
 # account name and folder layout. Rewrite them to "." (the checkout) and "~"
 # (the home folder) before publishing; hashes and signatures are unaffected.
+# The manifest copy is redacted too, so its checksum is recomputed; the
+# digest Gate A approved, of the unredacted local manifest, is kept under a
+# name that says so.
+/bin/mv "$METADATA_DIR/candidate-manifest.sha256" "$METADATA_DIR/candidate-manifest.gate-a.sha256"
 "$PROJECT_DIR/scripts/redact_local_paths.sh" "$METADATA_DIR" "$PROJECT_DIR" "$HOME"
+(cd "$METADATA_DIR" && /usr/bin/shasum -a 256 candidate-manifest.json > candidate-manifest.sha256)
 
 provenance_zip="$OUTPUT_DIR/Ring-Stats-$VERSION-provenance.zip"
 /bin/rm -f "$provenance_zip"

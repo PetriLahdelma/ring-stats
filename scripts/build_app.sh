@@ -35,6 +35,10 @@ FROZEN_COMPILER_PATH="$(xcrun --find swiftc)"
 FROZEN_COMPILER_VERSION="$("$FROZEN_COMPILER_PATH" --version 2>&1 | /usr/bin/head -n 1)"
 
 binary_paths=()
+# Macro expansions are compiled from the per-user temporary folder, whose
+# path would otherwise end up in the debug symbols.
+temporary_dir="$(cd "${TMPDIR:-/tmp}" && pwd)"
+temporary_dir="${temporary_dir#/private}"
 # The first architecture's build supplies App Intents metadata; it does not
 # vary by architecture.
 intents_build_dir=""
@@ -56,6 +60,10 @@ for architecture in $BUILD_ARCHS; do
     -Xswiftc -g \
     -Xswiftc -file-prefix-map \
     -Xswiftc "$PROJECT_DIR=." \
+    -Xswiftc -file-prefix-map \
+    -Xswiftc "$temporary_dir=/tmp" \
+    -Xswiftc -file-prefix-map \
+    -Xswiftc "/private$temporary_dir=/tmp" \
     -Xswiftc -emit-const-values \
     -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file \
     -Xswiftc -Xfrontend -Xswiftc "$PROJECT_DIR/native/AppIntentsConstProtocols.json"

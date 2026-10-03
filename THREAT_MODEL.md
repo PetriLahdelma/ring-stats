@@ -74,8 +74,12 @@ registered.
   so a peer connecting nonstop cannot starve reads, deadlines, or shutdown.
 - **Mitigated:** release provenance records have local paths rewritten to `.`
   and `~` (`scripts/redact_local_paths.sh`), and
-  `scripts/verify_no_local_paths.sh` fails publication if any remain,
-  including inside nested archives. Archives for 1.2.0 to 1.3.3 contain the
+  `scripts/verify_no_local_paths.sh` fails publication if any remain, written
+  plainly or JSON-escaped, including temporary-folder paths and paths inside
+  nested archives such as the dSYM. The build maps the temporary folder out of
+  debug symbols. The published manifest's checksum is recomputed after
+  redaction; the digest Gate A approved is kept as
+  `candidate-manifest.gate-a.sha256`. Archives for 1.2.0 to 1.3.4 contain the
   maintainer's build paths but no credentials.
 - **Mitigated:** the listener exists only during an
   authorization attempt, and shuts down after one valid callback, a timeout,
