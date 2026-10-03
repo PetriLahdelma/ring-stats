@@ -330,32 +330,40 @@ struct MenuPopoverView: View {
 
     private var optionsMenu: some View {
         Menu {
-            Button(action: showAppearance) {
-                Label("Appearance", systemImage: "paintpalette")
+            // macOS 27 hides menu item icons unless a label asks for them.
+            Group {
+                Button(action: showAppearance) {
+                    Label("Appearance", systemImage: "paintpalette")
+                }
+                Button(action: showConnection) {
+                    Label("Connection", systemImage: "person.crop.circle")
+                }
+                Button(action: showAbout) {
+                    Label("About & Credits", systemImage: "info.circle")
+                }
+                Button(action: showDiagnostics) {
+                    Label("Diagnostics…", systemImage: "stethoscope")
+                }
+                Divider()
+                Button(action: refresh) {
+                    Label(model.loading ? "Refreshing…" : "Refresh Now", systemImage: "arrow.clockwise")
+                }
+                .disabled(!model.connected || model.loading)
+                Button {
+                    Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
+                } label: {
+                    Label(model.loading ? "Reauthorizing…" : "Reauthorize Permissions", systemImage: "key")
+                }
+                .disabled(!model.configured || model.loading)
+                Divider()
+                Button {
+                    NSApp.terminate(nil)
+                } label: {
+                    Label("Quit Ring Stats", systemImage: "power")
+                }
+                .keyboardShortcut("q")
             }
-            Button(action: showConnection) {
-                Label("Connection", systemImage: "person.crop.circle")
-            }
-            Button(action: showAbout) {
-                Label("About & Credits", systemImage: "info.circle")
-            }
-            Button(action: showDiagnostics) {
-                Label("Diagnostics…", systemImage: "stethoscope")
-            }
-            Divider()
-            Button(action: refresh) {
-                Label(model.loading ? "Refreshing…" : "Refresh Now", systemImage: "arrow.clockwise")
-            }
-            .disabled(!model.connected || model.loading)
-            Button(model.loading ? "Reauthorizing…" : "Reauthorize Permissions") {
-                Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
-            }
-            .disabled(!model.configured || model.loading)
-            Divider()
-            Button("Quit Ring Stats") {
-                NSApp.terminate(nil)
-            }
-            .keyboardShortcut("q")
+            .labelStyle(.titleAndIcon)
         } label: {
             Image(systemName: "line.3.horizontal")
                 .scaledFont(size: 16, weight: .medium)
