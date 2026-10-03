@@ -25,6 +25,7 @@ enum ConnectionStep: String, CaseIterable {
 }
 
 struct ConnectionSettingsView: View {
+    @Environment(\.openURL) private var openURL
     static let windowWidth: CGFloat = 460
     static let windowHeight: CGFloat = 440
     static let developerPortal = URL(string: "https://developer.ouraring.com/applications")!
@@ -139,6 +140,7 @@ struct ConnectionSettingsView: View {
                 Label("Open Oura developer portal", systemImage: "arrow.up.right.square")
             }
             .foregroundStyle(Palette.signalBlue)
+            .keyboardActivatable(cornerRadius: 4) { openURL(Self.developerPortal) }
             Spacer(minLength: 0)
             navigation(back: nil, next: .registerCallback, nextTitle: "I Have Created It")
         }
@@ -162,6 +164,7 @@ struct ConnectionSettingsView: View {
                 } label: {
                     Label(callbackCopied ? "Copied" : "Copy", systemImage: callbackCopied ? "checkmark" : "doc.on.doc")
                 }
+                .keyboardActivatable { copyCallbackURL() }
                 .accessibilityLabel(callbackCopied ? "Copied callback URL" : "Copy callback URL")
             }
             Text("Ring Stats listens for it on this Mac only, during sign-in, so the callback never leaves your Mac.")
@@ -214,9 +217,11 @@ struct ConnectionSettingsView: View {
                         Task { await model.cancelAuthorization() }
                     }
                     .buttonStyle(.secondaryAction)
+                    .keyboardActivatable { Task { await model.cancelAuthorization() } }
                 } else {
                     Button("Back") { step = .registerCallback }
                         .buttonStyle(.secondaryAction)
+                        .keyboardActivatable { step = .registerCallback }
                 }
                 Spacer()
                 Button(model.state == .authorizing ? "Connecting…" : "Connect in Browser") {
@@ -230,6 +235,9 @@ struct ConnectionSettingsView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.primaryAction)
+                .keyboardActivatable {
+                    Task { await model.connect(clientID: clientID, clientSecret: clientSecret, metrics: visibleMetrics) }
+                }
                 .disabled(model.loading || clientID.isEmpty || clientSecret.isEmpty)
             }
         }
@@ -253,15 +261,18 @@ struct ConnectionSettingsView: View {
             Spacer(minLength: 0)
             HStack {
                 Spacer()
-                Button("Show My Stats") {
-                    step = nil
-                    dismiss()
-                    onConnected()
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.primaryAction)
+                Button("Show My Stats", action: showMyStats)
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.primaryAction)
+                    .keyboardActivatable(action: showMyStats)
             }
         }
+    }
+
+    private func showMyStats() {
+        step = nil
+        dismiss()
+        onConnected()
     }
 
     private func navigation(back: ConnectionStep?, next: ConnectionStep, nextTitle: String) -> some View {
@@ -269,11 +280,13 @@ struct ConnectionSettingsView: View {
             if let back {
                 Button("Back") { step = back }
                     .buttonStyle(.secondaryAction)
+                    .keyboardActivatable { step = back }
             }
             Spacer()
             Button(nextTitle) { step = next }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.primaryAction)
+                .keyboardActivatable { step = next }
         }
     }
 
@@ -309,6 +322,7 @@ struct ConnectionSettingsView: View {
             Button(model.loading ? "Reauthorizing…" : "Reauthorize Permissions") {
                 Task { await model.reauthorize(metrics: visibleMetrics) }
             }
+            .keyboardActivatable { Task { await model.reauthorize(metrics: visibleMetrics) } }
             .disabled(model.loading)
 
             Divider()
@@ -322,6 +336,7 @@ struct ConnectionSettingsView: View {
                 Button("Disconnect & Delete Local Data", role: .destructive) {
                     showingDisconnectConfirmation = true
                 }
+                .keyboardActivatable { showingDisconnectConfirmation = true }
                 .disabled(model.loading)
             }
         }

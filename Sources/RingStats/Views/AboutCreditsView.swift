@@ -5,6 +5,13 @@ import RingStatsOura
 struct AboutCreditsView: View {
     static let baseWidth: CGFloat = 420
     @Environment(\.textScale) private var textScale
+    @Environment(\.openURL) private var openURL
+
+    private static let links: [(title: String, url: URL)] = [
+        ("GitHub", URL(string: "https://github.com/PetriLahdelma/ring-stats")!),
+        ("Privacy", URL(string: "https://github.com/PetriLahdelma/ring-stats/blob/main/PRIVACY.md")!),
+        ("Releases", URL(string: "https://github.com/PetriLahdelma/ring-stats/releases")!),
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -30,15 +37,10 @@ struct AboutCreditsView: View {
                 .foregroundStyle(Palette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 16) {
-                Link("GitHub", destination: URL(string: "https://github.com/PetriLahdelma/ring-stats")!)
-                Link(
-                    "Privacy",
-                    destination: URL(string: "https://github.com/PetriLahdelma/ring-stats/blob/main/PRIVACY.md")!
-                )
-                Link(
-                    "Releases",
-                    destination: URL(string: "https://github.com/PetriLahdelma/ring-stats/releases")!
-                )
+                ForEach(Self.links, id: \.title) { link in
+                    Link(link.title, destination: link.url)
+                        .keyboardActivatable(cornerRadius: 4) { openURL(link.url) }
+                }
             }
             .scaledFont(.caption)
             .foregroundStyle(Palette.signalBlue)

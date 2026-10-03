@@ -5,6 +5,15 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Accessibility
+
+- Every control in every window is reachable with Tab by default. Before,
+  Tab reached only text fields and lists unless macOS Keyboard navigation
+  was turned on. Space activates buttons, links, and switches, the arrow
+  keys step the text size, and keyboard focus draws a blue ring.
+- In the Appearance stats list, Space shows or hides the selected stat and
+  Option-Up and Option-Down move it.
+
 ## 1.3.6 (2026-10-03)
 
 ### Accessibility

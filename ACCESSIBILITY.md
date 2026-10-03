@@ -42,8 +42,10 @@ AppKit; web techniques such as ARIA do not apply.
 7. **Everything works from the keyboard.** Every action has a keyboard path:
    Escape closes the popover, Tab reaches the stats, arrows move between
    them, Option-arrows reorder them, Tab then reaches the ☰ button, and
-   every window completes without a pointer. Custom controls must be
-   reachable even with the system Keyboard navigation setting off. Focus is always visible; prefer native controls, which draw the
+   every window completes without a pointer. Every control must be
+   reachable by default, with the system Keyboard navigation setting off:
+   use `keyboardActivatable`, `keyboardToggle`, or `keyboardStepper` on
+   each new control. Focus is always visible; prefer native controls, which draw the
    system focus ring. (2.1.1, 2.4.7, 2.4.11)
 8. **Dragging always has an alternative.** Every drag, such as reordering
    stats, also works with keys and with VoiceOver actions ("Move Up",
@@ -88,7 +90,7 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 | Keyboard | Popover dismisses with Escape | Verified (automated) | `statusPopoverEscapeInvokesCancellationHandler` |
 | Keyboard | Every popover action is reachable without a pointer, with the system Keyboard navigation setting off | Verified (automated) for reach; Needs manual check for opening | `tabReachesEveryStatAndTheOptionsMenu`: Tab visits each stat, then the ☰ button, which opens the full menu with Space, Return, or Down Arrow. The permission and Connect buttons follow the system setting; their actions are also in that menu |
 | Keyboard | Escape closes every window | Verified (automated) | `escapeClosesEveryWindow` |
-| Keyboard | Appearance theme choices work without a pointer, with the system Keyboard navigation setting off | Verified (automated) for reach and order; Needs manual check in use | `tabReachesTheThemeChoicesInAppearance`, `themeArrowsStopAtEitherEnd`: Tab reaches the theme group, arrows change the theme. Native switches, sliders, and buttons in the windows follow the system setting, as in every Mac app; with it off, Tab reaches only text fields and lists |
+| Keyboard | Every window control works without a pointer, by default | Verified (automated) for reach; Needs manual check in use | `tabReachesEveryControlInEveryWindow` counts the Tab stops in Appearance, About, Diagnostics, and both Connection states with the system Keyboard navigation setting off. `KeyboardReachable` makes each button, link, switch, and slider focusable when that setting is off (Space activates; arrows step the slider) and steps aside when it is on, so no control gets two stops. The theme group changes with the arrows (`themeArrowsStopAtEitherEnd`); in the stats list, Space shows or hides the selected stat and Option-Up and Option-Down move it |
 | Keyboard | Onboarding completes without a pointer | Needs manual check | Default-action buttons on every step, focused Client ID field |
 | Keyboard | Stats can be reordered without a pointer | Needs manual check | Focusable grip with Up/Down keys and Move Up/Down actions in Appearance |
 | Keyboard | Metric strip is reachable, scrollable, and reorderable without a pointer | Verified (automated) for logic and focus path; Needs manual check in use | `arrowKeysMoveFocusAcrossVisibleStatsOnly`, `optionArrowMovesAStatPastItsVisibleNeighbor`; `openingThePopoverDoesNotFocusAStatTile` proves Tab reaches a tile while nothing is focused on open |
@@ -139,8 +141,8 @@ date, macOS version, and result in the log below.
    move through it with VO-Right. Expect: refresh status, each tile in order
    ("Readiness, 84, Good"), permission button if shown, battery,
    menu. Confirm a stale tile reads "Not updated; showing the last known value".
-2. **Announcements.** Reorder a stat in Appearance with Up/Down on the focused
-   grip and confirm the new position is announced. Copy the callback URL and
+2. **Announcements.** In Appearance, select a stat in the list and press
+   Option-Down; confirm the new position is announced. Copy the callback URL and
    confirm "Callback URL copied". Choose Refresh Now and confirm "Stats
    updated" (or the failure) is announced.
 3. **Keyboard-only onboarding.** Disconnect, then complete all three
