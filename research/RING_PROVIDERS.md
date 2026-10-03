@@ -26,7 +26,7 @@ only if its vendor offers a web API that a Mac app can call directly.
 | Ring | Public web API | How a user gets access | Metrics | Battery | Sandbox | Fits Ring Stats |
 |---|---|---|---|---|---|---|
 | **Oura** (Gen3, Ring 4) | Yes, v2 REST | User registers their own OAuth app; 10 users per app until Oura approves it. Personal tokens ended Dec 2025. | Readiness, Sleep, Activity, heart rate, Stress, Resilience, and more | Yes, `ring_battery_level` | **Yes, verified** (below) | Supported |
-| **Ultrahuman** (Ring AIR, Ring Pro) | Yes, `partner.ultrahuman.com` | Personal API token from Ultrahuman's developer portal for one's own data; OAuth only for approved partners | Sleep and stages, HRV, resting HR, temperature, steps, SpO2, VO2 max, Recovery and Movement indexes | Not documented | Not documented | **Candidate.** Personal token fits the bring-your-own model; unverified |
+| **Ultrahuman** (Ring AIR, Ring Pro) | Yes, `partner.ultrahuman.com` | Personal API token from Ultrahuman's developer portal for one's own data; OAuth only for approved partners | Sleep and stages, HRV, resting HR, temperature, steps, SpO2, VO2 max, Recovery and Movement indexes | Not documented, unconfirmed | Not documented | **Candidate.** Personal token fits the bring-your-own model; unverified |
 | **Samsung Galaxy Ring** | No | Samsung says ring APIs are not available to third parties. Data SDK is Android-only and mixes all devices. | | | | No |
 | **RingConn** (Gen 1, Gen 2) | No | Apple Health, Health Connect, and file export only | | | | No |
 | **Amazfit Helio** | No | Zepp has no official OAuth API; data flows through Apple Health, Health Connect, or aggregators | | | | No |
@@ -38,9 +38,10 @@ only if its vendor offers a web API that a Mac app can call directly.
 `https://api.ouraring.com/v2/sandbox/usercollection/` serves fixed test data
 for any bearer token. A request without an `Authorization` header gets HTTP 400
 ("Include any string in 'Authorization' header"). With one, every endpoint
-Ring Stats uses returns HTTP 200: `daily_readiness`, `daily_sleep`,
-`daily_activity`, `heartrate`, `daily_stress`, `daily_resilience`,
-`ring_battery_level`, and `ring_configuration`.
+`OuraAPI` calls returns HTTP 200: `daily_readiness`, `daily_sleep`,
+`daily_activity`, `heartrate`, `daily_stress`, `daily_resilience`, and
+`ring_battery_level`. (`ring_configuration` is the OAuth scope that battery
+access needs, not an endpoint Ring Stats calls.)
 
 `OuraSandboxTests` runs the real `OuraAPI` against it and checks that all six
 metrics come back available and the battery decodes. It needs the network, so
@@ -67,8 +68,11 @@ What the documentation says, not yet checked against a real account:
   email, so the exact request shape needs confirming.
 - **Partner OAuth.** Scopes `ring_data`, `cgm_data`, and `profile`; client
   credentials are issued on approval. Not needed for the personal-token route.
-- **No battery.** The popover's battery row has to become optional per
-  provider (`ProviderCapabilities.reportsBattery` already exists).
+- **Battery unknown.** The documentation does not mention battery level,
+  which is not the same as Ultrahuman not reporting it. Confirm with a real
+  account before deciding. If it is absent, the popover's battery row
+  becomes optional per provider (`ProviderCapabilities.reportsBattery`
+  already exists).
 
 Fitting it into the app:
 
@@ -100,7 +104,8 @@ Fitting it into the app:
    third-party app, and whether a sandbox exists. Read their API Terms.
 2. Recruit one Ultrahuman owner as a tester.
 3. Build the Ultrahuman provider against fixtures: a `RingStatsUltrahuman`
-   target, token entry, its own metric cases, an optional battery row.
+   target, token entry, its own metric cases, and an optional battery row if
+   a real account confirms there is no battery level.
 4. Revisit RingConn, Samsung, and Circular every few months; drop a row only
    when a vendor publishes a web API.
 
