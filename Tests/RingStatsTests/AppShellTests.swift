@@ -142,14 +142,7 @@ struct AppShellTests {
         delegate.showPopover(anchoredTo: Self.menuBarButton, visibleFrame: Self.screen)
         defer { delegate.closePopover() }
         let panel = try #require(delegate.popoverPanel)
-        var stops: [NSRect] = []
-        for _ in 0..<12 {
-            panel.selectNextKeyView(nil)
-            for _ in 0..<3 { await Task.yield() }
-            guard let view = panel.firstResponder as? NSView else { continue }
-            let frame = view.convert(view.bounds, to: nil)
-            if !stops.contains(frame) { stops.append(frame) }
-        }
+        let stops = await tabStops(in: panel)
         let stats = Metric.defaultVisible.count
         #expect(stops.count == stats + 1, "\(stops)")
         // The last stop is the 28-point ☰ button, below the stats.
@@ -182,17 +175,23 @@ struct AppShellTests {
         }
     }
 
-    /// The distinct controls Tab visits in a window, in order.
+    /// The distinct controls Tab visits in a window, in order, with each
+    /// one's frame when last focused. Controls are told apart by identity,
+    /// not position: on a slow machine the layout can still be settling, and
+    /// a control that moves between two visits must count once.
     private func tabStops(in window: NSWindow) async -> [NSRect] {
-        var stops: [NSRect] = []
+        window.contentView?.layoutSubtreeIfNeeded()
+        var order: [ObjectIdentifier] = []
+        var frames: [ObjectIdentifier: NSRect] = [:]
         for _ in 0..<24 {
             window.selectNextKeyView(nil)
             for _ in 0..<3 { await Task.yield() }
             guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
-            let frame = view.convert(view.bounds, to: nil)
-            if !stops.contains(frame) { stops.append(frame) }
+            let id = ObjectIdentifier(view)
+            if frames[id] == nil { order.append(id) }
+            frames[id] = view.convert(view.bounds, to: nil)
         }
-        return stops
+        return order.compactMap { frames[$0] }
     }
 
     /// Tab reaches every control in every window, with the system Keyboard
