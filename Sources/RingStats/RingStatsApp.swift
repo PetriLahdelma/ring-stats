@@ -377,13 +377,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// in the menus of apps built with an earlier SDK, but still shows drawn
     /// images, so the symbol is redrawn as a template image. With the macOS 27
     /// SDK, set `preferredImageVisibility` instead.
+    ///
+    /// Every icon is centered in the same square, so the titles after them
+    /// start at one edge whatever each symbol's own width.
+    static let menuIconSide: CGFloat = 18
+
     static func menuIcon(_ symbolName: String) -> NSImage? {
         guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 13, weight: .regular))
         else { return nil }
-        let size = symbol.size
-        let image = NSImage(size: size, flipped: false) { rect in
-            symbol.draw(in: rect)
+        let canvas = NSSize(width: menuIconSide, height: menuIconSide)
+        let natural = symbol.size
+        let scale = min(1, canvas.width / natural.width, canvas.height / natural.height)
+        let drawn = NSSize(width: natural.width * scale, height: natural.height * scale)
+        let image = NSImage(size: canvas, flipped: false) { _ in
+            symbol.draw(in: NSRect(
+                x: (canvas.width - drawn.width) / 2,
+                y: (canvas.height - drawn.height) / 2,
+                width: drawn.width,
+                height: drawn.height
+            ))
             return true
         }
         image.isTemplate = true
@@ -495,7 +508,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 .scrollBounceBehavior(.basedOnSize)
         )
         let size = WindowSizing.clamped(measured, visibleFrame: NSScreen.main?.visibleFrame)
-        let window = NSWindow(
+        let window = EscapeClosingWindow(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.titled, .closable],
             backing: .buffered,
@@ -660,5 +673,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowDidMove(_ notification: Notification) {
         guard notification.object as? NSWindow === popoverPanel else { return }
         updatePopoverArrowPosition()
+    }
+}
+
+/// A Ring Stats window that Escape closes, like a panel. Escape reaches the
+/// window only when no control handled it first, such as a text field.
+final class EscapeClosingWindow: NSWindow {
+    override func cancelOperation(_ sender: Any?) {
+        performClose(sender)
     }
 }

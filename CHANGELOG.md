@@ -5,6 +5,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.3.6 (2026-10-03)
+
 ### Accessibility
 
 - VoiceOver announces the result of Refresh Now: "Stats updated", that some
@@ -18,6 +20,9 @@ versioned GitHub releases and annotated tags for new releases.
 - The ☰ menu is reachable from the keyboard: Tab moves past the stats to
   it, and Space, Return, or Down Arrow opens it. Before, it could only be
   opened with the pointer unless macOS Keyboard navigation was turned on.
+- Escape closes the Appearance, Connection, About, and Diagnostics windows.
+- The Appearance theme choices are reachable with Tab and change with the
+  arrow keys, like a macOS radio group.
 - Stat tiles no longer show the system's rectangular focus box after a
   click or drag. Keyboard focus draws a rounded ring in the theme's color
   instead, and the pointer becomes a hand over a tile and while dragging it.
@@ -27,6 +32,7 @@ versioned GitHub releases and annotated tags for new releases.
 - Menu icons show again on macOS 27, which hides them unless an app asks.
   The ☰ menu and the menu-bar icon's right-click menu are now the same menu,
   and every item has an icon, including Reauthorize Permissions and Quit.
+  The icons share one width, so every title starts at the same edge.
 
 ## 1.3.5 (2026-10-03)
 

@@ -16,6 +16,15 @@ enum AppTheme: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// The theme above (`-1`) or below (`1`) this one in Appearance, or nil
+    /// at either end.
+    func neighbor(_ offset: Int) -> AppTheme? {
+        let all = Self.allCases
+        guard let index = all.firstIndex(of: self) else { return nil }
+        let target = index + offset
+        return all.indices.contains(target) ? all[target] : nil
+    }
+
     var title: String {
         switch self {
         case .ringStats: "Ring Stats"
