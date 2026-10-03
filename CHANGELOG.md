@@ -5,6 +5,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.3.6 (2026-10-03)
+
 ### Accessibility
 
 - VoiceOver announces the result of Refresh Now: "Stats updated", that some
