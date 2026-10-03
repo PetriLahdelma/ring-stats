@@ -180,6 +180,8 @@ enum GalleryState: String, CaseIterable {
     case resilienceAndLowBattery = "resilience-low-battery"
     case charging
     case charged
+    /// Connected, with the keyboard focus ring on Sleep.
+    case keyboardFocus = "keyboard-focus"
 }
 
 /// A view model driven into one gallery state through its public API.
@@ -188,12 +190,14 @@ struct GalleryFixture {
     let model: AppViewModel
     let defaults: UserDefaults
     let theme: AppTheme
+    let state: GalleryState
     /// Ends any operation the fixture holds open.
     private(set) var release: @Sendable () -> Void = {}
 
     init(state: GalleryState, theme: AppTheme, textSize: TextSizePreference = .standard) async throws {
         Self.loadLandscapePhoto()
         self.theme = theme
+        self.state = state
         let suite = "ring-stats-gallery-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.set(theme.rawValue, forKey: AppTheme.storageKey)
@@ -219,7 +223,7 @@ struct GalleryFixture {
                 checkConnectionOnInit: false
             )
             await model.updateConnectionState()
-        case .connected:
+        case .connected, .keyboardFocus:
             model = try await Self.connected(results: [.success(full)], metrics: metrics, now: now)
         case .refreshing:
             // The second refresh is held open, leaving the model visibly
@@ -337,8 +341,14 @@ struct GalleryFixture {
 
     func renderPopover(width: CGFloat) throws -> GalleryRender {
         let view = MenuPopoverShell(geometry: PopoverGeometryModel()) {
-            MenuPopoverView(refresh: {}, showConnection: {}, showAppearance: {}, showAbout: {})
-                .environmentObject(model)
+            MenuPopoverView(
+                refresh: {},
+                showConnection: {},
+                showAppearance: {},
+                showAbout: {},
+                previewFocusRing: state == .keyboardFocus ? .readiness : nil
+            )
+            .environmentObject(model)
         }
         .defaultAppStorage(defaults)
         defer { release() }

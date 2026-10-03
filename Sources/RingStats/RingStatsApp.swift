@@ -296,6 +296,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             guard let self else { return }
             if force {
                 await model.refreshNow(metrics: visibleMetrics)
+                RefreshAnnouncement.post(for: model.lastRefreshOutcome)
             } else {
                 await model.refreshOnOpen(metrics: visibleMetrics)
             }
@@ -593,7 +594,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func refreshFromMenu(_ sender: NSMenuItem) {
-        Task { await model.refreshNow(metrics: visibleMetrics) }
+        Task {
+            await model.refreshNow(metrics: visibleMetrics)
+            RefreshAnnouncement.post(for: model.lastRefreshOutcome)
+        }
     }
 
     @objc private func quitFromMenu(_ sender: NSMenuItem) {

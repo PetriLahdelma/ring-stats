@@ -133,7 +133,7 @@ struct ConnectionSettingsView: View {
             Text("Oura gives personal API access through a developer application that you own. Ring Stats has no server of its own, so it connects with your application instead of a shared one.")
                 .fixedSize(horizontal: false, vertical: true)
             Text("It takes about two minutes and needs no special settings beyond the callback in the next step.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
             Link(destination: Self.developerPortal) {
                 Label("Open Oura developer portal", systemImage: "arrow.up.right.square")
@@ -162,11 +162,11 @@ struct ConnectionSettingsView: View {
                 } label: {
                     Label(callbackCopied ? "Copied" : "Copy", systemImage: callbackCopied ? "checkmark" : "doc.on.doc")
                 }
-                .accessibilityLabel(callbackCopied ? "Callback URL copied" : "Copy callback URL")
+                .accessibilityLabel(callbackCopied ? "Copied callback URL" : "Copy callback URL")
             }
             Text("Ring Stats listens for it on this Mac only, during sign-in, so the callback never leaves your Mac.")
                 .scaledFont(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             navigation(back: .createApplication, next: .enterCredentials, nextTitle: "I Have Added It")
@@ -192,7 +192,7 @@ struct ConnectionSettingsView: View {
                 Image(systemName: "lock.fill")
             }
             .scaledFont(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Palette.secondaryInk)
             if model.state == .authorizing {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
@@ -248,7 +248,7 @@ struct ConnectionSettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text("Change permissions or disconnect at any time from Connection in the Ring Stats menu.")
                 .scaledFont(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             HStack {
@@ -317,7 +317,7 @@ struct ConnectionSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Disconnecting revokes the current token and deletes the saved client credentials from this Mac.")
                     .scaledFont(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondaryInk)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Disconnect & Delete Local Data", role: .destructive) {
                     showingDisconnectConfirmation = true
@@ -344,7 +344,7 @@ private struct StepIndicator: View {
             }
             Text("Step \(current) of \(total)")
                 .scaledFont(.caption, weight: .medium)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Step \(current) of \(total)")

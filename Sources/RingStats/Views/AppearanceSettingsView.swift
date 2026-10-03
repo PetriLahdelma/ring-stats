@@ -63,7 +63,7 @@ struct AppearanceSettingsView: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .scaledFont(size: 16, weight: .medium)
-                    .foregroundStyle(selected ? Palette.signalBlue : Palette.ink.opacity(0.36))
+                    .foregroundStyle(selected ? Palette.signalBlue : Palette.secondaryInk)
                     .frame(width: 20, height: 20)
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -72,7 +72,7 @@ struct AppearanceSettingsView: View {
                         .foregroundStyle(Palette.ink)
                     Text(theme.summary)
                         .scaledFont(.caption)
-                        .foregroundStyle(Palette.ink.opacity(0.62))
+                        .foregroundStyle(Palette.secondaryInk)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -93,7 +93,7 @@ struct AppearanceSettingsView: View {
             Text("Appearance")
                 .scaledFont(.title)
             Text("Choose the theme, text size, battery alert, and which stats show.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
 
             Text("Theme")
                 .scaledFont(.headline)
@@ -133,7 +133,7 @@ struct AppearanceSettingsView: View {
                         ? "Notifications are off for Ring Stats. Allow them in System Settings, Notifications."
                         : "Notifies you once when the ring drops below \(LowBatteryAlert.threshold)%, and again only after it has charged.")
                         .scaledFont(.caption)
-                        .foregroundStyle(notificationsDenied ? Palette.alertText : .secondary)
+                        .foregroundStyle(notificationsDenied ? Palette.alertText : Palette.secondaryInk)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
@@ -162,7 +162,7 @@ struct AppearanceSettingsView: View {
                         .scaledFont(.headline)
                     Text("Show or hide stats, and drag rows to reorder them.")
                         .scaledFont(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.secondaryInk)
                 }
                 Spacer()
                 Button("Reset") {
@@ -187,7 +187,7 @@ struct AppearanceSettingsView: View {
                         Spacer()
                         Image(systemName: "line.3.horizontal")
                             .scaledFont(size: 12, weight: .medium)
-                            .foregroundStyle(.secondary.opacity(0.55))
+                            .foregroundStyle(Palette.secondaryInk)
                             .frame(width: 24, height: 24)
                             .contentShape(Rectangle())
                             .focusable()
@@ -227,7 +227,7 @@ struct AppearanceSettingsView: View {
 
             Text("At least one stat must remain visible. Drag any row to reorder all stats, including hidden ones; visible stats can also be dragged in the popover.")
                 .scaledFont(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
         }
         .padding(24)
         .scaledFont(.body)

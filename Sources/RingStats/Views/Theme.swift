@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import RingStatsCore
 import RingStatsOura
@@ -11,6 +12,15 @@ enum Palette {
     /// Alert red dark enough for small text on the warm canvas (at least 4.5:1).
     /// `alert` stays for icons, where 3:1 is the requirement.
     static let alertText = Color(red: 178 / 255, green: 58 / 255, blue: 46 / 255)
+
+    /// Captions and control glyphs in the light windows: 4.65:1 on the warm
+    /// canvas, where the system secondary label color is only 3.88:1. Solid
+    /// ink while Increase Contrast is on.
+    static var secondaryInk: Color { secondaryInk(increasedContrast: AppTheme.increasesContrast) }
+
+    static func secondaryInk(increasedContrast: Bool) -> Color {
+        increasedContrast ? ink : ink.opacity(0.62)
+    }
 
     /// The Holographic theme's text colors. Contrast is measured against the
     /// darkest pixel of the marble, pink `#F3B9DF`.
@@ -31,8 +41,19 @@ extension AppTheme {
         }
     }
 
+    /// Whether macOS's Increase Contrast setting is on. Faded text and control
+    /// tokens become solid while it is.
+    static var increasesContrast: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    }
+
     var secondaryContent: Color {
-        switch self {
+        secondaryContent(increasedContrast: Self.increasesContrast)
+    }
+
+    func secondaryContent(increasedContrast: Bool) -> Color {
+        if increasedContrast { return primaryContent }
+        return switch self {
         case .ringStats: Palette.ink.opacity(0.62)
         case .landscape: .white.opacity(0.78)
         case .holographic: Palette.Holographic.ink.opacity(0.68)

@@ -19,7 +19,7 @@ struct DiagnosticsView: View {
             Text("Diagnostics")
                 .scaledFont(.title)
             Text("Review this report before sharing it. It lists app state and recent events, and never includes health values, credentials, tokens, or account identifiers.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
             ScrollView {
                 Text(report)
