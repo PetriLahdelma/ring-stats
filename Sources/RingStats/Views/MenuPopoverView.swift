@@ -543,6 +543,9 @@ struct MenuPopoverView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(theme.action)
+                    .keyboardActivatable(theme: theme) {
+                        Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
+                    }
                     .disabled(model.loading)
                     .accessibilityHint("Opens Oura authorization to grant the missing data permission")
                 }
@@ -574,10 +577,12 @@ struct MenuPopoverView: View {
                         Button("Connect", action: showConnection)
                             .buttonStyle(.bordered)
                             .tint(.white)
+                            .keyboardActivatable(theme: theme, action: showConnection)
                     } else {
                         Button("Connect", action: showConnection)
                             .buttonStyle(.borderedProminent)
                             .tint(theme.action)
+                            .keyboardActivatable(theme: theme, action: showConnection)
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 132)
@@ -586,6 +591,7 @@ struct MenuPopoverView: View {
                         Button("Cancel") {
                             Task { await model.cancelAuthorization() }
                         }
+                        .keyboardActivatable(theme: theme) { Task { await model.cancelAuthorization() } }
                     }
                     Spacer()
                     optionsMenu

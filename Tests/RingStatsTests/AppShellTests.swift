@@ -182,23 +182,49 @@ struct AppShellTests {
         }
     }
 
-    /// Tab reaches the theme choices as well as the stats list, with the
-    /// system Keyboard navigation setting off.
-    @Test func tabReachesTheThemeChoicesInAppearance() async throws {
-        let delegate = await delegate()
-        delegate.showAppearanceWindow()
-        let window = try #require(delegate.appearanceWindowController?.window)
-        defer { window.close() }
+    /// The distinct controls Tab visits in a window, in order.
+    private func tabStops(in window: NSWindow) async -> [NSRect] {
         var stops: [NSRect] = []
-        for _ in 0..<8 {
+        for _ in 0..<24 {
             window.selectNextKeyView(nil)
             for _ in 0..<3 { await Task.yield() }
-            guard let view = window.firstResponder as? NSView else { continue }
+            guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
             let frame = view.convert(view.bounds, to: nil)
             if !stops.contains(frame) { stops.append(frame) }
         }
-        // The theme group and the stats list.
-        #expect(stops.count >= 2, "\(stops)")
+        return stops
+    }
+
+    /// Tab reaches every control in every window, with the system Keyboard
+    /// navigation setting off as it is by default.
+    @Test func tabReachesEveryControlInEveryWindow() async throws {
+        let connected = await delegate()
+        connected.showAppearanceWindow()
+        connected.showAboutWindow()
+        connected.showDiagnosticsWindow()
+        connected.showConnectionWindow()
+        defer { NSApp.windows.forEach { $0.close() } }
+        let expected: [(String, NSWindowController?, Int)] = [
+            // Theme group, text size, low battery alert, Reset, stats list.
+            ("Appearance", connected.appearanceWindowController, 5),
+            // GitHub, Privacy, Releases.
+            ("About", connected.aboutWindowController, 3),
+            // Refresh Report, Copy, Save.
+            ("Diagnostics", connected.diagnosticsWindowController, 3),
+            // Reauthorize Permissions, Disconnect & Delete Local Data.
+            ("Connection", connected.connectionWindowController, 2),
+        ]
+        for (name, controller, count) in expected {
+            let window = try #require(controller?.window, "\(name)")
+            let stops = await tabStops(in: window)
+            #expect(stops.count == count, "\(name): \(stops)")
+        }
+
+        let setup = await delegate(connected: false)
+        setup.showConnectionWindow()
+        let window = try #require(setup.connectionWindowController?.window)
+        // Open Oura developer portal, I Have Created It.
+        #expect(await tabStops(in: window).count == 2)
     }
 
     @Test func themeArrowsStopAtEitherEnd() {

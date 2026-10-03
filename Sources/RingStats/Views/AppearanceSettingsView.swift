@@ -19,7 +19,9 @@ struct AppearanceSettingsView: View {
 
     static let baseSize = CGSize(width: 500, height: 815)
     @State private var configuration: MetricConfiguration
-    @FocusState private var focusedReorderMetric: Metric?
+    /// The stats list's selected row, which Space shows or hides and
+    /// Option-Up and Option-Down move.
+    @State private var selectedMetric: Metric?
     @FocusState private var themeGroupFocused: Bool
     @State private var themeFocusRingVisible = false
 
@@ -54,7 +56,32 @@ struct AppearanceSettingsView: View {
 
     private func move(_ metric: Metric, offset: Int) {
         apply(configuration.moving(metric, by: offset))
-        focusedReorderMetric = metric
+        selectedMetric = metric
+        if let position = configuration.reorderCapabilities(for: metric)?.position {
+            AccessibilityNotification.Announcement("\(metric.title) moved to position \(position)").post()
+        }
+    }
+
+    /// Space shows or hides the selected stat; Option-Up and Option-Down move
+    /// it. Plain arrows stay with the list, which moves the selection.
+    private func handleListKey(_ press: KeyPress) -> KeyPress.Result {
+        guard let metric = selectedMetric else { return .ignored }
+        switch press.key {
+        case .space:
+            let binding = visibilityBinding(for: metric)
+            let lastVisible = configuration.visibleMetrics.count == 1 && binding.wrappedValue
+            guard !lastVisible else { return .handled }
+            binding.wrappedValue.toggle()
+            return .handled
+        case .upArrow where press.modifiers.contains(.option):
+            if configuration.reorderCapabilities(for: metric)?.canMoveUp == true { move(metric, offset: -1) }
+            return .handled
+        case .downArrow where press.modifiers.contains(.option):
+            if configuration.reorderCapabilities(for: metric)?.canMoveDown == true { move(metric, offset: 1) }
+            return .handled
+        default:
+            return .ignored
+        }
     }
 
     /// The theme choices as one keyboard stop, like a macOS radio group: Tab
@@ -152,6 +179,11 @@ struct AppearanceSettingsView: View {
                     .scaledFont(.headline)
                 Spacer()
                 TextSizeSlider(selection: textSize)
+                    .keyboardStepper { offset in
+                        let sizes = TextSizePreference.allCases
+                        let index = (sizes.firstIndex(of: textSize.wrappedValue) ?? 0) + offset
+                        if sizes.indices.contains(index) { textSize.wrappedValue = sizes[index] }
+                    }
             }
             .padding(.top, 4)
 
@@ -168,6 +200,7 @@ struct AppearanceSettingsView: View {
                 }
                 Spacer()
                 Toggle("Low battery alert", isOn: $lowBatteryAlerts)
+                    .keyboardToggle($lowBatteryAlerts)
                     .toggleStyle(.switch)
                     .labelsHidden()
                     .tint(Palette.signalBlue)
@@ -198,9 +231,10 @@ struct AppearanceSettingsView: View {
                 Button("Reset") {
                     apply(.default)
                 }
+                .keyboardActivatable { apply(.default) }
             }
 
-            List {
+            List(selection: $selectedMetric) {
                 ForEach(configuration.order) { metric in
                     let capabilities = configuration.reorderCapabilities(for: metric)
                     HStack(spacing: 10) {
@@ -220,23 +254,11 @@ struct AppearanceSettingsView: View {
                             .foregroundStyle(Palette.secondaryInk)
                             .frame(width: 24, height: 24)
                             .contentShape(Rectangle())
-                            .focusable()
-                            .focused($focusedReorderMetric, equals: metric)
-                            .onMoveCommand { direction in
-                                switch direction {
-                                case .up where capabilities?.canMoveUp == true:
-                                    move(metric, offset: -1)
-                                case .down where capabilities?.canMoveDown == true:
-                                    move(metric, offset: 1)
-                                default:
-                                    break
-                                }
-                            }
                             .accessibilityLabel("Reorder \(metric.title)")
                             .accessibilityValue(
                                 "Position \(capabilities?.position ?? 1) of \(capabilities?.total ?? configuration.order.count)"
                             )
-                            .accessibilityHint("Drag, or use the Up and Down Arrow keys, to move this stat")
+                            .accessibilityHint("Drag, or select the row and press Option-Up or Option-Down, to move this stat")
                             .accessibilityActions {
                                 if capabilities?.canMoveUp == true {
                                     Button("Move Up") { move(metric, offset: -1) }
@@ -247,6 +269,7 @@ struct AppearanceSettingsView: View {
                             }
                     }
                     .padding(.vertical, 3)
+                    .tag(metric)
                 }
                 .onMove { offsets, destination in
                     apply(configuration.moving(fromOffsets: offsets, toOffset: destination))
@@ -254,8 +277,9 @@ struct AppearanceSettingsView: View {
             }
             .frame(height: (260 * textScale).rounded())
             .scrollContentBackground(.hidden)
+            .onKeyPress(keys: [.space, .upArrow, .downArrow], action: handleListKey)
 
-            Text("At least one stat must remain visible. Drag any row to reorder all stats, including hidden ones; visible stats can also be dragged in the popover.")
+            Text("At least one stat must remain visible. To reorder stats, including hidden ones, drag a row, or select it and press Option with the Up or Down Arrow. Space shows or hides the selected stat.")
                 .scaledFont(.caption)
                 .foregroundStyle(Palette.secondaryInk)
         }

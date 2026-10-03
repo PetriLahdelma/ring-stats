@@ -31,15 +31,13 @@ struct DiagnosticsView: View {
             .background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .accessibilityLabel("Diagnostics report")
             HStack {
-                Button("Refresh Report") { regenerate() }
+                Button("Refresh Report", action: regenerate)
+                    .keyboardActivatable(action: regenerate)
                 Spacer()
-                Button(copied ? "Copied" : "Copy") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(report, forType: .string)
-                    copied = true
-                    AccessibilityNotification.Announcement("Diagnostics report copied").post()
-                }
-                Button("Save…") { save() }
+                Button(copied ? "Copied" : "Copy", action: copy)
+                    .keyboardActivatable(action: copy)
+                Button("Save…", action: save)
+                    .keyboardActivatable(action: save)
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
                     .tint(Palette.signalBlue)
@@ -56,6 +54,13 @@ struct DiagnosticsView: View {
         .foregroundStyle(Palette.ink)
         .preferredColorScheme(.light)
         .onAppear { regenerate() }
+    }
+
+    private func copy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(report, forType: .string)
+        copied = true
+        AccessibilityNotification.Announcement("Diagnostics report copied").post()
     }
 
     private func regenerate() {
