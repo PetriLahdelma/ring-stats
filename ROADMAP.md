@@ -44,6 +44,14 @@ dashboard.
 - Signed-tag enforcement and a publishable provenance archive for releases.
 - Text size setting, keyboard access to the stats row, App Sandbox, AppKit
   shell tests, a CycloneDX SBOM, and signed release attestations.
+- Holographic theme, a stepped text size slider, and the charging bolt and
+  "Charged" state in the battery row.
+- Read-only Shortcuts actions for any stat and the ring battery.
+- Background refresh, slower on battery power, and an optional low ring
+  battery notification at 20%.
+- Exclusive loopback sign-in listener and local-path-free release provenance.
+- Oura sandbox test, and research on which other rings Ring Stats could
+  support ([research/RING_PROVIDERS.md](research/RING_PROVIDERS.md)).
 
 ## P0: Before broader promotion
 
@@ -57,20 +65,16 @@ dashboard.
 3. **Run the usability study.** Hold the 5 to 8 sessions in
    [research/USABILITY_STUDY.md](research/USABILITY_STUDY.md), then ship the
    single improvement the findings rank highest.
-4. **Sign the next release tag.** The release script now requires it; set up a
-   signing key as described in [RELEASING.md](RELEASING.md).
 
 ## P1: More useful every day
 
-1. **Battery-first utility.** Add an optional low-battery notification with a
-   user-controlled threshold and quiet hours.
-2. **Mac automation.** Add read-only App Intents/Shortcuts for visible scores
-   and battery state.
-3. **Metric-specific context.** Explain what each value represents, its source
+1. **Battery-first utility.** The low-battery notification ships at a fixed
+   20%. Add a user-controlled threshold and quiet hours.
+2. **Metric-specific context.** Explain what each value represents, its source
    date/time, and why it may be absent without copying Oura's analytics product.
-4. **Localization.** Start with Finnish and English, including locale-aware
+3. **Localization.** Start with Finnish and English, including locale-aware
    time, duration, and number formatting.
-5. **Update discovery.** Provide a privacy-preserving way to learn that a newer
+4. **Update discovery.** Provide a privacy-preserving way to learn that a newer
    signed release exists.
 
 ## P2: Hardening

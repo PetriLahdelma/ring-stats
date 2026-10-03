@@ -12,6 +12,6 @@ assignees: ""
 
 ## Why this belongs in a five-second menu-bar experience
 
-## Privacy, security, and Oura API impact
+## Privacy, security, and ring vendor API impact
 
 <!-- Do not include health data, credentials, tokens, or other private data. -->
