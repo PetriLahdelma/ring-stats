@@ -57,7 +57,8 @@ dashboard.
 
 1. **Obtain written Oura confirmation.** Confirm that public distribution,
    positioning, promotion, and voluntary funding comply with the current API
-   agreement. Broad promotion and donations remain on hold until then.
+   agreement. Broad promotion remains on hold until then; passive listings
+   (topics, awesome lists, the README) are fine.
 2. **Finish manual accessibility QA.** Contrast, truncation, widths, and theme
    parity are now tested automatically. Run the manual procedure in
    [ACCESSIBILITY.md](ACCESSIBILITY.md) with VoiceOver, keyboard only, Reduce
@@ -85,8 +86,10 @@ dashboard.
 
 ## P2: Sustainable open source
 
-1. **Voluntary support, only if approved.** Funding must unlock no
-   Oura-connected feature, data, support, or download.
+1. **Voluntary support.** A Buy Me a Coffee link is listed in the repository's
+   funding file. It unlocks nothing: no feature, data, support, or download
+   depends on it, and no Oura data is involved. Keep it that way, and review
+   it against the API agreement when Oura's written confirmation arrives.
 2. **Release provenance.** Signed tags, a provenance archive, a CycloneDX SBOM,
    and a signed in-toto attestation are in place, and CI attests its own
    builds. Move notarized release builds to an isolated builder once CI is
@@ -101,7 +104,8 @@ restricts charging for API-related functionality, competing with or replicating
 Oura, advertising, and commercial targeting using Oura data. Until written
 confirmation and appropriate legal review are complete:
 
-- do not accept donations or sell access based on this integration;
+- do not sell access based on this integration, and keep any voluntary
+  support independent of it;
 - do not add paid tiers, subscriptions, convenience fees, sponsor-only builds,
   advertising, or commercial targeting;
 - never sell health data, share it for targeting, or use it to train AI; and
