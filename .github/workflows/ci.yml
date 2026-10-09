@@ -15,22 +15,48 @@ concurrency:
 
 jobs:
   test:
-    name: Test and build
-    runs-on: macos-26
+    name: Test and build (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-26, macos-15]
+    # The package supports macOS 14; macos-15 exercises AppKit focus and menu
+    # behavior one release back. It is advisory until its image reliably
+    # carries an Xcode 26 toolchain.
+    continue-on-error: ${{ matrix.runner == 'macos-15' }}
     permissions:
       contents: read
-      id-token: write
-      attestations: write
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Check out repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
+      - name: Select the newest Xcode 26 toolchain
+        if: matrix.runner == 'macos-15'
+        run: |
+          xcode="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1)"
+          [ -n "$xcode" ] || { echo "No Xcode 26 on this image"; exit 1; }
+          sudo xcode-select -s "$xcode"
+
       - name: Report toolchain
         run: |
           swift --version
           xcodebuild -version
+
+      - name: Cache the Swift build directory
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build/out
+            .build/release-arm64
+            .build/release-x86_64
+          key: swift-build-${{ matrix.runner }}-${{ hashFiles('Package.swift', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
+          restore-keys: swift-build-${{ matrix.runner }}-
+
+      - name: Lint shell scripts
+        run: shellcheck -S warning scripts/*.sh scripts/tests/*.sh
 
       - name: Run tests
         run: swift test -Xswiftc -warnings-as-errors
@@ -39,7 +65,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ring-stats-state-gallery-${{ github.sha }}
+          name: ring-stats-state-gallery-${{ matrix.runner }}-${{ github.sha }}
           path: .build/state-gallery
           if-no-files-found: warn
           retention-days: 14
@@ -48,9 +74,7 @@ jobs:
         run: BUILD_ARCHS="arm64 x86_64" scripts/build_app.sh
 
       - name: Validate delivery scripts and artifact tamper checks
-        run: |
-          bash -n scripts/*.sh scripts/tests/*.sh
-          scripts/tests/test_delivery_safety.sh
+        run: scripts/tests/test_delivery_safety.sh
 
       - name: Verify the App Sandbox allows Keychain, loopback, and migration
         run: |
@@ -78,24 +102,8 @@ jobs:
       - name: Generate SBOM
         run: scripts/generate_sbom.sh "dist/Ring Stats.app" dist/ring-stats.cdx.json
 
-      # Attest what CI itself built. Public releases are built and notarized on
-      # the maintainer's Mac and carry a separately signed attestation.
-      - name: Attest build provenance
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: |
-            dist/*.dmg
-            dist/*-app.zip
-
-      - name: Attest SBOM
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
-        with:
-          subject-path: dist/*-app.zip
-          sbom-path: dist/ring-stats.cdx.json
-
       - name: Upload verified CI artifacts
+        if: matrix.runner == 'macos-26'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ring-stats-unsigned-${{ github.sha }}
@@ -111,3 +119,38 @@ jobs:
             dist/candidates/*/uuids.txt
           if-no-files-found: error
           retention-days: 14
+
+  # Attest what CI itself built, in a job that runs no repository scripts, so
+  # the OIDC token never reaches code from a pull request. Public releases are
+  # built and notarized on the maintainer's Mac and carry a separately signed
+  # attestation.
+  attest:
+    name: Attest CI build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    timeout-minutes: 10
+
+    steps:
+      - name: Download verified CI artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ring-stats-unsigned-${{ github.sha }}
+          path: dist
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.dmg
+            dist/*-app.zip
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: dist/*-app.zip
+          sbom-path: dist/ring-stats.cdx.json

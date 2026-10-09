@@ -20,7 +20,7 @@ dashboard.
 
 - Developer ID-signed, Apple-notarized universal DMG with a published checksum.
 - GitHub Discussions and privacy-safe contribution/security routes.
-- Metric visibility and ordering, two themes, resizable popover, and six
+- Metric visibility and ordering, the first two themes, resizable popover, and six
   supported statistics.
 - Refresh on open with a five-minute TTL, manual refresh, last-update status,
   stale snapshot retention, and source-day/sample-age details.

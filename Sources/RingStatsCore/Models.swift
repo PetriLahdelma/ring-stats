@@ -418,6 +418,20 @@ package struct ClientCredentials: Codable, Sendable, Equatable {
     package var callbackURL: String { redirectURI ?? OAuthLoopback.legacyCallbackURL }
 }
 
+extension MetricReading {
+    /// What a tile shows when a stat has no value, by why it has none.
+    package static func placeholder(for failure: RingStatsError?) -> MetricReading {
+        switch failure {
+        case .none:
+            MetricReading(value: "—", detail: "No data yet", score: nil, availability: .noData)
+        case .some(.insufficientScope):
+            MetricReading(value: "—", detail: "Needs access", score: nil, availability: .permissionRequired)
+        case .some:
+            MetricReading(value: "—", detail: "Unavailable", score: nil, availability: .unavailable)
+        }
+    }
+}
+
 package enum RingStatsError: LocalizedError, Sendable, Equatable {
     case notConfigured
     case notConnected
@@ -447,26 +461,31 @@ package enum RingStatsError: LocalizedError, Sendable, Equatable {
         }
     }
 
-    /// Messages name Oura because it is the only provider. A second provider
-    /// needs them to name the source of the failure instead.
-    package var errorDescription: String? {
+    /// The name used when no provider is known, such as through
+    /// `localizedDescription`. The app passes the provider's display name.
+    package static let unknownProviderName = "the service"
+
+    package var errorDescription: String? { message(provider: Self.unknownProviderName) }
+
+    /// The user-facing message, naming the provider that failed.
+    package func message(provider: String) -> String {
         switch self {
-        case .notConfigured: "Enter Oura application credentials first."
-        case .notConnected: "Connect your Oura account first."
-        case .invalidResponse: "Oura returned an invalid response."
-        case .authenticationRequired: "Your Oura authorization has expired. Reauthorize to continue."
-        case .invalidClientCredentials: "Oura rejected the Client ID or Client Secret. Check the developer application credentials and try again."
-        case .authorizationRestartRequired: "Oura rejected the authorization code. Start the browser connection again."
-        case .invalidRequestedScope: "Oura rejected a requested permission. Check the developer application scopes and reconnect."
-        case .insufficientScope: "Oura permission is missing for this statistic. Reauthorize with the requested permission."
+        case .notConfigured: "Enter \(provider) application credentials first."
+        case .notConnected: "Connect your \(provider) account first."
+        case .invalidResponse: "\(provider) returned an invalid response."
+        case .authenticationRequired: "Your \(provider) authorization has expired. Reauthorize to continue."
+        case .invalidClientCredentials: "\(provider) rejected the Client ID or Client Secret. Check the developer application credentials and try again."
+        case .authorizationRestartRequired: "\(provider) rejected the authorization code. Start the browser connection again."
+        case .invalidRequestedScope: "\(provider) rejected a requested permission. Check the developer application scopes and reconnect."
+        case .insufficientScope: "\(provider) permission is missing for this statistic. Reauthorize with the requested permission."
         case .rateLimited(let retryAfter):
             if let retryAfter, retryAfter.isFinite {
-                "Oura is temporarily rate limiting requests. Try again in \(Int(ceil(retryAfter))) seconds."
+                "\(provider) is temporarily rate limiting requests. Try again in \(Int(ceil(retryAfter))) seconds."
             } else {
-                "Oura is temporarily rate limiting requests. Try again shortly."
+                "\(provider) is temporarily rate limiting requests. Try again shortly."
             }
-        case .timedOut: "The Oura request timed out. Check your connection and try again."
-        case .malformedData: "Oura returned data in an unexpected format."
+        case .timedOut: "The \(provider) request timed out. Check your connection and try again."
+        case .malformedData: "\(provider) returned data in an unexpected format."
         case .credentialStore(let message): message
         case .transport(let message): message
         case .server(let message): message

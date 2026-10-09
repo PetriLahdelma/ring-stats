@@ -173,20 +173,9 @@ package actor OuraAPI: SnapshotFetching {
 
     /// The reading shown when a metric has no value from this refresh. The view
     /// model replaces transient-failure placeholders with the last known value.
+    /// Forwards to the provider-neutral placeholder in Core.
     package static func placeholder(for failure: RingStatsError?) -> MetricReading {
-        switch failure {
-        case .none:
-            MetricReading(value: "—", detail: "No data yet", score: nil, availability: .noData)
-        case .some(.insufficientScope):
-            MetricReading(
-                value: "—",
-                detail: "Needs access",
-                score: nil,
-                availability: .permissionRequired
-            )
-        case .some:
-            MetricReading(value: "—", detail: "Unavailable", score: nil, availability: .unavailable)
-        }
+        MetricReading.placeholder(for: failure)
     }
 
     private static func fetchPart(

@@ -124,8 +124,12 @@ public sandbox provides realistic data (step 5).
 - Put a test in the suite for the boundary it exercises: `AppViewModelTests`,
   `ProviderBoundaryTests`, `OuraAPITests`, `OAuthClientTests`,
   `InfrastructureSecurityTests`, `DiagnosticsTests`, `StateGalleryTests`, and
-  the feature suites beside them. Shared fakes live in `TestSupport.swift`.
-- Wait on explicit gates (`Gate`, `waitUntil`, `HTTPHold`). Never `sleep`.
+  the feature suites beside them. `RingStatsTests.swift` holds the older
+  free-standing tests of pure helpers (score bands, status text, reorder
+  math, contrast); add to a suite instead of there. Shared fakes live in
+  `TestSupport.swift`.
+- Wait on explicit gates (`Gate`, `waitUntil`, `HTTPHold`), and assert on
+  what happened, never on elapsed wall-clock time. Never `sleep`.
 - Write the test first for security-, state-, time-, or persistence-sensitive
   behavior, and show it failing without your change.
 - Tests must run offline. A test that needs the network must be opt-in, as

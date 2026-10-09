@@ -581,7 +581,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         })
         .environmentObject(model)
         let controller = makeWindow(
-            title: "Oura Connection",
+            title: "\(model.descriptor.displayName) Connection",
             content: view
         )
         connectionWindowController = controller

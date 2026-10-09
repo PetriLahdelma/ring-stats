@@ -206,7 +206,7 @@ import Testing
     )
     let size = controller.sizeThatFits(in: NSSize(width: 420, height: 800))
     #expect(size.width == 420)
-    #expect(size.height == 261)
+    #expect(size.height == 250 + MenuPopoverBubbleShape.arrowHeight)
 }
 
 @Test func popoverWidthClampsToSupportedRange() {
@@ -672,12 +672,19 @@ import Testing
     }
 }
 
+enum RingStatsTestPaths {
+    /// Undocumented system metadata; the test that reads it skips if a macOS
+    /// release moves it.
+    static let symbolAvailability = "/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist"
+}
+
 /// Every metric symbol was introduced no later than macOS 14, the minimum
 /// supported version. Checking `NSImage` alone would only prove the symbol
 /// exists on the test Mac, so this reads the system's own SF Symbols
 /// availability metadata.
-@Test func metricSymbolsExistOnTheMinimumMacOS() throws {
-    let url = URL(fileURLWithPath: "/System/Library/CoreServices/CoreGlyphs.bundle/Contents/Resources/name_availability.plist")
+@Test(.enabled(if: FileManager.default.fileExists(atPath: RingStatsTestPaths.symbolAvailability)))
+func metricSymbolsExistOnTheMinimumMacOS() throws {
+    let url = URL(fileURLWithPath: RingStatsTestPaths.symbolAvailability)
     let plist = try #require(NSDictionary(contentsOf: url))
     let symbols = try #require(plist["symbols"] as? [String: String])
     let releases = try #require(plist["year_to_release"] as? [String: [String: String]])

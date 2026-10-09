@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
@@ -12,17 +13,6 @@ DSYM_DIR="${3:-$PROJECT_DIR/dist/Ring Stats.app.dSYM}"
 MANIFEST_HASH_PATH="${MANIFEST_HASH_PATH:-${MANIFEST_PATH%.*}.sha256}"
 EXECUTABLE="$APP_DIR/Contents/MacOS/RingStats"
 
-fail() { echo "error: $*" >&2; exit 1; }
-read_field() { /usr/bin/plutil -extract "$2" raw "$1" 2>/dev/null || true; }
-canonical_path() { (cd "$(dirname "$1")" && printf '%s/%s\n' "$(pwd -P)" "$(basename "$1")"); }
-working_tree_hash() {
-  local index
-  index="$(mktemp "${TMPDIR:-/tmp}/ring-stats-manifest-index.XXXXXX")"
-  GIT_INDEX_FILE="$index" /usr/bin/git -C "$PROJECT_DIR" read-tree HEAD
-  GIT_INDEX_FILE="$index" /usr/bin/git -C "$PROJECT_DIR" add -A
-  GIT_INDEX_FILE="$index" /usr/bin/git -C "$PROJECT_DIR" write-tree
-  /bin/rm -f "$index"
-}
 
 for path_value in "$MANIFEST_PATH" "$APP_DIR" "$DSYM_DIR" "$MANIFEST_HASH_PATH"; do
   [[ -n "$path_value" && "$path_value" != "/" && ! "$path_value" =~ [[:cntrl:]] ]] || fail "Unsafe manifest verification path"

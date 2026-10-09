@@ -63,8 +63,10 @@ Git or GitHub commands are technically capable of bypassing the procedure.
 2. Move completed entries from **Unreleased** in `CHANGELOG.md` into a dated
    version section.
 3. Run the contributor verification commands.
-4. Commit the release preparation using the repository's Lore commit format,
-   open a pull request, and merge it after required checks pass.
+4. Commit the release preparation in the commit form CONTRIBUTING.md
+   describes, open a pull request, and merge it after the local verification
+   in CONTRIBUTING.md passes. GitHub Actions results are not a merge
+   requirement.
 5. Fast-forward the local branch to the reviewed remote commit, then create a
    signed tag whose version matches the plist. Tag only after the release
    pull request is merged, so the tag lands on the exact protected-branch

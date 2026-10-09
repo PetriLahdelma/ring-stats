@@ -194,6 +194,10 @@ expect_failure /usr/bin/env RING_STATS_TEST_MODE=1 "$PROJECT_DIR/scripts/preflig
 expect_failure /usr/bin/env RING_STATS_TEST_MODE=1 "$PROJECT_DIR/scripts/sign_and_notarize.sh"
 
 # The independent manifest verifier rejects checksum and semantic tampering.
+# These checks need a built candidate; skipping them silently once passed a
+# run that had verified nothing.
+[[ -f "$PROJECT_DIR/dist/candidate-manifest.json" ]] \
+  || fail "dist/candidate-manifest.json is missing; run scripts/build_app.sh before this test"
 if [[ -f "$PROJECT_DIR/dist/candidate-manifest.json" ]]; then
   manifest_copy="$TEST_ROOT/manifest-copy.json"
   /bin/cp "$PROJECT_DIR/dist/candidate-manifest.json" "$manifest_copy"

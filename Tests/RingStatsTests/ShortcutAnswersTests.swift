@@ -131,7 +131,7 @@ struct ShortcutAnswersTests {
             .noData(.sleep), .unavailable(.readiness), .batteryUnavailable,
         ]
         for failure in failures {
-            let hasDigit = failure.message.contains { $0.isNumber }
+            let hasDigit = failure.message(provider: "Oura").contains { $0.isNumber }
             #expect(!hasDigit, "\(failure)")
         }
     }

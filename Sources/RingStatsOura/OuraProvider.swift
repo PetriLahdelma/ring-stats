@@ -15,7 +15,8 @@ package struct OuraProvider: HealthProvider {
         metricScopes: Dictionary(uniqueKeysWithValues: Metric.allCases.map {
             ($0, $0.requiredScope.authorizationScope)
         }),
-        baseScopes: [OuraScope.ringConfiguration.authorizationScope]
+        baseScopes: [OuraScope.ringConfiguration.authorizationScope],
+        developerPortal: URL(string: "https://developer.ouraring.com/applications")
     )
 
     package let account: any OAuthServicing

@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
 APP_DIR="${APP_DIR:-$PROJECT_DIR/dist/Ring Stats.app}"
@@ -8,10 +9,6 @@ MANIFEST_PATH="${MANIFEST_PATH:-$PROJECT_DIR/dist/candidate-manifest.json}"
 MANIFEST_HASH_PATH="${MANIFEST_HASH_PATH:-$PROJECT_DIR/dist/candidate-manifest.sha256}"
 EXECUTABLE="$APP_DIR/Contents/MacOS/RingStats"
 
-fail() {
-  echo "error: $*" >&2
-  exit 1
-}
 
 [[ -x "$EXECUTABLE" ]] || fail "Missing candidate executable: $EXECUTABLE"
 [[ -d "$DSYM_DIR" ]] || fail "Missing candidate dSYM: $DSYM_DIR"

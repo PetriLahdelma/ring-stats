@@ -53,7 +53,9 @@ extension EnvironmentValues {
 
 struct MenuPopoverBubbleShape: Shape {
     let arrowX: CGFloat
-    private let arrowHeight: CGFloat = 11
+    /// The arrow above the bubble; the shell reserves this much above its content.
+    static let arrowHeight: CGFloat = 11
+    private var arrowHeight: CGFloat { Self.arrowHeight }
     private let arrowWidth: CGFloat = 34
     private let cornerRadius: CGFloat = 20
 
@@ -131,7 +133,7 @@ struct MenuPopoverShell<Content: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: 11)
+            Color.clear.frame(height: MenuPopoverBubbleShape.arrowHeight)
             content
         }
         .environment(\.popoverIsPresented, geometry.isPresented)

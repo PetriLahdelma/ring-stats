@@ -34,7 +34,7 @@ enum PopoverTimestampText {
         if isRefreshing {
             return RefreshStatusPresentation(
                 label: "Refreshing…",
-                accessibility: "Refreshing Oura data",
+                accessibility: "Refreshing stats",
                 isVisible: true,
                 showsSpinner: true,
                 tone: .neutral
@@ -544,7 +544,7 @@ struct MenuPopoverView: View {
                         Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
                     } label: {
                         Label(
-                            model.loading ? "Opening Oura…" : permissionActionTitle,
+                            model.loading ? "Opening \(model.descriptor.displayName)…" : permissionActionTitle,
                             systemImage: "exclamationmark.circle"
                         )
                         .scaledFont(size: 12, weight: .semibold)
@@ -554,7 +554,7 @@ struct MenuPopoverView: View {
                         Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
                     }
                     .disabled(model.loading)
-                    .accessibilityHint("Opens Oura authorization to grant the missing data permission")
+                    .accessibilityHint("Opens \(model.descriptor.displayName) authorization to grant the missing data permission")
                 }
                 Divider().overlay(theme.divider)
                 HStack {
@@ -572,7 +572,7 @@ struct MenuPopoverView: View {
             } else {
                 VStack(spacing: 10) {
                     RingStatsLogoView(size: 30, color: theme.action)
-                    Text("Connect Oura to see today’s scores")
+                    Text("Connect \(model.descriptor.displayName) to see today’s scores")
                         .scaledFont(size: 14, weight: .medium)
                     Button("Connect", action: showConnection)
                         .buttonStyle(.themedAction(theme))

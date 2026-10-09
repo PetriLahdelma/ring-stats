@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 import SwiftUI
 import Testing
@@ -398,8 +399,9 @@ struct GalleryRender {
         window.backgroundColor = .clear
         window.contentView = hosting
         hosting.layoutSubtreeIfNeeded()
-        // Let SwiftUI settle onAppear-driven state before capturing.
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        // Let SwiftUI settle onAppear-driven state before capturing: a few
+        // run-loop passes, not a timed sleep.
+        for _ in 0..<3 { _ = RunLoop.main.run(mode: .default, before: Date()) }
         hosting.layoutSubtreeIfNeeded()
 
         let scale: CGFloat = 2
@@ -442,10 +444,19 @@ enum GalleryError: Error {
     case renderFailed
 }
 
+/// Render hashes, keyed by name.
+private final class HashList: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [String: String] = [:]
+    func set(_ name: String, _ hash: String) { lock.withLock { entries[name] = hash } }
+    var values: [String: String] { lock.withLock { entries } }
+}
+
 /// Writes renders and an HTML contact sheet for human review.
 struct GalleryWriter {
     let directory: URL
     private let names = NameList()
+    private let hashes = HashList()
 
     init(subdirectory: String = "popover") throws {
         let root = ProcessInfo.processInfo.environment["RING_STATS_GALLERY_DIR"].map(URL.init(fileURLWithPath:))
@@ -461,9 +472,25 @@ struct GalleryWriter {
     func add(_ render: GalleryRender, name: String) throws {
         try render.png.write(to: directory.appendingPathComponent("\(name).png"))
         names.append(name)
+        hashes.set(name, SHA256.hash(data: render.png).map { String(format: "%02x", $0) }.joined())
+    }
+
+    /// Writes every render's SHA-256 to hashes.json, so two runs on the same
+    /// machine can be diffed, and compares against a baseline file when
+    /// RING_STATS_GALLERY_BASELINE names one. Font rendering differs between
+    /// machines, so the comparison is opt-in.
+    func writeHashes() throws {
+        let recorded = hashes.values
+        let data = try JSONSerialization.data(withJSONObject: recorded, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: directory.appendingPathComponent("hashes.json"))
+        guard let baselinePath = ProcessInfo.processInfo.environment["RING_STATS_GALLERY_BASELINE"] else { return }
+        let baseline = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: baselinePath))) as? [String: String] ?? [:]
+        let changed = recorded.filter { baseline[$0.key] != nil && baseline[$0.key] != $0.value }.keys.sorted()
+        #expect(changed.isEmpty, "renders differ from the baseline: \(changed)")
     }
 
     func writeIndex() throws {
+        try writeHashes()
         let items = names.values.map { name in
             "<figure><img src=\"\(name).png\"><figcaption>\(name)</figcaption></figure>"
         }.joined(separator: "\n")

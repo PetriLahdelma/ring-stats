@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
@@ -21,21 +22,13 @@ else
   CANDIDATE_MANIFEST="$PROJECT_DIR/dist/candidate-manifest.json"
 fi
 
-fail() { echo "error: $*" >&2; exit 1; }
 [[ -n "$message" ]] || fail "The exact explicit user approval message is required"
 /bin/mkdir -p "$APPROVAL_DIR"
 [[ ! -L "$APPROVAL_DIR" ]] || fail "Approval directory must not be a symbolic link"
 canonical_approval_dir="$(cd "$APPROVAL_DIR" && pwd -P)"
 [[ "$canonical_approval_dir" == "$APPROVAL_DIR" ]] || fail "Approval directory must be canonical"
 temporary="$(mktemp "$APPROVAL_DIR/.approval.XXXXXX.plist")"
-mount_dir=""
-cleanup() {
-  if [[ -n "$mount_dir" ]]; then
-    /usr/bin/hdiutil detach "$mount_dir" -quiet >/dev/null 2>&1 || true
-    /bin/rmdir "$mount_dir" >/dev/null 2>&1 || true
-  fi
-  /bin/rm -f "$temporary"
-}
+cleanup() { /bin/rm -f "$temporary"; }
 trap cleanup EXIT
 /usr/bin/plutil -create xml1 "$temporary"
 /usr/bin/plutil -insert schema_version -integer 1 "$temporary"

@@ -28,7 +28,33 @@ struct ProviderBoundaryTests {
             .compactMap { $0 as? URL }
             .filter { $0.pathExtension == "swift" }
         let importers = try files.filter { try String(contentsOf: $0, encoding: .utf8).contains("import RingStatsOura") }
-        #expect(importers.map(\.lastPathComponent) == ["AppViewModel.swift"])
+        #expect(importers.map(\.lastPathComponent) == ["ProviderRegistry.swift"])
+    }
+
+    /// Core names no provider; the app passes the name in.
+    @Test func coreCarriesNoProviderName() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/RingStatsCore")
+        let files = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+        // Comments may mention Oura's history and conventions; code and
+        // strings may not.
+        let offenders = try files.filter { file in
+            try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .contains { $0.contains("Oura") }
+        }
+        #expect(offenders.isEmpty, "\(offenders.map(\.lastPathComponent))")
+
+        #expect(RingStatsError.timedOut.message(provider: "Ultrahuman")
+            == "The Ultrahuman request timed out. Check your connection and try again.")
+        #expect(RingStatsError.notConnected.message(provider: "Oura") == "Connect your Oura account first.")
+        #expect(RingStatsError.timedOut.errorDescription?.contains("Oura") == false)
+        #expect(ShortcutFailure.notConnected.message(provider: "Ultrahuman")
+            == "Ring Stats is not connected to Ultrahuman. Open Ring Stats to connect.")
+        #expect(OuraProvider.descriptor.developerPortal?.host == "developer.ouraring.com")
     }
 
     @Test func ouraDescriptorRequestsTheSameScopesAsBefore() {

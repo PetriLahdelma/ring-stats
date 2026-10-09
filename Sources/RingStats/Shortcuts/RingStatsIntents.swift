@@ -53,7 +53,7 @@ enum RingStat: String, AppEnum {
 struct GetRingStatIntent: AppIntent {
     static let title: LocalizedStringResource = "Get Ring Stat"
     static let description = IntentDescription(
-        "Returns a stat from Ring Stats, refreshed from Oura when it is more than five minutes old."
+        "Returns a stat from Ring Stats, refreshed when it is more than five minutes old."
     )
 
     @Parameter(title: "Stat", default: .readiness)
@@ -82,7 +82,7 @@ struct GetRingStatIntent: AppIntent {
 struct GetRingBatteryIntent: AppIntent {
     static let title: LocalizedStringResource = "Get Ring Battery"
     static let description = IntentDescription(
-        "Returns the ring battery percentage from Ring Stats, refreshed from Oura when it is more than five minutes old."
+        "Returns the ring battery percentage from Ring Stats, refreshed when it is more than five minutes old."
     )
 
     @MainActor
@@ -100,13 +100,15 @@ struct GetRingBatteryIntent: AppIntent {
 /// Carries a `ShortcutFailure` message to Shortcuts.
 struct ShortcutIntentError: Error, CustomLocalizedStringResourceConvertible {
     let failure: ShortcutFailure
+    let provider: String
 
-    init(_ failure: ShortcutFailure) {
+    init(_ failure: ShortcutFailure, provider: String = ProviderRegistry.defaultDisplayName) {
         self.failure = failure
+        self.provider = provider
     }
 
     var localizedStringResource: LocalizedStringResource {
-        LocalizedStringResource(stringLiteral: failure.message)
+        LocalizedStringResource(stringLiteral: failure.message(provider: provider))
     }
 }
 

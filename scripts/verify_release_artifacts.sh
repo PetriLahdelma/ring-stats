@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
 APP_DIR="${APP_DIR:-$PROJECT_DIR/dist/Ring Stats.app}"
@@ -10,10 +11,6 @@ EXECUTABLE="$APP_DIR/Contents/MacOS/RingStats"
 DSYM_DIR="${DSYM_DIR:-$PROJECT_DIR/dist/Ring Stats.app.dSYM}"
 MANIFEST_PATH="${MANIFEST_PATH:-$PROJECT_DIR/dist/candidate-manifest.json}"
 
-fail() {
-  echo "error: $*" >&2
-  exit 1
-}
 
 verify_disk_image() {
   local disk_image="$1"
