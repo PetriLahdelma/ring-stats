@@ -175,22 +175,27 @@ struct AppShellTests {
     }
 
     /// The distinct controls Tab visits in a window, in order, with each
-    /// one's frame when last focused. Controls are told apart by identity,
-    /// not position: on a slow machine the layout can still be settling, and
-    /// a control that moves between two visits must count once.
+    /// one's frame when last focused. A control is the same control when
+    /// the backing view is the same object (on a slow machine the layout can
+    /// still be settling, so one control may move between two visits) or
+    /// when the frame is the same (macOS 15 hands SwiftUI focus a fresh
+    /// backing view object on each visit, so identity alone double counts).
     private func tabStops(in window: NSWindow) async -> [NSRect] {
         window.contentView?.layoutSubtreeIfNeeded()
-        var order: [ObjectIdentifier] = []
-        var frames: [ObjectIdentifier: NSRect] = [:]
+        var stops: [(id: ObjectIdentifier, frame: NSRect)] = []
         for _ in 0..<24 {
             window.selectNextKeyView(nil)
             for _ in 0..<3 { await Task.yield() }
             guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
             let id = ObjectIdentifier(view)
-            if frames[id] == nil { order.append(id) }
-            frames[id] = view.convert(view.bounds, to: nil)
+            let frame = view.convert(view.bounds, to: nil)
+            if let index = stops.firstIndex(where: { $0.id == id }) {
+                stops[index].frame = frame
+            } else if !stops.contains(where: { $0.frame == frame }) {
+                stops.append((id, frame))
+            }
         }
-        return order.compactMap { frames[$0] }
+        return stops.map(\.frame)
     }
 
     /// Tab reaches every control in every window, with the system Keyboard
