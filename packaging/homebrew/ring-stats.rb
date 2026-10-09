@@ -4,8 +4,8 @@
 #   brew install --cask ring-stats
 # Update version and sha256 for each release (shasum -a 256 Ring-Stats-<v>.dmg).
 cask "ring-stats" do
-  version "1.3.6"
-  sha256 "43fed8d4ada8da8265ef319fa02a2b7b1cc4816255dc8f0b06ab4f7c57b29087"
+  version "1.4.0"
+  sha256 "815024e9e79485731cd10800cd824808b92c11972244924e419ae006a6e4c081"
 
   url "https://github.com/PetriLahdelma/ring-stats/releases/download/v#{version}/Ring-Stats-#{version}.dmg",
       verified: "github.com/PetriLahdelma/ring-stats/"
