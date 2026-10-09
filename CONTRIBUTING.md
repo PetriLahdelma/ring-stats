@@ -75,7 +75,10 @@ These are not negotiable. A pull request that breaks one is not merged.
 Requirements:
 
 - macOS 14 or later
-- Xcode 26, or another toolchain supporting Swift tools version 6.2
+- Xcode 26 or 27, or another toolchain supporting Swift tools version 6.2.
+  Release builds pin SwiftPM's native build engine (`--build-system native`),
+  because Xcode 27's Swift Build engine writes the build machine's paths into
+  every swiftmodule and so into the dSYM.
 - Git
 
 No package installation is needed.

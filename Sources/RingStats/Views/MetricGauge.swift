@@ -1,6 +1,5 @@
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 /// Fixed geometry for one metric tile. Every tile has the same zones in the
 /// same order, so themes and metrics vary content, never layout:

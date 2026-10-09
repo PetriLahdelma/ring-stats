@@ -43,6 +43,18 @@ struct BackgroundRefreshTests {
         #expect(alert.evaluate(BatteryReading(level: 18, isCharging: false), isStale: false) == 18)
     }
 
+    /// A full charge between two half-hourly samples arrives as "100%, not
+    /// charging"; it must still re-arm, or the alert would never fire again.
+    @Test func recoveredLevelRearmsWithoutACharginSample() {
+        var alert = LowBatteryAlert()
+        #expect(alert.evaluate(BatteryReading(level: 19, isCharging: false), isStale: false) == 19)
+        #expect(alert.evaluate(BatteryReading(level: 45, isCharging: false), isStale: false) == nil)
+        #expect(!alert.isArmed)
+        #expect(alert.evaluate(BatteryReading(level: 100, isCharging: false), isStale: false) == nil)
+        #expect(alert.isArmed)
+        #expect(alert.evaluate(BatteryReading(level: 17, isCharging: false), isStale: false) == 17)
+    }
+
     @Test func staleOrUnknownBatteryNeverAlerts() {
         var alert = LowBatteryAlert()
         #expect(alert.evaluate(BatteryReading(level: 5, isCharging: false), isStale: true) == nil)
@@ -104,6 +116,23 @@ struct BackgroundRefreshTests {
 
         #expect(!(await refresher.runOnce()))
         #expect(await api.callCount == 0)
+    }
+
+    /// A refresh that failed still counts as an attempt, so a Mac on battery
+    /// without network waits the two hours instead of retrying every wake.
+    @Test func onBatteryPowerAFailedAttemptAlsoWaits() async {
+        let (model, api) = model(results: [.failure(.timedOut), .failure(.timedOut)])
+        await model.refreshNow(metrics: [.readiness])
+        #expect(model.lastRefreshAttemptAt == now)
+        let refresher = BackgroundRefresher(
+            model: model,
+            power: FixedPower(isConstrained: true),
+            metrics: { [.readiness] },
+            now: { [now] in now.addingTimeInterval(30 * 60) }
+        )
+
+        #expect(!(await refresher.runOnce()))
+        #expect(await api.callCount == 1)
     }
 
     @Test func onBatteryPowerRecentDataIsNotRefetched() async {

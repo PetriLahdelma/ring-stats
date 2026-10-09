@@ -142,6 +142,30 @@ extension HTTPStubbedTests {
             #expect(recorder.requests.count == 1)
         }
 
+        /// Oura rotates refresh tokens. A fresh pair the Keychain could not
+        /// store is kept in memory, or the consumed token would be replayed
+        /// and the user sent back through the browser.
+        @Test func freshTokenSurvivesAKeychainWriteFailure() async throws {
+            let store = SaveFailingAfterLoadStore()
+            let credentials = ClientCredentials(clientID: "client", clientSecret: "secret")
+            try store.save(credentials, account: "client-credentials")
+            try store.save(
+                OAuthToken(accessToken: "expired", refreshToken: "old", expiresAt: .distantPast),
+                account: "oauth-token"
+            )
+            let recorder = HTTPStubRecorder { request in
+                stubResponse(request, 200, #"{"access_token":"fresh","refresh_token":"next","expires_in":3600}"#)
+            }
+            let client = OAuthClient(store: store, session: recorder.session)
+            // The Keychain locks after the client has loaded.
+            store.failSaves = true
+
+            #expect(try await client.accessToken(forceRefresh: false) == "fresh")
+            // The second call uses the fresh token from memory; no refresh.
+            #expect(try await client.accessToken(forceRefresh: false) == "fresh")
+            #expect(recorder.requests.count == 1)
+        }
+
         @Test func rejectedTokenRefreshDurablyExpiresAuthorizationButKeepsCredentials() async throws {
             let store = TestCredentialStore()
             let credentials = ClientCredentials(clientID: "client", clientSecret: "secret")

@@ -18,6 +18,8 @@ package enum DiagnosticEvent: Sendable, Equatable {
     case endpointResponse(endpoint: DiagnosticEndpoint, status: Int)
     case endpointUnreachable(endpoint: DiagnosticEndpoint, error: RingStatsError)
     case tokenRefreshed
+    /// A fresh token is in use but could not be written to the Keychain.
+    case tokenPersistFailed
     case tokenRefreshFailed(RingStatsError)
     case callbackRejected
     case callbackAccepted
@@ -29,7 +31,7 @@ package enum DiagnosticEvent: Sendable, Equatable {
         switch self {
         case .refreshStarted, .refreshSucceeded, .refreshPartial, .refreshFailed: .refresh
         case .authorizationStarted, .authorizationSucceeded, .authorizationCancelled,
-             .authorizationFailed, .tokenRefreshed, .tokenRefreshFailed, .disconnected: .authorization
+             .authorizationFailed, .tokenRefreshed, .tokenRefreshFailed, .tokenPersistFailed, .disconnected: .authorization
         case .endpointResponse, .endpointUnreachable: .network
         case .callbackRejected, .callbackAccepted: .callback
         case .backgroundRefreshSkipped: .refresh
@@ -77,6 +79,8 @@ package enum DiagnosticEvent: Sendable, Equatable {
             "\(endpoint.name): \(error.diagnosticKind)"
         case .tokenRefreshed:
             "Access token refreshed"
+        case .tokenPersistFailed:
+            "Fresh access token kept in memory; Keychain write failed"
         case .tokenRefreshFailed(let error):
             "Access token refresh failed: \(error.diagnosticKind)"
         case .callbackRejected:

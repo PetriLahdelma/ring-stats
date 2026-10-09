@@ -1,6 +1,5 @@
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 struct AppearanceSettingsView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue

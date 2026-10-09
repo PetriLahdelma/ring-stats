@@ -85,6 +85,16 @@ for entitlement in com.apple.security.cs.disable-library-validation com.apple.se
 done
 /bin/rm -f "$entitlements_plist"
 
+# A Developer ID build must carry the hardened runtime that SECURITY.md and
+# THREAT_MODEL.md promise. Notarization would refuse it too, but only after
+# Gate A has approved the build.
+# Captured first: piping codesign into grep -q trips pipefail on SIGPIPE.
+signature_details="$(/usr/bin/codesign -dvv "$APP_DIR" 2>&1 || true)"
+if [[ "$signature_details" == *"Authority=Developer ID Application"* ]]; then
+  [[ "$signature_details" == *"flags="*"(runtime)"* ]] \
+    || fail "Hardened runtime is not enabled on the Developer ID-signed app"
+fi
+
 scan_artifact() {
   local target="$1"
   local findings

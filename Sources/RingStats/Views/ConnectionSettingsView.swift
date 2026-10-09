@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 /// Where the first-run connection flow is. Oura requires each person to use
 /// their own developer application, so onboarding explains that constraint in

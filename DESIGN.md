@@ -182,6 +182,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 
 ### Action Buttons
 - A step's main action uses the primary style: Signal Blue fill with white text (about 8:1). Back and Cancel use the secondary style: a 1pt Signal Blue outline with Signal Blue text on the canvas (about 7:1).
+- In the popover, Connect and the "Enable … Access" button use the themed action style: filled with the theme's action color (Signal Blue, white, or Holographic Ink) and text in `actionLabel`. The popover panel is never the key window, so the system prominent style drew them grey, as if disabled.
 - Both are custom styles because `.borderedProminent` turns grey whenever its window is not the active one, which erased the hierarchy in the connection window. A disabled primary fades to 45% rather than turning grey.
 - In-content utilities such as Copy keep the neutral system style, so only one button per step reads as the next step.
 

@@ -1,6 +1,5 @@
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 enum StripDirection: Sendable {
     case left

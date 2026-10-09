@@ -18,6 +18,19 @@ struct ProviderBoundaryTests {
         baseScopes: []
     )
 
+    /// The app reaches the Oura module only where it chooses the provider.
+    /// Any other import would let a view depend on Oura types silently.
+    @Test func onlyTheCompositionRootImportsTheOuraModule() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/RingStats")
+        let files = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+        let importers = try files.filter { try String(contentsOf: $0, encoding: .utf8).contains("import RingStatsOura") }
+        #expect(importers.map(\.lastPathComponent) == ["AppViewModel.swift"])
+    }
+
     @Test func ouraDescriptorRequestsTheSameScopesAsBefore() {
         let all = Metric.allCases
         for mask in 0..<(1 << all.count) {

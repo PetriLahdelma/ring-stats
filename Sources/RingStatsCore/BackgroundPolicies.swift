@@ -25,6 +25,8 @@ package enum BackgroundRefreshPolicy {
 package struct LowBatteryAlert: Sendable, Equatable {
     /// The level at which the battery icon also turns to Alert.
     package static let threshold = 20
+    /// How far above the threshold a reading must be to count as recharged.
+    package static let rearmMargin = 30
 
     package private(set) var isArmed = true
 
@@ -33,7 +35,10 @@ package struct LowBatteryAlert: Sendable, Equatable {
     /// Returns the level to announce, or nil when nothing should be announced.
     package mutating func evaluate(_ battery: BatteryReading?, isStale: Bool) -> Int? {
         guard let battery, !isStale, let level = battery.level else { return nil }
-        if battery.isCharging {
+        // The app samples every half hour, so a full charge between samples
+        // arrives as "100%, not charging"; a clearly recovered level re-arms
+        // too, or one missed charging sample would silence every later drain.
+        if battery.isCharging || level >= Self.threshold + Self.rearmMargin {
             isArmed = true
             return nil
         }

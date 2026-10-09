@@ -15,8 +15,6 @@ package enum OAuthLoopback {
 }
 
 package actor CallbackServer {
-    private static let maximumHeaderBytes = 16_384
-
     private let expectedState: String
     private let queue = DispatchQueue(label: "local.ringstats.oauth-callback")
     private var sockets: [Int32] = []

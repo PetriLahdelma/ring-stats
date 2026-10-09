@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 /// What the top-right status shows. `label` stays populated while hidden so
 /// the text can fade out instead of vanishing, and `accessibility` is always
@@ -541,8 +540,7 @@ struct MenuPopoverView: View {
                         )
                         .scaledFont(size: 12, weight: .semibold)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(theme.action)
+                    .buttonStyle(.themedAction(theme))
                     .keyboardActivatable(theme: theme) {
                         Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
                     }
@@ -573,17 +571,9 @@ struct MenuPopoverView: View {
                     RingStatsLogoView(size: 30, color: theme.action)
                     Text("Connect Oura to see today’s scores")
                         .scaledFont(size: 14, weight: .medium)
-                    if theme == .landscape {
-                        Button("Connect", action: showConnection)
-                            .buttonStyle(.bordered)
-                            .tint(.white)
-                            .keyboardActivatable(theme: theme, action: showConnection)
-                    } else {
-                        Button("Connect", action: showConnection)
-                            .buttonStyle(.borderedProminent)
-                            .tint(theme.action)
-                            .keyboardActivatable(theme: theme, action: showConnection)
-                    }
+                    Button("Connect", action: showConnection)
+                        .buttonStyle(.themedAction(theme))
+                        .keyboardActivatable(theme: theme, action: showConnection)
                 }
                 .frame(maxWidth: .infinity, minHeight: 132)
                 HStack {

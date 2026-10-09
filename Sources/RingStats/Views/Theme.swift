@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 enum Palette {
     static let canvasWarm = Color(red: 244 / 255, green: 241 / 255, blue: 236 / 255)
@@ -65,6 +64,15 @@ extension AppTheme {
         case .ringStats: Palette.signalBlue
         case .landscape: .white
         case .holographic: Palette.Holographic.ink
+        }
+    }
+
+    /// Text on a button filled with `action`: white on Signal Blue and on
+    /// Holographic Ink (11.7:1), Ink on Landscape's white (15.3:1).
+    var actionLabel: Color {
+        switch self {
+        case .ringStats, .holographic: .white
+        case .landscape: Palette.ink
         }
     }
 

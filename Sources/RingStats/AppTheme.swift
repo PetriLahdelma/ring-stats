@@ -1,6 +1,5 @@
 import Foundation
 import RingStatsCore
-import RingStatsOura
 
 enum AppTheme: String, CaseIterable, Identifiable, Sendable {
     case ringStats = "ring-stats"

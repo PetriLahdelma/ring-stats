@@ -85,7 +85,7 @@ Then verify:
 
 ```bash
 scripts/verify_release_attestation.sh "Ring-Stats-<version>.intoto.json" \
-  allowed_signers <maintainer-email> \
+  allowed_signers ring-stats@users.noreply.github.com \
   "Ring-Stats-<version>.dmg" "Ring-Stats-<version>.cdx.json"
 ```
 

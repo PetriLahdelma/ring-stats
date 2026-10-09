@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 import RingStatsCore
-import RingStatsOura
 
 /// Shows the redacted diagnostics report so the user can read exactly what
 /// they would share before copying or saving it. Nothing is sent anywhere.
@@ -39,8 +38,7 @@ struct DiagnosticsView: View {
                 Button("Save…", action: save)
                     .keyboardActivatable(action: save)
                     .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
-                    .tint(Palette.signalBlue)
+                    .buttonStyle(.primaryAction)
             }
         }
         .padding(24)

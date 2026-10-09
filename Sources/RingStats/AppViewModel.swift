@@ -17,6 +17,13 @@ final class AppViewModel: ObservableObject {
     var isRefreshing: Bool { state == .refreshing }
     var refreshInterval: TimeInterval { refreshTTL }
     var lastUpdatedAt: Date? { snapshot.hasData ? snapshot.fetchedAt : nil }
+    /// When the last refresh ran, whether or not it succeeded.
+    var lastRefreshAttemptAt: Date? {
+        switch lastRefreshOutcome {
+        case .none: nil
+        case .succeeded(let at), .partial(let at), .failed(let at): at
+        }
+    }
     var isShowingStaleData: Bool {
         snapshot.hasData
             && (errorMessage != nil || !snapshot.staleMetrics.isEmpty || snapshot.batteryIsStale)
@@ -98,19 +105,25 @@ final class AppViewModel: ObservableObject {
         guard !isDisconnecting else { return }
         let metrics = descriptor.supported(metrics)
         let generation = operationGeneration
-        if let authorizationTask {
-            await waitFor(authorizationTask)
-            guard operationIsCurrent(generation) else { return }
-        }
-        if let refreshTask {
+        // Another waiter can start a refresh or an authorization while this
+        // one waits, so keep waiting until nothing is running, and judge
+        // coverage against each refresh as it runs.
+        while authorizationTask != nil || refreshTask != nil {
+            if let authorizationTask {
+                await waitFor(authorizationTask)
+                guard operationIsCurrent(generation) else { return }
+                continue
+            }
+            guard let running = refreshTask else { continue }
             let coveredByActiveRefresh = activeRefreshMetrics.isSuperset(of: metrics)
                 && (policy == .ifStale || activeRefreshPolicy == .force)
-            await waitFor(refreshTask)
+            await waitFor(running)
             guard operationIsCurrent(generation) else { return }
             if coveredByActiveRefresh { return }
+            // The finished refresh clears itself in its own continuation;
+            // yield so that runs before this loop looks again.
+            if refreshTask == running { await Task.yield() }
         }
-
-        guard operationIsCurrent(generation) else { return }
         let requestedMetrics = metrics
         let operationID = UUID()
         let task = Task { @MainActor [weak self] in
@@ -211,19 +224,18 @@ final class AppViewModel: ObservableObject {
     ) async {
         guard !isDisconnecting else { return }
         let generation = operationGeneration
-        if let authorizationTask {
-            await waitFor(authorizationTask)
-            return
-        }
-        if let refreshTask {
-            await waitFor(refreshTask)
+        // A refresh started by another waiter must not run beside the
+        // browser flow, or it would overwrite the authorizing state.
+        while authorizationTask != nil || refreshTask != nil {
+            if let authorizationTask {
+                await waitFor(authorizationTask)
+                return
+            }
+            guard let running = refreshTask else { continue }
+            await waitFor(running)
             guard operationIsCurrent(generation) else { return }
+            if refreshTask == running { await Task.yield() }
         }
-        if let authorizationTask {
-            await waitFor(authorizationTask)
-            return
-        }
-        guard operationIsCurrent(generation) else { return }
         let operationID = UUID()
         let metrics = descriptor.supported(metrics)
         let task = Task { @MainActor [weak self] in

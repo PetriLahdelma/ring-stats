@@ -231,6 +231,9 @@ package struct HealthSnapshot: Sendable, Equatable {
     /// Why the latest battery request failed, if it did.
     package var batteryFailure: RingStatsError?
     package var batteryIsStale: Bool
+    /// When a stale battery reading was last fetched, so it expires like a
+    /// stale stat. Nil for a fresh reading, which was fetched at `fetchedAt`.
+    package var batteryFetchedAt: Date?
 
     package init(
         readings: [Metric: MetricReading],
@@ -239,7 +242,8 @@ package struct HealthSnapshot: Sendable, Equatable {
         coveredMetrics: Set<Metric>? = nil,
         failedMetrics: [Metric: RingStatsError] = [:],
         batteryFailure: RingStatsError? = nil,
-        batteryIsStale: Bool = false
+        batteryIsStale: Bool = false,
+        batteryFetchedAt: Date? = nil
     ) {
         self.readings = readings
         self.battery = battery
@@ -248,6 +252,7 @@ package struct HealthSnapshot: Sendable, Equatable {
         self.failedMetrics = failedMetrics
         self.batteryFailure = batteryFailure
         self.batteryIsStale = batteryIsStale
+        self.batteryFetchedAt = batteryFetchedAt
     }
 
     package static let empty = HealthSnapshot(
@@ -284,7 +289,7 @@ package struct HealthSnapshot: Sendable, Equatable {
             if case .rateLimited(let seconds) = failure { return seconds }
             return nil
         }.max() ?? 0
-        return max(Self.failureRetryInterval, retryAfter)
+        return max(Self.failureRetryInterval, min(retryAfter, 3_600))
     }
 
     package func isFresh(at date: Date, ttl: TimeInterval) -> Bool {
@@ -320,8 +325,12 @@ package struct HealthSnapshot: Sendable, Equatable {
             merged.readings[metric] = stale
         }
         if batteryFailedTransiently, battery == nil, let earlierBattery = previous.battery {
-            merged.battery = earlierBattery
-            merged.batteryIsStale = true
+            let lastFetched = previous.batteryFetchedAt ?? previous.fetchedAt
+            if fetchedAt.timeIntervalSince(lastFetched) < Self.staleRetentionLimit {
+                merged.battery = earlierBattery
+                merged.batteryIsStale = true
+                merged.batteryFetchedAt = lastFetched
+            }
         }
         return merged
     }
@@ -451,7 +460,7 @@ package enum RingStatsError: LocalizedError, Sendable, Equatable {
         case .invalidRequestedScope: "Oura rejected a requested permission. Check the developer application scopes and reconnect."
         case .insufficientScope: "Oura permission is missing for this statistic. Reauthorize with the requested permission."
         case .rateLimited(let retryAfter):
-            if let retryAfter {
+            if let retryAfter, retryAfter.isFinite {
                 "Oura is temporarily rate limiting requests. Try again in \(Int(ceil(retryAfter))) seconds."
             } else {
                 "Oura is temporarily rate limiting requests. Try again shortly."

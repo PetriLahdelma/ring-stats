@@ -334,6 +334,17 @@ package actor OuraAPI: SnapshotFetching {
         }
     }
 
+    /// The seconds to wait from a Retry-After header, or nil when the header
+    /// is absent, not a whole number of seconds, or outside one second to an
+    /// hour. Parsing it as a Double accepted "inf" and "1e400", which crashed
+    /// the message formatter and could suppress refreshes for years.
+    static func retryAfter(_ header: String?) -> TimeInterval? {
+        guard let header, let seconds = Int(header.trimmingCharacters(in: .whitespaces)),
+              (1...3_600).contains(seconds)
+        else { return nil }
+        return TimeInterval(seconds)
+    }
+
     private static func dateQuery(
         range: (start: String, end: String),
         fields: String
@@ -384,8 +395,9 @@ package actor OuraAPI: SnapshotFetching {
             case 403:
                 throw RingStatsError.insufficientScope
             case 429:
-                let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
-                throw RingStatsError.rateLimited(retryAfter: retryAfter)
+                throw RingStatsError.rateLimited(
+                    retryAfter: Self.retryAfter(http.value(forHTTPHeaderField: "Retry-After"))
+                )
             case 408, 504:
                 throw RingStatsError.timedOut
             default:

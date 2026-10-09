@@ -135,7 +135,7 @@ package actor OAuthClient: OAuthServicing {
         }
         // Commit the replacement token and every cleanup obligation in one
         // Keychain item so a partial write cannot orphan the previous token.
-        try persistAuthorization(updatedAuthorization)
+        persistFreshAuthorization(updatedAuthorization)
         schedulePendingRevocationRetry()
     }
 
@@ -171,7 +171,7 @@ package actor OAuthClient: OAuthServicing {
                 current = try await task.value
                 var updatedAuthorization = authorization
                 updatedAuthorization.token = current
-                try persistAuthorization(updatedAuthorization)
+                persistFreshAuthorization(updatedAuthorization)
                 refreshTask = nil
                 DiagnosticsLog.shared.record(.tokenRefreshed)
             } catch {
@@ -253,6 +253,19 @@ package actor OAuthClient: OAuthServicing {
 
     private func ensureStoreLoaded() throws {
         if let loadError { throw loadError }
+    }
+
+    /// Keeps a token the provider just issued even if the Keychain write
+    /// fails. Oura rotates refresh tokens, so discarding the new pair would
+    /// replay the consumed one, get invalid_grant, and send the user back
+    /// through the browser. The write is retried on the next change.
+    private func persistFreshAuthorization(_ updated: StoredOAuthAuthorization) {
+        authorization = updated
+        do {
+            try store.save(updated, account: "oauth-authorization")
+        } catch {
+            DiagnosticsLog.shared.record(.tokenPersistFailed)
+        }
     }
 
     private func persistAuthorization(_ updated: StoredOAuthAuthorization) throws {

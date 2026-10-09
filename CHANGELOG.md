@@ -5,6 +5,27 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Fixed
+
+- A malformed rate-limit header from the API no longer crashes the app or
+  silences refreshes; only whole seconds up to an hour are honored.
+- Two refreshes could run at once when several parts of the app waited on
+  the same fetch, which briefly hid the spinner and could drop a stat the
+  other fetch had just loaded. Waiters now take turns.
+- A freshly issued sign-in token is kept even if the Keychain cannot store
+  it at that moment, instead of being discarded and forcing a new sign-in.
+- The low battery alert re-arms when the ring has clearly recharged, not
+  only when a charging sample happens to be seen, so a charge between two
+  checks no longer silences every later alert.
+- A battery reading kept through failures now expires after 24 hours like
+  the stats do, instead of showing an old percentage indefinitely.
+- On battery power, a failed refresh now counts as an attempt, so the app
+  waits the full two hours instead of retrying every half hour.
+- The first-run Connect button and the "Enable … Access" button drew grey,
+  as if disabled, because the popover is never the active window. They now
+  use the theme's own color.
+- Four empty stray source files are removed from the repository.
+
 ### Accessibility
 
 - Every control in every window is reachable with Tab by default. Before,
