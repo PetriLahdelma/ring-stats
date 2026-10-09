@@ -1,14 +1,14 @@
-# Homebrew cask for Ring Stats. Lives in a tap until the repository meets
-# homebrew-cask's acceptance thresholds:
-#   brew tap PetriLahdelma/ring-stats https://github.com/PetriLahdelma/homebrew-ring-stats
-#   brew install --cask ring-stats
+# Homebrew cask for Ring Stats. The copy that users install is in the tap
+# repository PetriLahdelma/homebrew-ring-stats (Casks/ring-stats.rb); keep
+# the two identical. It moves to homebrew-cask once the project meets its
+# acceptance thresholds.
+#   brew install --cask PetriLahdelma/ring-stats/ring-stats
 # Update version and sha256 for each release (shasum -a 256 Ring-Stats-<v>.dmg).
 cask "ring-stats" do
   version "1.4.0"
   sha256 "815024e9e79485731cd10800cd824808b92c11972244924e419ae006a6e4c081"
 
-  url "https://github.com/PetriLahdelma/ring-stats/releases/download/v#{version}/Ring-Stats-#{version}.dmg",
-      verified: "github.com/PetriLahdelma/ring-stats/"
+  url "https://github.com/PetriLahdelma/ring-stats/releases/download/v#{version}/Ring-Stats-#{version}.dmg"
   name "Ring Stats"
   desc "Oura ring stats in the Mac menu bar"
   homepage "https://github.com/PetriLahdelma/ring-stats"
@@ -18,7 +18,7 @@ cask "ring-stats" do
     strategy :github_latest
   end
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Ring Stats.app"
 
