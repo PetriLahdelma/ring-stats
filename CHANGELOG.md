@@ -5,6 +5,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.4.0 (2026-10-10)
+
 ### Added
 
 - Dark Mode. The Ring Stats theme and every window now follow the system
