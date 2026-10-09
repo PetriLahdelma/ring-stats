@@ -13,7 +13,7 @@ artwork, proprietary typefaces, or extracted application assets.
 | `LandscapeBackground.png` | Bundled Landscape theme | Project-owned generated landscape created for Ring Stats; no Oura, person, or product imagery |
 | `.github/assets/ring-stats-banner.*` | README identity banner | Maintainer-provided export from the project Figma file |
 | `.github/assets/ring-stats-hero.png` | README hero | The Holographic popover rendered by the app at 680 pt and 2x on a transparent background with synthetic gallery values |
-| `.github/assets/ring-stats-social-preview.png` | GitHub social preview (1280 by 640) | The same render on the warm canvas with the app name; upload it under Settings, Social preview |
+| `.github/assets/ring-stats-social-preview.png` | GitHub social preview (1280 by 640) | Exported from the "Social preview" page of the project Figma file: the Holographic popover render (synthetic gallery values) with the app name on the warm canvas, inside GitHub's 40 pt safe border; upload it under Settings, Social preview |
 | `.github/assets/ring-stats-themes-v6-light.png`, `-dark.png` | README theme showcase | The Landscape, Holographic, and Ring Stats themes rendered by the app at 680 pt and 2x on a transparent background, stacked under their names; the light and dark files differ only in the name color, for GitHub's light and dark modes |
 
 In the README theme showcase, every value is a synthetic fixture from the state
