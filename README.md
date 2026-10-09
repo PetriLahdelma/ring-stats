@@ -38,6 +38,12 @@ endorsed by Oura Health Oy. Oura and Oura Ring are trademarks of Oura Health Oy.
 3. Open Ring Stats. Its split-ring icon appears in the menu bar; there is no
    Dock icon. The first launch walks you through connecting your Oura account.
 
+Or with Homebrew, from the project's tap:
+
+```bash
+brew install --cask PetriLahdelma/ring-stats/ring-stats
+```
+
 To update, replace the app in Applications with the newer release; your
 connection and settings stay in place. Each release also ships a SHA-256
 checksum, a signed attestation, and a provenance archive; see

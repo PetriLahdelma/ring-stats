@@ -167,3 +167,12 @@ notarized release.
 Download both public assets and verify the checksum again before announcing the
 release. Do not promote the Oura integration or enable donations until written
 Oura confirmation has been received.
+
+## Homebrew tap
+
+`packaging/homebrew/ring-stats.rb` is the cask for the
+`PetriLahdelma/homebrew-ring-stats` tap. After publishing a release, update
+its `version` and `sha256` (from the DMG's `.sha256` file) and push the cask
+to the tap repository. Once the project passes homebrew-cask's acceptance
+thresholds (75 stars and 30 days, or 225 stars when the maintainer submits),
+submit it there and retire the tap.
