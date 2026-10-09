@@ -67,8 +67,8 @@ struct MetricGauge: View {
         if reading.availability == .stale {
             // Sighted users need the age as much as VoiceOver users hear it.
             // "Not updated · 23h" is 96 points at the detail size and the
-            // tile is 92, so the tile says "Stale"; the battery row and the
-            // status line, which have room, keep "Not updated".
+            // tile is 92, so one short word, "Stale", is used everywhere an
+            // age is shown.
             guard let since = reading.lastFetchedAt else { return "Not updated" }
             return "Stale · \(staleAge(since: since, now: now))"
         }
@@ -231,14 +231,14 @@ struct BatteryRow: View {
     let battery: BatteryReading?
     let loading: Bool
     var stale = false
-    /// When a stale reading was fetched, shown as its age beside "Not updated".
+    /// When a stale reading was fetched, shown as its age beside "Stale".
     var staleSince: Date?
     var needsPermission = false
     let theme: AppTheme
 
     private var staleText: String {
         guard let staleSince else { return "Not updated" }
-        return "Not updated · \(MetricGauge.staleAge(since: staleSince, now: Date()))"
+        return "Stale · \(MetricGauge.staleAge(since: staleSince, now: Date()))"
     }
 
     private var batteryStatus: String {

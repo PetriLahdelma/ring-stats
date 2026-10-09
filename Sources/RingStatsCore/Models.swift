@@ -423,7 +423,7 @@ extension MetricReading {
     package static func placeholder(for failure: RingStatsError?) -> MetricReading {
         switch failure {
         case .none:
-            MetricReading(value: "—", detail: "No data yet", score: nil, availability: .noData)
+            MetricReading(value: "—", detail: "Not published", score: nil, availability: .noData)
         case .some(.insufficientScope):
             MetricReading(value: "—", detail: "Needs access", score: nil, availability: .permissionRequired)
         case .some:
@@ -467,29 +467,32 @@ package enum RingStatsError: LocalizedError, Sendable, Equatable {
 
     package var errorDescription: String? { message(provider: Self.unknownProviderName) }
 
-    /// The user-facing message, naming the provider that failed.
+    /// The user-facing message, naming the provider that failed. Templates
+    /// read correctly with a brand name ("Oura") and with the generic
+    /// fallback ("the service"); the first letter is capitalized either way.
     package func message(provider: String) -> String {
-        switch self {
-        case .notConfigured: "Enter \(provider) application credentials first."
-        case .notConnected: "Connect your \(provider) account first."
+        let text: String = switch self {
+        case .notConfigured: "Enter the application credentials for \(provider) first."
+        case .notConnected: "Connect \(provider) first."
         case .invalidResponse: "\(provider) returned an invalid response."
-        case .authenticationRequired: "Your \(provider) authorization has expired. Reauthorize to continue."
+        case .authenticationRequired: "The authorization with \(provider) has expired. Reauthorize to continue."
         case .invalidClientCredentials: "\(provider) rejected the Client ID or Client Secret. Check the developer application credentials and try again."
         case .authorizationRestartRequired: "\(provider) rejected the authorization code. Start the browser connection again."
         case .invalidRequestedScope: "\(provider) rejected a requested permission. Check the developer application scopes and reconnect."
-        case .insufficientScope: "\(provider) permission is missing for this statistic. Reauthorize with the requested permission."
+        case .insufficientScope: "Permission from \(provider) is missing for this statistic. Reauthorize with the requested permission."
         case .rateLimited(let retryAfter):
             if let retryAfter, retryAfter.isFinite {
-                "\(provider) is temporarily rate limiting requests. Try again in \(Int(ceil(retryAfter))) seconds."
+                "\(provider) is temporarily rate limiting requests. Try again in \(Int(ceil(min(retryAfter, 3_600)))) seconds."
             } else {
                 "\(provider) is temporarily rate limiting requests. Try again shortly."
             }
-        case .timedOut: "The \(provider) request timed out. Check your connection and try again."
+        case .timedOut: "The request to \(provider) timed out. Check your connection and try again."
         case .malformedData: "\(provider) returned data in an unexpected format."
         case .credentialStore(let message): message
         case .transport(let message): message
         case .server(let message): message
         case .callback(let message): message
         }
+        return text.prefix(1).uppercased() + text.dropFirst()
     }
 }

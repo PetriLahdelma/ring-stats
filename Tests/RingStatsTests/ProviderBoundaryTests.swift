@@ -49,9 +49,12 @@ struct ProviderBoundaryTests {
         #expect(offenders.isEmpty, "\(offenders.map(\.lastPathComponent))")
 
         #expect(RingStatsError.timedOut.message(provider: "Ultrahuman")
-            == "The Ultrahuman request timed out. Check your connection and try again.")
-        #expect(RingStatsError.notConnected.message(provider: "Oura") == "Connect your Oura account first.")
-        #expect(RingStatsError.timedOut.errorDescription?.contains("Oura") == false)
+            == "The request to Ultrahuman timed out. Check your connection and try again.")
+        #expect(RingStatsError.notConnected.message(provider: "Oura") == "Connect Oura first.")
+        // The generic fallback still reads as a sentence.
+        #expect(RingStatsError.timedOut.errorDescription == "The request to the service timed out. Check your connection and try again.")
+        #expect(RingStatsError.invalidResponse.errorDescription == "The service returned an invalid response.")
+        #expect(RingStatsError.rateLimited(retryAfter: 1e300).message(provider: "Oura").contains("3600 seconds"))
         #expect(ShortcutFailure.notConnected.message(provider: "Ultrahuman")
             == "Ring Stats is not connected to Ultrahuman. Open Ring Stats to connect.")
         #expect(OuraProvider.descriptor.developerPortal?.host == "developer.ouraring.com")

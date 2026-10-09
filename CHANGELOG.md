@@ -17,7 +17,10 @@ versioned GitHub releases and annotated tags for new releases.
   click it to refresh. When an update fails it reads "Update failed · 1h ago
   · Retry", and the separate error sentence under the stats is gone.
 - A stale stat shows how old it is ("Stale · 2h"), and so does a stale
-  battery reading ("Not updated · 2h").
+  battery reading.
+- A stat Oura has not published yet reads "Not published" instead of
+  "No data yet" under an "Updated just now" status.
+- The About menu item is now "About Ring Stats", matching its window.
 
 ### Fixed
 

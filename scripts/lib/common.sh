@@ -3,6 +3,9 @@
 # `set -euo pipefail`:
 #   source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
 
+# A CDPATH would make `cd` print the directory it chose.
+unset CDPATH
+
 fail() {
   echo "error: $*" >&2
   exit 1

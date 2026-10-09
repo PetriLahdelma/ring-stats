@@ -210,6 +210,12 @@ Then, depending on what you changed:
   RING_STATS_LIVE_SANDBOX=1 swift test --filter OuraSandboxTests
   ```
 
+- **Visual regressions:** each gallery folder also gets a `hashes.json`
+  with the SHA-256 of every render. Font rendering differs between Macs, so
+  comparing is opt-in: copy a known-good `hashes.json` aside and run
+  `RING_STATS_GALLERY_BASELINE=/path/to/hashes.json swift test`; renders
+  whose hash changed are reported.
+
 - **Untested code:** `scripts/coverage_report.sh` prints line coverage
   grouped by the boundaries in [ARCHITECTURE.md](ARCHITECTURE.md). Use it to
   find gaps, not as a number to maximize.

@@ -117,7 +117,7 @@ import Testing
             refreshInterval: 300
         )
     )
-    #expect(partial.label == "Some stats not updated · 1m ago · Retry")
+    #expect(partial.label == "Some stats stale · 1m ago · Retry")
     #expect(partial.tone == .alert)
     #expect(partial.isVisible)
 }
@@ -489,7 +489,7 @@ import Testing
     let font = NSFont.systemFont(ofSize: anatomy.detailFontSize)
     let now = Date(timeIntervalSince1970: 1_790_467_200)
     var details: [String] = [60, 70, 85, 40].map { ScoreBand.label(for: $0) }
-    details += ["Updating…", "No data", "Not updated", "Long-term", "High stress"]
+    details += ["Updating…", "No data", "Not updated", "Long-term", "Today"]
     details += ["Stale · 59m", "Stale · 23h"]
     details += ["Restored", "Normal", "Stressful"]
     details += [nil, .insufficientScope, .timedOut].compactMap { OuraAPI.placeholder(for: $0).detail }

@@ -66,7 +66,7 @@ enum PopoverTimestampText {
         case .partial(let at):
             let age = relativeAge(since: at, now: now)
             return RefreshStatusPresentation(
-                label: "Some stats not updated · \(age) · Retry",
+                label: "Some stats stale · \(age) · Retry",
                 accessibility: "Updated \(age). Some stats could not be updated and show their last known values. Retry.",
                 isVisible: true,
                 showsSpinner: false,
@@ -640,7 +640,9 @@ struct RefreshStatusView: View {
                         if status.showsSpinner {
                             ScoreLoadingSpinner(theme: theme, diameter: (9 * textScale).rounded(), lineWidth: 1.5)
                         }
-                        Text(status.label)
+                        // "Retry" is the action, so it is the only word that
+                        // looks like one.
+                        statusText(status.label)
                             .scaledFont(size: 10)
                             .lineLimit(1)
                             .truncationMode(.tail)
@@ -650,12 +652,31 @@ struct RefreshStatusView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(!status.isRetryable)
+                .linkCursor(status.isRetryable)
                 .keyboardActivatable(theme: theme, cornerRadius: 4, action: requestRefresh)
+                .disabled(!status.isRetryable)
                 .accessibilityLabel(status.accessibility)
                 .accessibilityHint(status.isRetryable ? "Refreshes the stats now" : "")
                 .accessibilitySortPriority(1)
             }
+        }
+    }
+}
+
+private func statusText(_ label: String) -> Text {
+    let action = " · Retry"
+    guard label.hasSuffix(action) else { return Text(label) }
+    return Text(String(label.dropLast(action.count))) + Text(action).fontWeight(.semibold).underline()
+}
+
+extension View {
+    /// A pointing hand over a clickable line of text, where macOS supports it.
+    @ViewBuilder
+    func linkCursor(_ active: Bool) -> some View {
+        if #available(macOS 15, *), active {
+            pointerStyle(.link)
+        } else {
+            self
         }
     }
 }

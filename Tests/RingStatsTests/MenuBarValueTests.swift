@@ -2,7 +2,6 @@ import Foundation
 import Testing
 @testable import RingStats
 @testable import RingStatsCore
-@testable import RingStatsOura
 
 /// The optional value beside the menu-bar icon.
 struct MenuBarValueTests {
@@ -14,7 +13,7 @@ struct MenuBarValueTests {
                 .readiness: MetricReading(value: "84", detail: "Good", score: 84),
                 .heartRate: MetricReading(value: "58", detail: "bpm", score: nil, observedAt: now),
                 .sleep: MetricReading(value: "78", detail: "Good", score: 78).markedStale(fetchedAt: now),
-                .stress: OuraAPI.placeholder(for: nil),
+                .activity: MetricReading.placeholder(for: nil),
             ],
             battery: battery,
             fetchedAt: now,
@@ -31,11 +30,12 @@ struct MenuBarValueTests {
     @Test func showsTheChosenStatAndKeepsAStaleOne() {
         let snapshot = snapshot(battery: nil)
         #expect(MenuBarValuePreference.readiness.text(for: snapshot) == "84")
-        #expect(MenuBarValuePreference.heartRate.text(for: snapshot) == "58")
+        #expect(MenuBarValuePreference.heartRate.text(for: snapshot) == "58 bpm")
         #expect(MenuBarValuePreference.sleep.text(for: snapshot) == "78")
         // A placeholder has no value to show.
-        #expect(MenuBarValuePreference.stress.text(for: snapshot) == nil)
         #expect(MenuBarValuePreference.activity.text(for: snapshot) == nil)
+        // Values that would not read on their own are not offered.
+        #expect(MenuBarValuePreference.resolve("stress") == .nothing)
         #expect(MenuBarValuePreference.readiness.accessibilityLabel(for: snapshot) == "Ring Stats, Readiness 84")
     }
 

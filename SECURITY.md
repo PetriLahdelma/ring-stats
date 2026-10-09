@@ -116,3 +116,7 @@ DMG; CI artifacts are test evidence, not authenticated public releases.
 
 Never publish signing certificates, private keys, notary passwords, OAuth
 client secrets, or exported Keychain data.
+
+Installing through the Homebrew cask relies on the tap repository's copy of
+the DMG checksum and skips the attestation check above; verify the DMG
+yourself if that matters to you.

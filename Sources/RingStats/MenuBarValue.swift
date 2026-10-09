@@ -10,8 +10,6 @@ enum MenuBarValuePreference: String, CaseIterable, Identifiable {
     case sleep
     case activity
     case heartRate = "heart-rate"
-    case stress
-    case resilience
     case batteryWhenLow = "battery-when-low"
 
     static let storageKey = "menu-bar-value"
@@ -36,8 +34,6 @@ enum MenuBarValuePreference: String, CaseIterable, Identifiable {
         case .sleep: .sleep
         case .activity: .activity
         case .heartRate: .heartRate
-        case .stress: .stress
-        case .resilience: .resilience
         case .nothing, .batteryWhenLow: nil
         }
     }
@@ -45,6 +41,8 @@ enum MenuBarValuePreference: String, CaseIterable, Identifiable {
     /// The text to show beside the icon, or nil to show the icon alone. A
     /// stale stat still shows, as it does in the popover; a stale battery
     /// level does not, because "low" must be current to be worth a glance.
+    /// Only values that read on their own are offered: Stress ("42m") and
+    /// Resilience ("Solid") would be riddles beside an icon.
     func text(for snapshot: HealthSnapshot) -> String? {
         switch self {
         case .nothing:
@@ -53,7 +51,10 @@ enum MenuBarValuePreference: String, CaseIterable, Identifiable {
             guard !snapshot.batteryIsStale, let level = snapshot.battery?.level,
                   level < LowBatteryAlert.threshold else { return nil }
             return "\(level)%"
-        default:
+        case .heartRate:
+            guard let reading = snapshot.readings[.heartRate], reading.hasValue else { return nil }
+            return "\(reading.value) bpm"
+        case .readiness, .sleep, .activity:
             guard let metric, let reading = snapshot.readings[metric], reading.hasValue else { return nil }
             return reading.value
         }

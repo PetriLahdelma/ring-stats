@@ -296,6 +296,41 @@ struct AppViewModelTests {
         #expect(model.state == .configured)
     }
 
+    /// A refresh queued behind an authorization must finish once the
+    /// authorization does. The waiter can resume before the authorization's
+    /// own cleanup, so it has to yield instead of spinning on the main actor.
+    @Test(.timeLimit(.minutes(1))) @MainActor func refreshQueuedBehindAnAuthorizationCompletes() async {
+        let now = Date(timeIntervalSince1970: 14_000)
+        let auth = AuthStub(configured: true, connected: false)
+        let probe = AuthorizationProbe()
+        let snapshot = HealthSnapshot(
+            readings: [.readiness: MetricReading(value: "80", detail: "Good", score: 80)],
+            battery: nil,
+            fetchedAt: now
+        )
+        let api = SnapshotStub(results: [.success(snapshot), .success(snapshot)])
+        let model = AppViewModel(
+            auth: auth,
+            api: api,
+            descriptor: OuraProvider.descriptor,
+            now: { now },
+            authorizationHandler: { scopes in try await probe.run(scopes: scopes) },
+            checkConnectionOnInit: false
+        )
+
+        let authorization = Task { await model.reauthorize(metrics: [.readiness]) }
+        await probe.started.wait()
+        let refresh = Task { await model.refreshNow(metrics: [.readiness]) }
+        await waitUntil("refresh to queue behind the authorization") { model.waitingOperationCount == 1 }
+        await auth.markConnected()
+        probe.release.open()
+        await authorization.value
+        await refresh.value
+
+        #expect(model.state == .connected)
+        #expect(await api.callCount >= 1)
+    }
+
     @Test @MainActor func duplicateConnectRequestsShareOneAuthorizationAndFetch() async {
         let now = Date(timeIntervalSince1970: 15_000)
         let auth = AuthStub(configured: false, connected: false)

@@ -249,6 +249,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             UserDefaults.standard.string(forKey: MenuBarValuePreference.storageKey)
         )
         let text = preference.text(for: model.snapshot) ?? ""
+        // A square item never grows for a title.
+        statusItem?.length = text.isEmpty ? NSStatusItem.squareLength : NSStatusItem.variableLength
         button.title = text
         button.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         button.imagePosition = text.isEmpty ? .imageOnly : .imageLeading
@@ -305,9 +307,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         refreshPopover(force: false)
     }
 
+    /// The stats to fetch: the visible ones, plus the one shown in the menu
+    /// bar, which may be hidden in the popover.
     private var visibleMetrics: Set<Metric> {
         let stored = UserDefaults.standard.string(forKey: MetricConfiguration.storageKey)
-        return Set(MetricConfiguration.decode(stored).visibleMetrics)
+        var metrics = Set(MetricConfiguration.decode(stored).visibleMetrics)
+        let menuBar = MenuBarValuePreference.resolve(UserDefaults.standard.string(forKey: MenuBarValuePreference.storageKey))
+        if let metric = menuBar.metric { metrics.insert(metric) }
+        return metrics
     }
 
     private func refreshPopover(force: Bool) {
@@ -449,7 +456,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(connectionItem)
 
         let aboutItem = NSMenuItem(
-            title: "About & Credits",
+            title: "About Ring Stats",
             action: #selector(openAboutFromMenu(_:)),
             keyEquivalent: ""
         )

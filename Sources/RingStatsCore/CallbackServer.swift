@@ -15,6 +15,16 @@ package enum OAuthLoopback {
 }
 
 package actor CallbackServer {
+    /// Compares the state without short-circuiting on the first differing
+    /// byte, so timing over loopback reveals nothing about it.
+    static func matches(_ candidate: String, _ expected: String) -> Bool {
+        let a = Array(candidate.utf8), b = Array(expected.utf8)
+        guard a.count == b.count else { return false }
+        var difference: UInt8 = 0
+        for (x, y) in zip(a, b) { difference |= x ^ y }
+        return difference == 0
+    }
+
     private let expectedState: String
     private let queue = DispatchQueue(label: "local.ringstats.oauth-callback")
     private var sockets: [Int32] = []
@@ -170,10 +180,11 @@ package actor CallbackServer {
               requestParts[2] == "HTTP/1.1",
               let url = URL(string: "\(OAuthLoopback.origin)\(requestParts[1])"),
               url.path == OAuthLoopback.path,
-              URLComponents(url: url, resolvingAgainstBaseURL: false)?
+              let state = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?
                 .first(where: { $0.name == "state" })?
-                .value == expectedState else { return nil }
+                .value,
+              Self.matches(state, expectedState) else { return nil }
 
         guard let host = lines.dropFirst().first(where: { $0.lowercased().hasPrefix("host:") })?
             .dropFirst("host:".count)

@@ -114,11 +114,11 @@ package actor OuraAPI: SnapshotFetching {
                         )
                     }
                 case .stress(let value):
-                    if let value {
-                        let minutes = value.stressHigh.map { max(0, ($0 + 30) / 60) }
+                    if let value, let stressHigh = value.stressHigh {
+                        let minutes = max(0, (stressHigh + 30) / 60)
                         readings[.stress] = MetricReading(
-                            value: minutes.map { "\($0)m" } ?? "—",
-                            detail: value.daySummary?.capitalized ?? "High stress",
+                            value: "\(minutes)m",
+                            detail: value.daySummary?.capitalized ?? "Today",
                             score: nil,
                             sourceDay: value.day
                         )
@@ -153,7 +153,9 @@ package actor OuraAPI: SnapshotFetching {
             throw RingStatsError.authenticationRequired
         }
 
-        guard !readings.isEmpty || battery != nil else {
+        // A successful empty response is still a success: only when every
+        // request failed is the whole refresh a failure.
+        guard !readings.isEmpty || battery != nil || failures.count < metrics.count + 1 else {
             throw Self.preferredError(from: failures)
                 ?? RingStatsError.server("No Oura data was available. Open the Oura phone app to sync, then try again.")
         }
@@ -274,7 +276,7 @@ package actor OuraAPI: SnapshotFetching {
         let data = try await fetch(components.url!, token: token, session: session)
         do {
             return try JSONDecoder().decode(DailyStressEnvelope.self, from: data).data
-                .filter { $0.stressHigh != nil || $0.daySummary != nil }
+                .filter { $0.stressHigh != nil }
                 .max { $0.day < $1.day }
         } catch {
             throw RingStatsError.malformedData

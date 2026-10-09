@@ -83,6 +83,9 @@ final class AppViewModel: ObservableObject {
         }
         let configured = await auth.isConfigured
         let connected = await auth.isConnected
+        // An expired authorization has already cleared its token, so it
+        // would read as merely configured; keep the more useful state.
+        if state == .authorizationExpired, !connected { return }
         state = Self.connectionState(configured: configured, connected: connected)
     }
 
@@ -111,6 +114,9 @@ final class AppViewModel: ObservableObject {
             if let authorizationTask {
                 await waitFor(authorizationTask)
                 guard operationIsCurrent(generation) else { return }
+                // Same as below: the finished authorization clears itself in
+                // its own continuation, which must run before this loop looks.
+                if self.authorizationTask == authorizationTask { await Task.yield() }
                 continue
             }
             guard let running = refreshTask else { continue }
@@ -161,6 +167,7 @@ final class AppViewModel: ObservableObject {
         }
         if policy == .ifStale, snapshot.isFresh(for: metrics, at: now(), ttl: refreshTTL) {
             state = .connected
+            errorMessage = nil
             return
         }
 

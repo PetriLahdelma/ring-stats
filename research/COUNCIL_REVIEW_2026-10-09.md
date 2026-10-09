@@ -302,3 +302,75 @@ by `RingStatsTests.swift` (43 free-standing tests).
    library, CI matrix, and the three provider refactors, which together make
    Ultrahuman a one-module addition.
 5. **When Oura confirms:** the launch sequence in section 4.
+
+---
+
+# Re-review, 2026-10-10
+
+The same five reviewers re-read the tree after the five commits that
+answered the first report (`6e1ac47` to `1af7ee1`), each verifying every
+previous finding against the code and hunting for regressions. A final
+polish commit addressed what they found cheap.
+
+## Verdicts
+
+- **Bugs.** The six bugs taken on are fixed with targeted tests. The re-review
+  found one new High: the authorization branch of the new waiter loop lacked
+  the yield the refresh branch had, so a refresh queued while the browser was
+  open could spin the main thread after approval. Fixed, with a test
+  (`refreshQueuedBehindAnAuthorizationCompletes`). Also fixed from the
+  re-review: the menu-bar value was clipped to the item's square length; a
+  stat shown in the menu bar but hidden in the popover was never fetched; the
+  status line stayed keyboard-activatable while refreshing; the four low bugs
+  left from the first report (stress records without minutes, an expired
+  authorization invisible to Shortcuts, an all-empty refresh counted as
+  failed, a stale error line); the shared-refresh waiter and a retry for a
+  token the Keychain refused. Still open: `DispatchGroup.wait()` in the
+  listener actor, Increase Contrast read at draw time, tile ages not ticking
+  while the popover is open.
+- **Security and privacy.** No regressions. OIDC no longer reaches
+  PR-controlled code, the hardened runtime is asserted, every action SHA
+  resolves to its stated tag, the Xcode 27 flags keep paths out of symbols.
+  Fixed from the re-review: the release-tag check now fetches the protected
+  branch before comparing; the OAuth state compare is constant-time;
+  `scripts/lib` is shellchecked; CI refuses stray dotfiles in Sources.
+  Still open: `ALLOW_UNSIGNED_TAG` is not recorded in the attestation.
+- **UX.** Dark Mode, the always-visible retry status, the themed first-run
+  buttons, and stale ages are judged done and done well. Fixed from the
+  re-review: "Not published" replaces "No data yet" under "Updated just
+  now"; "Retry" is the only word in the status line that looks actionable;
+  the About item matches its window; one word, "Stale", for the tile, the
+  battery row, and the status line; the menu bar offers only values that
+  read on their own ("58 bpm", never "42m" or "Solid"). Still open: the
+  fourth tile sliced at 420 pt and hidden scroll indicators; oversized
+  Appearance and Connection windows; four terms for "needs access"; the
+  accessibility backlog (tile `accessibilityValue`, the Diagnostics text,
+  the manual VoiceOver log); a global hotkey; a "scores are in" notification.
+- **Growth.** Five of seven reasons not to star are fixed in the files and
+  the live metadata matches. Fixed from the re-review: the "Compared with"
+  table's two wrong Ring Widget cells, the missing membership row that
+  Cracked Oura wins, neutral row headers, the pitch sentence, the membership
+  clause in the connect steps, and the Homebrew line no longer promises a
+  tap that does not exist. Still to do: create the tap repository, record
+  the Holographic GIF, the three awesome-list pull requests, upload the
+  social preview, compress the README images, and send the Oura email that
+  gates every active channel.
+- **Engineering.** Module confinement and provider-neutral Core are done and
+  enforced by tests. Fixed from the re-review: the fallback error grammar
+  ("The the service"), ARCHITECTURE's descriptor claim made true by wiring
+  the onboarding view to `descriptor.displayName` and `developerPortal`,
+  ACCESSIBILITY's grip sentences, the CI cache paths and toolchain-keyed
+  cache, artifact overwrite on re-runs, the gallery baseline documented,
+  `ProviderRegistry` without a fake selection. Still open: the remaining
+  boundary coverage holes, provider refactors A and the rest of B, the two
+  700-line files, the Gate B cross-check duplicated in two scripts,
+  Tab-stop counts as bare integers.
+
+## Net
+
+Six commits, 196 tests (183 before), a 24-second suite (40 before), release
+builds working under Xcode 27 with no local paths in the dSYM, and every
+reviewer judging their area better than on 2026-10-09 with no regression
+surviving the polish pass. The remaining list is polish, coverage, and the
+provider abstraction, plus the growth work that needs the maintainer's own
+accounts: the tap repository, the GIF, the listings, and the Oura email.

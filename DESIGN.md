@@ -102,7 +102,7 @@ The popover defaults to 680pt wide and can be resized horizontally from 420pt to
 - While fetching: a small spinner and "Refreshing…".
 - After a successful refresh: "Updated just now" for three seconds, then it fades out so the strip stays quiet.
 - When data is older than the five-minute refresh window: "Updated 12m ago", visible.
-- After a partial refresh: "Some stats not updated" in Alert Text, visible.
+- After a partial refresh: "Some stats stale · 1h ago · Retry" in Alert Text, visible.
 - After a failed refresh: "Update failed · 1h ago" in Alert Text, visible.
 
 The status is always available to VoiceOver, including while faded out, and it re-evaluates every second.
@@ -148,7 +148,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Score centered in 28pt rounded system type with tabular numerals.
 - Metric and qualitative label below the ring.
 - Missing state uses no arc, an em dash, and an explicit caption.
-- A stale value dims to 62% and its detail reads "Stale · 2h" in Alert Text, with the age of the retained value. "Not updated · 23h" needs 96pt at the 11pt detail size and the tile is 92pt wide, so the tile uses the short word; the battery row and the status line, which have room, say "Not updated · 2h".
+- A stale value dims to 62% and its detail reads "Stale · 2h" in Alert Text, with the age of the retained value. "Not updated · 23h" needs 96pt at the 11pt detail size and the tile is 92pt wide, so one short word, "Stale", is used on the tile, the battery row, and the status line alike; VoiceOver still hears the full sentence.
 
 ### Extended Metrics
 - Heart Rate shows the latest Oura sample as BPM and never presents it as a 0–100 score.
@@ -172,10 +172,10 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
   the positional interpolation.
 
 ### Refresh Status
-- Top right, 10pt, always visible: "Updated 2m ago" in secondary content, or "Update failed · 1h ago · Retry" and "Some stats not updated · 1h ago · Retry" in the alert color. The whole line is a plain button that runs a refresh, reachable with Tab; "Refreshing…" shows a spinner and is not clickable. The age never hides, because it is the freshness promise, and the line is the only error surface in the popover; the full error text lives in Connection.
+- Top right, 10pt, always visible: "Updated 2m ago" in secondary content, or "Update failed · 1h ago · Retry" and "Some stats stale · 1h ago · Retry" in the alert color, with "Retry" semibold and underlined and a pointing-hand cursor. The whole line is a plain button that runs a refresh, reachable with Tab; "Refreshing…" shows a spinner and is not clickable. The age never hides, because it is the freshness promise, and the line is the only error surface in the popover; the full error text lives in Connection.
 
 ### Menu Bar Value
-- Off by default. Appearance, "In the menu bar", offers Nothing, each stat, or "Battery, only when low". The value is drawn as text beside the template icon in the menu bar's 12pt medium monospaced-digit font. A stale stat still shows, as in the popover; a stale battery level does not, because "low" must be current to be worth a glance. VoiceOver reads "Ring Stats, Readiness 84".
+- Off by default. Appearance, "In the menu bar", offers Nothing, Readiness, Sleep, Activity, Heart rate (shown as "58 bpm"), or "Battery, only when low". Stress ("42m") and Resilience ("Solid") are not offered because they do not read on their own beside an icon. The value is drawn as text beside the template icon in the menu bar's 12pt medium monospaced-digit font. A stale stat still shows, as in the popover; a stale battery level does not, because "low" must be current to be worth a glance. VoiceOver reads "Ring Stats, Readiness 84".
 
 ### Battery Row
 - A native macOS battery symbol followed by the percentage. While the ring charges, a bolt is cut out of the battery fill, as macOS does, so it stays visible at every level.
@@ -231,7 +231,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Connection remains available in every state. Refresh Now requires a connected account; Reauthorize Permissions requires stored developer credentials. Both are disabled while the app is already loading.
 - Diagnostics… sits with Appearance, Connection, and About & Credits.
 - Quit Ring Stats remains available as the final menu action.
-- Items: Appearance…, Connection…, About & Credits, Diagnostics…, a divider, Refresh Now (⌘R), Reauthorize Permissions, another divider, and Quit Ring Stats (⌘Q).
+- Items: Appearance…, Connection…, About Ring Stats, Diagnostics…, a divider, Refresh Now (⌘R), Reauthorize Permissions, another divider, and Quit Ring Stats (⌘Q).
 - Every item has an SF Symbol icon: `paintpalette`, `person.crop.circle`, `info.circle`, `stethoscope`, `arrow.clockwise`, `key`, and `power`. macOS 27 hides symbol images in menus of apps built with an earlier SDK, so each symbol is redrawn as a template image (`AppDelegate.menuIcon`), centered in an 18pt square so every title starts at the same edge. The icons are decorative; the titles carry the meaning.
 
 ## Do's and Don'ts

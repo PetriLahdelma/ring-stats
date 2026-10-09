@@ -29,6 +29,12 @@ if [[ "${exact_tag#v}" != "$expected_version" ]]; then
   echo "Tag version ${exact_tag#v} does not match bundle version $expected_version." >&2
   exit 1
 fi
+# A stale or locally rewritten remote-tracking ref must not pass as the
+# protected branch: refresh it from the remote first.
+if [[ "$branch_ref" == origin/* ]]; then
+  /usr/bin/git -C "$repo_dir" fetch --quiet --no-tags origin "+refs/heads/${branch_ref#origin/}:refs/remotes/$branch_ref" \
+    || { echo "Could not fetch $branch_ref from origin." >&2; exit 1; }
+fi
 if ! branch_commit="$(/usr/bin/git -C "$repo_dir" rev-parse --verify "$branch_ref^{commit}" 2>/dev/null)"; then
   echo "Release branch ref is unavailable: $branch_ref" >&2
   echo "Fetch the protected release branch before signing." >&2

@@ -6,15 +6,14 @@
 
 **Your Oura scores in the Mac menu bar.** Readiness, Sleep, Activity, heart
 rate, Stress, Resilience, and the ring battery, one click away. Oura makes no
-Mac app; this is the one, and it never sees your data: Ring Stats has no
-server, so everything goes from Oura to your Mac and nowhere else.
+Mac app. Ring Stats is a native one with no server of its own: your data goes
+from Oura to your Mac and nowhere else.
 
 <p align="center">
   <a href="https://github.com/PetriLahdelma/ring-stats/releases/latest"><img src="https://img.shields.io/github/v/release/PetriLahdelma/ring-stats?display_name=tag&amp;label=Download" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&amp;logoColor=white" alt="macOS 14 or later">
   <img src="https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-universal-000000" alt="Universal binary">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2F855A.svg" alt="MIT License"></a>
-  <a href="https://github.com/PetriLahdelma/ring-stats/releases"><img src="https://img.shields.io/github/downloads/PetriLahdelma/ring-stats/total" alt="Downloads"></a>
 </p>
 
 <p align="center">
@@ -38,11 +37,8 @@ endorsed by Oura Health Oy. Oura and Oura Ring are trademarks of Oura Health Oy.
 3. Open Ring Stats. Its split-ring icon appears in the menu bar; there is no
    Dock icon. The first launch walks you through connecting your Oura account.
 
-Or with Homebrew, from the project's tap:
-
-```bash
-brew install --cask PetriLahdelma/ring-stats/ring-stats
-```
+A Homebrew cask is prepared in `packaging/homebrew/`; it becomes installable
+once the project's tap repository is published.
 
 To update, replace the app in Applications with the newer release; your
 connection and settings stay in place. Each release also ships a SHA-256
@@ -58,8 +54,8 @@ ring the Oura app syncs, with these limits:
 |---|---|---|
 | **Oura Ring 4** | Yes | API access needs an active Oura Membership. |
 | **Oura Ring Gen3** (Heritage and Horizon) | Yes | API access needs an active Oura Membership. |
-| **Oura Ring Gen2** | Reported to work | No membership needed for the API. Stress and Resilience are Gen3-and-later features, so those two tiles stay empty; hide them in Appearance. Untested by the maintainer, so please report how it goes. |
-| Other brands | No | Only Oura has a public API a Mac app can call without a server. [research/RING_PROVIDERS.md](research/RING_PROVIDERS.md) tracks the others; Ultrahuman is the one candidate. |
+| **Oura Ring Gen2** | Should work | Oura exempts Gen2 rings bought before its membership launched from the membership requirement; Oura decides which. Stress and Resilience are Gen3-and-later features, so those two tiles stay empty; hide them in Appearance. Untested by the maintainer, so please report how it goes. |
+| Other brands | Not yet | Oura is the only ring Ring Stats has verified. [research/RING_PROVIDERS.md](research/RING_PROVIDERS.md) tracks the others; Ultrahuman, whose personal API token fits the no-server model, is the one candidate. |
 
 Daily scores appear once the ring has synced with the Oura app on your phone,
 usually after you wake up. Ring Stats does not talk to the ring itself.
@@ -73,19 +69,21 @@ the app, so your health data travels from Oura to your Mac only, and Oura's
 one-time, two-minute step that the app walks you through:
 
 1. In the [Oura developer portal](https://developer.ouraring.com/applications),
-   create an application. Any name works.
+   create an application. Any name works. Gen3 and Ring 4 need an active
+   Oura Membership for API access.
 2. Add this redirect URI exactly (use `localhost`, not `127.0.0.1`):
 
    ```text
    http://localhost:43828/oauth/callback
    ```
 
-3. Paste the application's Client ID and Client Secret into Ring Stats, then
-   approve access in your browser.
+3. Paste the application's Client ID and Client Secret into Ring Stats. They
+   go into your Mac's Keychain and nowhere else. Your browser opens by itself
+   so you can approve access.
 
-The Client ID, Client Secret, and tokens live only in your Mac's Keychain.
 Ring Stats asks only for the permissions the stats you show need, and
-**Disconnect & Delete Local Data** revokes the authorization and removes them.
+**Disconnect & Delete Local Data** revokes the authorization and removes the
+credentials and tokens from the Keychain.
 
 ## What it does
 
@@ -119,16 +117,18 @@ Ring Stats asks only for the permissions the stats you show need, and
 
 ## Compared with
 
-| | Ring Stats | Oura widgets | Ring Widget (App Store) | Cracked-Oura |
+| | Ring Stats | Oura's own widgets | Ring Widget (App Store) | Cracked Oura |
 |---|---|---|---|---|
-| Mac menu bar | Yes | No (iOS, Android, Watch) | Mac app, paid | Electron dashboard |
-| Needs a server or account of its own | No | n/a | Yes | No |
-| Stores your health data on disk | No | n/a | Unknown | Yes, local database |
-| Connects with your own Oura app | Yes | n/a | No | No |
+| Where it runs | Mac menu bar, native | iOS, Android, and Apple Watch widgets | iPhone, iPad, and Watch widgets; the iPad app runs on Apple silicon Macs | Electron dashboard on Mac, Windows, Linux |
+| Needs an Oura Membership | Yes for Gen3 and Ring 4 (Oura's API rule) | Yes | Yes | No; it reads Oura's data export |
+| Keeps history on disk | No; today's values, in memory | Yes, in the Oura app | Unknown | Yes, in a local database |
+| Uses your own Oura developer app (no shared secret) | Yes | n/a | No | No |
+| Price | Free | Free with membership | Free with in-app subscription | Free |
 | Open source | MIT | No | No | Yes |
 
-Ring Stats is a glance, not a dashboard. For trends and history, Oura's own
-app is better, and Ring Stats will not duplicate it.
+Ring Stats is a glance, not a dashboard. If you want trends and history, Oura's
+own app or Cracked Oura serve that better, and Ring Stats will not duplicate
+them.
 
 ## Troubleshooting
 

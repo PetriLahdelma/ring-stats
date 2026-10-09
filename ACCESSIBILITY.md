@@ -25,10 +25,10 @@ AppKit; web techniques such as ARIA do not apply.
    while it is on (`AppTheme.increasesContrast`). Never add a faded token
    that ignores it. (1.4.3, 1.4.11)
 3. **Never rely on color alone.** Every state that has a color also has
-   text: stale tiles say "Not updated", failures say so, the low battery
+   text: stale tiles say "Stale · 2h", failures say so, the low battery
    alert names the level. (1.4.1)
 4. **Name every control, and include its visible text.** Icon-only controls,
-   such as the ☰ menu and the reorder grip, get an `accessibilityLabel`. A
+   such as the ☰ menu, get an `accessibilityLabel`. A
    control with visible text keeps that text at the start of its label, so
    Voice Control can find it by what it shows. (1.1.1, 2.5.3, 4.1.2)
 5. **Group each stat into one element.** A tile reads as title, value, and
@@ -59,7 +59,7 @@ AppKit; web techniques such as ARIA do not apply.
     (`everyTileDetailFitsTheTileWithoutTruncation`,
     `everyTextSizeRendersWithinBounds`). (1.4.4, 1.4.10)
 11. **Custom targets are at least 24 by 24 points.** Custom controls such as
-    the ☰ menu (28 points) and the reorder grip (24 points) meet it; native
+    the ☰ menu (28 points) and the Appearance list's drag handle (24 points) meet it; native
     controls keep their system size. (2.5.8)
 12. **A value in the menu bar is opt-in.** It is visible to anyone who can
     see the screen, so Appearance says so and the default is Nothing. The
@@ -83,7 +83,7 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 | Dark Mode | The Ring Stats theme and all windows follow the system appearance | Verified (automated) | Every popover state and window renders in both appearances in the state gallery; heights match (`themesKeepTheSameLayoutForEveryState`, `windowsRenderAtExtraLargeText`); dark tokens are measured in the contrast test |
 | Contrast | Window captions and control glyphs meet 4.5:1 | Verified (automated) | `Palette.secondaryInk` 4.65:1 in `themeTextColorsMeetWCAGContrastForSmallText`; replaced the system secondary label color (3.88:1), the unselected theme circle (2.21:1), and the reorder grip (1.96:1) |
 | Color independence | Every value and state appears as text | Verified (automated) | `staleTileSaysSoInTextAndToVoiceOver`, detail copy tests, state gallery |
-| Freshness | A stale value shows its age to sighted users, not only to VoiceOver | Verified (automated) | `staleTileSaysSoInTextAndToVoiceOver`: tiles say "Stale · 2h", the battery row "Not updated · 2h"; `everyTileDetailFitsTheTileWithoutTruncation` covers the longest ages |
+| Freshness | A stale value shows its age to sighted users, not only to VoiceOver | Verified (automated) | `staleTileSaysSoInTextAndToVoiceOver`: tiles and the battery row say "Stale · 2h"; `everyTileDetailFitsTheTileWithoutTruncation` covers the longest ages |
 | Freshness | The refresh status is always visible and is the retry control | Verified (automated) | `successAgeStaysVisibleAndIsRetryable`, `failuresStayVisibleInAlertTone`; the status line is a button reachable with Tab, disabled while refreshing |
 | Truncation | Tile detail text is never cut off | Verified (automated) | `everyTileDetailFitsTheTileWithoutTruncation` |
 | Theme parity | Themes show the same lines and labels | Verified (automated) | `themesKeepTheSameLayoutForEveryState` |
@@ -101,7 +101,7 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 | Keyboard | Onboarding completes without a pointer | Needs manual check | Default-action buttons on every step, focused Client ID field |
 | Keyboard | Stats can be reordered without a pointer | Verified (automated) for reach; Needs manual check in use | In Appearance, the arrows select a row, Space shows or hides it, and Option-Up and Option-Down move it and announce the position (`tabReachesEveryControlInEveryWindow`); in the popover, Option-Left and Option-Right move the focused stat |
 | Keyboard | Metric strip is reachable, scrollable, and reorderable without a pointer | Verified (automated) for logic and focus path; Needs manual check in use | `arrowKeysMoveFocusAcrossVisibleStatsOnly`, `optionArrowMovesAStatPastItsVisibleNeighbor`; `openingThePopoverDoesNotFocusAStatTile` proves Tab reaches a tile while nothing is focused on open |
-| Focus | Focus is visible on every control | Verified (automated) for stat tiles; Needs manual check elsewhere | Stat tiles draw `MetricFocusRing` in the theme's action color (3:1 or more in every theme), rendered in the `keyboard-focus` gallery state; it shows only for keyboard focus (`focusCameFromPointer`). Other controls are native; the reorder grip uses the system focus ring |
+| Focus | Focus is visible on every control | Verified (automated) for stat tiles; Needs manual check elsewhere | Stat tiles draw `MetricFocusRing` in the theme's action color (3:1 or more in every theme), rendered in the `keyboard-focus` gallery state; it shows only for keyboard focus (`focusCameFromPointer`). Other controls are native; the Appearance list uses the system selection and focus |
 | Increased contrast | Increase Contrast makes faded text and control glyphs solid | Verified (automated) for tokens; Needs manual check in use | `increaseContrastMakesSecondaryTextSolid`; `AppTheme.increasesContrast` reads the system setting when views draw |
 | Text size | Text can be enlarged | Verified (automated) | Appearance > Text size (Standard, Large, Extra Large) scales type and tile geometry everywhere. `everyTextSizeRendersWithinBounds`, `everyTileDetailFitsTheTileWithoutTruncation` at every size, `popoverHeightDoesNotDependOnWidth` at every size, `windowsRenderAtExtraLargeText`. macOS does not apply Dynamic Type to SwiftUI text on the Mac, so the system setting cannot drive it |
 | Localization | Layout survives longer translations | Gap | English only; truncation tests cover current copy |

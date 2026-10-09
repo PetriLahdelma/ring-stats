@@ -258,7 +258,7 @@ struct AppShellTests {
     @Test func contextMenuReflectsConnectionState() async {
         let connected = await delegate(connected: true).makeContextMenu()
         #expect(connected.items.map(\.title) == [
-            "Appearance…", "Connection…", "About & Credits", "Diagnostics…", "",
+            "Appearance…", "Connection…", "About Ring Stats", "Diagnostics…", "",
             "Refresh Now", "Reauthorize Permissions", "", "Quit Ring Stats",
         ])
         #expect(connected.item(withTitle: "Refresh Now")?.isEnabled == true)
