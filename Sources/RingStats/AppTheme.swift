@@ -1,6 +1,5 @@
 import Foundation
 import RingStatsCore
-import RingStatsOura
 
 enum AppTheme: String, CaseIterable, Identifiable, Sendable {
     case ringStats = "ring-stats"
@@ -36,7 +35,7 @@ enum AppTheme: String, CaseIterable, Identifiable, Sendable {
     var summary: String {
         switch self {
         case .ringStats:
-            "Warm canvas with signal-blue gauges and dark text."
+            "Warm canvas by day, dark at night; follows the system appearance."
         case .landscape:
             "Full-width landscape with white icons, numbers, and labels."
         case .holographic:

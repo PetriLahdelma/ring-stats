@@ -25,10 +25,10 @@ AppKit; web techniques such as ARIA do not apply.
    while it is on (`AppTheme.increasesContrast`). Never add a faded token
    that ignores it. (1.4.3, 1.4.11)
 3. **Never rely on color alone.** Every state that has a color also has
-   text: stale tiles say "Not updated", failures say so, the low battery
+   text: stale tiles say "Stale · 2h", failures say so, the low battery
    alert names the level. (1.4.1)
 4. **Name every control, and include its visible text.** Icon-only controls,
-   such as the ☰ menu and the reorder grip, get an `accessibilityLabel`. A
+   such as the ☰ menu, get an `accessibilityLabel`. A
    control with visible text keeps that text at the start of its label, so
    Voice Control can find it by what it shows. (1.1.1, 2.5.3, 4.1.2)
 5. **Group each stat into one element.** A tile reads as title, value, and
@@ -59,11 +59,15 @@ AppKit; web techniques such as ARIA do not apply.
     (`everyTileDetailFitsTheTileWithoutTruncation`,
     `everyTextSizeRendersWithinBounds`). (1.4.4, 1.4.10)
 11. **Custom targets are at least 24 by 24 points.** Custom controls such as
-    the ☰ menu (28 points) and the reorder grip (24 points) meet it; native
+    the ☰ menu (28 points) and the Appearance list's drag handle (24 points) meet it; native
     controls keep their system size. (2.5.8)
-12. **Notifications stand alone.** A notification's text makes sense
+12. **A value in the menu bar is opt-in.** It is visible to anyone who can
+    see the screen, so Appearance says so and the default is Nothing. The
+    menu-bar item's VoiceOver label names the stat and value. (Privacy, not
+    a WCAG criterion.)
+13. **Notifications stand alone.** A notification's text makes sense
     without opening the app: "Your ring is at 15%". (3.3.1)
-13. **Record the evidence.** When behavior changes, update the matrix below,
+14. **Record the evidence.** When behavior changes, update the matrix below,
     and when a manual check is run, add it to the log.
 
 Status key: **Verified** (automated), **Verified** (manual, dated), **Needs
@@ -75,16 +79,19 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 | Area | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | Contrast | Small text meets 4.5:1 in every theme | Verified (automated) | `themeTextColorsMeetWCAGContrastForSmallText`; ratios below |
-| Contrast | Icons and arcs meet 3:1 | Verified (calculated) | Signal blue 6.99:1, alert icon 3.21:1 on canvas |
+| Contrast | Icons and arcs meet 3:1 | Verified (automated) | Light: Signal Blue 6.99:1, alert icon 3.21:1 on canvas. Dark: Signal Blue 6.87:1, alert icon 4.78:1 on Ink; `themeTextColorsMeetWCAGContrastForSmallText` |
+| Dark Mode | The Ring Stats theme and all windows follow the system appearance | Verified (automated) | Every popover state and window renders in both appearances in the state gallery; heights match (`themesKeepTheSameLayoutForEveryState`, `windowsRenderAtExtraLargeText`); dark tokens are measured in the contrast test |
 | Contrast | Window captions and control glyphs meet 4.5:1 | Verified (automated) | `Palette.secondaryInk` 4.65:1 in `themeTextColorsMeetWCAGContrastForSmallText`; replaced the system secondary label color (3.88:1), the unselected theme circle (2.21:1), and the reorder grip (1.96:1) |
 | Color independence | Every value and state appears as text | Verified (automated) | `staleTileSaysSoInTextAndToVoiceOver`, detail copy tests, state gallery |
+| Freshness | A stale value shows its age to sighted users, not only to VoiceOver | Verified (automated) | `staleTileSaysSoInTextAndToVoiceOver`: tiles and the battery row say "Stale · 2h"; `everyTileDetailFitsTheTileWithoutTruncation` covers the longest ages |
+| Freshness | The refresh status is always visible and is the retry control | Verified (automated) | `successAgeStaysVisibleAndIsRetryable`, `failuresStayVisibleInAlertTone`; the status line is a button reachable with Tab, disabled while refreshing |
 | Truncation | Tile detail text is never cut off | Verified (automated) | `everyTileDetailFitsTheTileWithoutTruncation` |
 | Theme parity | Themes show the same lines and labels | Verified (automated) | `themesKeepTheSameLayoutForEveryState` |
 | Widths | Layout holds at 420, 680, and 840 pt | Verified (automated) | `popoverStatesRenderWithinBoundsAtEverySupportedWidth` |
 | Overflow | Hidden stats are discoverable | Verified (automated) plus hint | Edge fades from `MetricStripLayout.overflow`; VoiceOver hint "More stats are available by scrolling" |
 | Reduced motion | Reordering, settling, and status fades do not animate | Verified (automated) for reordering; Needs manual check for status fade and spinner | `reducedMotionReorderSettlementIsImmediate`; `RefreshStatusView` and `ScoreLoadingSpinner` read `accessibilityReduceMotion` |
 | VoiceOver labels | Each tile reads title, value, and state | Verified (automated) for label text; Needs manual check for reading order | `MetricGauge.accessibilityLabel` tests |
-| VoiceOver status | Refresh status is readable even when visually hidden | Needs manual check | Always-present accessibility element in `RefreshStatusView` |
+| VoiceOver status | Refresh status is readable and actionable | Needs manual check | `RefreshStatusView` is a button with the status as its label and "Refreshes the stats now" as its hint |
 | VoiceOver announcements | Reorder, copy, and connection success are announced | Needs manual check | `AccessibilityNotification.Announcement` in reorder, callback copy, diagnostics copy, and connection |
 | VoiceOver announcements | Refresh Now announces its result | Verified (automated) for text; Needs manual check in use | `explicitRefreshAnnouncesEveryOutcome`; posted after Refresh Now from either menu, never for background refreshes |
 | Keyboard | Popover dismisses with Escape | Verified (automated) | `statusPopoverEscapeInvokesCancellationHandler` |
@@ -92,9 +99,9 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 | Keyboard | Escape closes every window | Verified (automated) | `escapeClosesEveryWindow` |
 | Keyboard | Every window control works without a pointer, by default | Verified (automated) for reach; Needs manual check in use | `tabReachesEveryControlInEveryWindow` counts the Tab stops in Appearance, About, Diagnostics, and both Connection states with the system Keyboard navigation setting off. `KeyboardReachable` makes each button, link, switch, and slider focusable when that setting is off (Space activates; arrows step the slider) and steps aside when it is on, so no control gets two stops. The theme group changes with the arrows (`themeArrowsStopAtEitherEnd`); in the stats list, Space shows or hides the selected stat and Option-Up and Option-Down move it |
 | Keyboard | Onboarding completes without a pointer | Needs manual check | Default-action buttons on every step, focused Client ID field |
-| Keyboard | Stats can be reordered without a pointer | Needs manual check | Focusable grip with Up/Down keys and Move Up/Down actions in Appearance |
+| Keyboard | Stats can be reordered without a pointer | Verified (automated) for reach; Needs manual check in use | In Appearance, the arrows select a row, Space shows or hides it, and Option-Up and Option-Down move it and announce the position (`tabReachesEveryControlInEveryWindow`); in the popover, Option-Left and Option-Right move the focused stat |
 | Keyboard | Metric strip is reachable, scrollable, and reorderable without a pointer | Verified (automated) for logic and focus path; Needs manual check in use | `arrowKeysMoveFocusAcrossVisibleStatsOnly`, `optionArrowMovesAStatPastItsVisibleNeighbor`; `openingThePopoverDoesNotFocusAStatTile` proves Tab reaches a tile while nothing is focused on open |
-| Focus | Focus is visible on every control | Verified (automated) for stat tiles; Needs manual check elsewhere | Stat tiles draw `MetricFocusRing` in the theme's action color (3:1 or more in every theme), rendered in the `keyboard-focus` gallery state; it shows only for keyboard focus (`focusCameFromPointer`). Other controls are native; the reorder grip uses the system focus ring |
+| Focus | Focus is visible on every control | Verified (automated) for stat tiles; Needs manual check elsewhere | Stat tiles draw `MetricFocusRing` in the theme's action color (3:1 or more in every theme), rendered in the `keyboard-focus` gallery state; it shows only for keyboard focus (`focusCameFromPointer`). Other controls are native; the Appearance list uses the system selection and focus |
 | Increased contrast | Increase Contrast makes faded text and control glyphs solid | Verified (automated) for tokens; Needs manual check in use | `increaseContrastMakesSecondaryTextSolid`; `AppTheme.increasesContrast` reads the system setting when views draw |
 | Text size | Text can be enlarged | Verified (automated) | Appearance > Text size (Standard, Large, Extra Large) scales type and tile geometry everywhere. `everyTextSizeRendersWithinBounds`, `everyTileDetailFitsTheTileWithoutTruncation` at every size, `popoverHeightDoesNotDependOnWidth` at every size, `windowsRenderAtExtraLargeText`. macOS does not apply Dynamic Type to SwiftUI text on the Mac, so the system setting cannot drive it |
 | Localization | Layout survives longer translations | Gap | English only; truncation tests cover current copy |
@@ -122,6 +129,11 @@ Holographic is measured against the darkest pixel of the bundled marble, pink
 | Holographic ink `#0D0F10` | Holographic values, titles, arcs | 11.73:1 worst | 4.5:1 |
 | Holographic ink at 68% | Holographic details | 5.39:1 worst | 4.5:1 |
 | Holographic alert `#8C2A1F` | Holographic failures and low-battery icon | 5.20:1 worst | 4.5:1 |
+| Dark text `#ECE9E4` | Dark Mode values, titles, window text, on Ink | 14.27:1 | 4.5:1 |
+| Dark text at 62% | Dark Mode details and captions | 6.2:1 | 4.5:1 |
+| Dark Signal Blue `#7FA6D8` | Dark Mode arcs, links, secondary buttons | 6.87:1 | 3:1 (non-text), 4.5:1 (text) |
+| Ink on Dark Signal Blue | Dark Mode filled buttons | 6.87:1 | 4.5:1 |
+| Dark alert text `#F2857A` | Dark Mode failures and staleness | 6.92:1 | 4.5:1 |
 | Secondary ink (ink at 62%) | Window captions, theme circles, reorder grip | 4.65:1 | 4.5:1 |
 
 Before this pass, the battery sample age used ink at 50% (3.23:1) and failure

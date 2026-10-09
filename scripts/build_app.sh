@@ -42,6 +42,7 @@ temporary_dir="${temporary_dir#/private}"
 # The first architecture's build supplies App Intents metadata; it does not
 # vary by architecture.
 intents_build_dir=""
+intents_scratch_path=""
 
 for architecture in $BUILD_ARCHS; do
   case "$architecture" in
@@ -51,7 +52,12 @@ for architecture in $BUILD_ARCHS; do
 
   scratch_path="$PROJECT_DIR/.build/release-$architecture"
   triple="$architecture-apple-macosx14.0"
+  # Xcode 27 defaults to the Swift Build engine, which serializes the clang
+  # importer's search paths into every swiftmodule and so into the dSYM,
+  # and overrides -no-serialize-debugging-options. The native engine does
+  # not, and it is what CI's toolchain uses by default.
   SWIFT_EXEC="$FROZEN_COMPILER_PATH" swift build \
+    --build-system native \
     -c "$CONFIGURATION" \
     --product "$PRODUCT_NAME" \
     --triple "$triple" \
@@ -64,11 +70,14 @@ for architecture in $BUILD_ARCHS; do
     -Xswiftc "$temporary_dir=/tmp" \
     -Xswiftc -file-prefix-map \
     -Xswiftc "/private$temporary_dir=/tmp" \
+    -Xswiftc -Xfrontend -Xswiftc -no-clang-module-breadcrumbs \
+    -Xswiftc -Xfrontend -Xswiftc -no-serialize-debugging-options \
     -Xswiftc -emit-const-values \
     -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file \
     -Xswiftc -Xfrontend -Xswiftc "$PROJECT_DIR/native/AppIntentsConstProtocols.json"
 
   bin_path="$(SWIFT_EXEC="$FROZEN_COMPILER_PATH" swift build \
+    --build-system native \
     -c "$CONFIGURATION" \
     --triple "$triple" \
     --scratch-path "$scratch_path" \
@@ -76,6 +85,7 @@ for architecture in $BUILD_ARCHS; do
   binary_paths+=("$bin_path/$EXECUTABLE_NAME")
   if [[ -z "$intents_build_dir" ]]; then
     intents_build_dir="$bin_path"
+    intents_scratch_path="$scratch_path"
     intents_triple="$triple"
   fi
 done
@@ -118,8 +128,14 @@ done
 # Xcode normally generates. Produce it from the compiler's constant values.
 intents_work="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/ring-stats-intents.XXXXXX")"
 /usr/bin/find "$PROJECT_DIR/Sources/$EXECUTABLE_NAME" -name '*.swift' | LC_ALL=C /usr/bin/sort > "$intents_work/sources.txt"
-echo "$intents_build_dir/$EXECUTABLE_NAME.build/$EXECUTABLE_NAME.swiftconstvalues" > "$intents_work/constvalues.txt"
-[[ -s "$intents_build_dir/$EXECUTABLE_NAME.build/$EXECUTABLE_NAME.swiftconstvalues" ]] || { echo "Swift constant values were not emitted." >&2; exit 1; }
+# Xcode 26 wrote the constant values next to the binary; Xcode 27's package
+# build keeps them under Intermediates.noindex as <module>-primary.
+const_values="$intents_build_dir/$EXECUTABLE_NAME.build/$EXECUTABLE_NAME.swiftconstvalues"
+if [[ ! -s "$const_values" ]]; then
+  const_values="$(/usr/bin/find "$intents_scratch_path" -type f -name "$EXECUTABLE_NAME-primary.swiftconstvalues" -path "*/Release/*" 2>/dev/null | /usr/bin/head -n 1)"
+fi
+[[ -n "$const_values" && -s "$const_values" ]] || { echo "Swift constant values were not emitted." >&2; exit 1; }
+echo "$const_values" > "$intents_work/constvalues.txt"
 xcrun appintentsmetadataprocessor \
   --output "$CONTENTS_DIR/Resources" \
   --toolchain-dir "$(dirname "$(dirname "$(dirname "$FROZEN_COMPILER_PATH")")")" \

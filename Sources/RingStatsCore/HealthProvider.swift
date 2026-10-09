@@ -21,19 +21,23 @@ package struct ProviderDescriptor: Sendable, Equatable {
     package let metricScopes: [Metric: AuthorizationScope]
     /// Permissions requested whatever metrics are shown, such as battery access.
     package let baseScopes: Set<AuthorizationScope>
+    /// Where the user creates the application whose credentials they bring.
+    package let developerPortal: URL?
 
     package init(
         id: ProviderID,
         displayName: String,
         capabilities: ProviderCapabilities,
         metricScopes: [Metric: AuthorizationScope],
-        baseScopes: Set<AuthorizationScope>
+        baseScopes: Set<AuthorizationScope>,
+        developerPortal: URL? = nil
     ) {
         self.id = id
         self.displayName = displayName
         self.capabilities = capabilities
         self.metricScopes = metricScopes
         self.baseScopes = baseScopes
+        self.developerPortal = developerPortal
     }
 
     /// The permissions to request for the given metrics. Unsupported metrics

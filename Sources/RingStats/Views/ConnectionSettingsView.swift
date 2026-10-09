@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 /// Where the first-run connection flow is. Oura requires each person to use
 /// their own developer application, so onboarding explains that constraint in
@@ -28,7 +27,11 @@ struct ConnectionSettingsView: View {
     @Environment(\.openURL) private var openURL
     static let windowWidth: CGFloat = 460
     static let windowHeight: CGFloat = 440
-    static let developerPortal = URL(string: "https://developer.ouraring.com/applications")!
+    /// The portal where the user creates their application, from the
+    /// provider's descriptor.
+    private var developerPortal: URL {
+        model.descriptor.developerPortal ?? URL(string: "https://developer.ouraring.com/applications")!
+    }
 
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.dismiss) private var dismiss
@@ -77,7 +80,6 @@ struct ConnectionSettingsView: View {
         )
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
-        .preferredColorScheme(.light)
         .confirmationDialog(
             "Disconnect and delete saved authorization?",
             isPresented: $showingDisconnectConfirmation
@@ -87,13 +89,13 @@ struct ConnectionSettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Ring Stats will revoke the current Oura token and remove the saved OAuth token, Client ID, and Client Secret from macOS Keychain.")
+            Text("Ring Stats will revoke the current \(model.descriptor.displayName) token and remove the saved OAuth token, Client ID, and Client Secret from macOS Keychain.")
         }
         .onChange(of: model.connected) { _, connected in
             // Only a connection made in this flow earns the confirmation step.
             if connected, step == .enterCredentials {
                 step = .connected
-                AccessibilityNotification.Announcement("Connected securely to Oura").post()
+                AccessibilityNotification.Announcement("Connected securely to \(model.descriptor.displayName)").post()
             }
         }
         .onDisappear {
@@ -129,18 +131,18 @@ struct ConnectionSettingsView: View {
 
     private var createApplicationStep: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Create your Oura application")
+            Text("Create your \(model.descriptor.displayName) application")
                 .scaledFont(.title)
-            Text("Oura gives personal API access through a developer application that you own. Ring Stats has no server of its own, so it connects with your application instead of a shared one.")
+            Text("\(model.descriptor.displayName) gives personal API access through a developer application that you own. Ring Stats has no server of its own, so it connects with your application instead of a shared one.")
                 .fixedSize(horizontal: false, vertical: true)
             Text("It takes about two minutes and needs no special settings beyond the callback in the next step.")
                 .foregroundStyle(Palette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
-            Link(destination: Self.developerPortal) {
-                Label("Open Oura developer portal", systemImage: "arrow.up.right.square")
+            Link(destination: developerPortal) {
+                Label("Open \(model.descriptor.displayName) developer portal", systemImage: "arrow.up.right.square")
             }
             .foregroundStyle(Palette.signalBlue)
-            .keyboardActivatable(cornerRadius: 4) { openURL(Self.developerPortal) }
+            .keyboardActivatable(cornerRadius: 4) { openURL(developerPortal) }
             Spacer(minLength: 0)
             navigation(back: nil, next: .registerCallback, nextTitle: "I Have Created It")
         }
@@ -150,7 +152,7 @@ struct ConnectionSettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Add the callback URL")
                 .scaledFont(.title)
-            Text("In your application’s settings, add this exact redirect URI. Oura returns you to Ring Stats through it after you approve access.")
+            Text("In your application’s settings, add this exact redirect URI. \(model.descriptor.displayName) returns you to Ring Stats through it after you approve access.")
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 Text(OAuthLoopback.callbackURL)
@@ -158,7 +160,7 @@ struct ConnectionSettingsView: View {
                     .textSelection(.enabled)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 10)
-                    .background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background(Palette.card, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 Button {
                     copyCallbackURL()
                 } label: {
@@ -189,7 +191,7 @@ struct ConnectionSettingsView: View {
                 .focused($focusedField, equals: .clientSecret)
                 .disabled(model.state == .authorizing)
             Label {
-                Text("Stored only in this Mac’s Keychain and sent only to Oura. Disconnecting deletes them.")
+                Text("Stored only in this Mac’s Keychain and sent only to \(model.descriptor.displayName). Disconnecting deletes them.")
                     .fixedSize(horizontal: false, vertical: true)
             } icon: {
                 Image(systemName: "lock.fill")
@@ -305,10 +307,10 @@ struct ConnectionSettingsView: View {
 
     private var management: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Oura Connection")
+            Text("\(model.descriptor.displayName) Connection")
                 .scaledFont(.title)
             Label(
-                model.connected ? "Oura account connected" : "Oura authorization required",
+                model.connected ? "\(model.descriptor.displayName) account connected" : "\(model.descriptor.displayName) authorization required",
                 systemImage: model.connected ? "checkmark.circle" : "exclamationmark.circle"
             )
             .scaledFont(.callout, weight: .medium)

@@ -1,7 +1,7 @@
 import AppKit
+import Combine
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 enum PopoverLayout {
     static let minimumWidth: CGFloat = 420
@@ -146,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var popoverSizeProvider: ((CGFloat) -> NSSize)?
     private var outsideClickMonitor: Any?
     private var localClickMonitor: Any?
+    private var snapshotObserver: AnyCancellable?
     private(set) var connectionWindowController: NSWindowController?
     private(set) var appearanceWindowController: NSWindowController?
     private(set) var aboutWindowController: NSWindowController?
@@ -164,10 +165,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refitWindowsForTextSize() }
+            MainActor.assumeIsolated {
+                self?.refitWindowsForTextSize()
+                self?.updateStatusItemValue()
+            }
         }
         configurePopover()
         configureStatusItem()
+        snapshotObserver = model.$snapshot
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusItemValue() }
         lowBatteryWatcher = LowBatteryWatcher(model: model)
         let refresher = BackgroundRefresher(model: model) { [weak self] in self?.visibleMetrics ?? [] }
         refresher.start()
@@ -190,6 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let rootView = MenuPopoverShell(geometry: popoverGeometry) {
             MenuPopoverView(
                 showConnection: { [weak self] in self?.showConnectionWindow() },
+                requestRefresh: { [weak self] in self?.refreshPopover(force: true) },
                 showMenu: { [weak self] frame in self?.showOptionsMenu(below: frame) }
             )
             .environmentObject(model)
@@ -231,6 +239,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         button.action = #selector(handleStatusItemClick(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
+        updateStatusItemValue()
+    }
+
+    /// Shows the chosen value beside the icon, or the icon alone.
+    func updateStatusItemValue() {
+        guard let button = statusItem?.button else { return }
+        let preference = MenuBarValuePreference.resolve(
+            UserDefaults.standard.string(forKey: MenuBarValuePreference.storageKey)
+        )
+        let text = preference.text(for: model.snapshot) ?? ""
+        // A square item never grows for a title.
+        statusItem?.length = text.isEmpty ? NSStatusItem.squareLength : NSStatusItem.variableLength
+        button.title = text
+        button.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        button.imagePosition = text.isEmpty ? .imageOnly : .imageLeading
+        button.setAccessibilityLabel(preference.accessibilityLabel(for: model.snapshot))
     }
 
     @objc private func handleStatusItemClick(_ sender: NSStatusBarButton) {
@@ -283,9 +307,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         refreshPopover(force: false)
     }
 
+    /// The stats to fetch: the visible ones, plus the one shown in the menu
+    /// bar, which may be hidden in the popover.
     private var visibleMetrics: Set<Metric> {
         let stored = UserDefaults.standard.string(forKey: MetricConfiguration.storageKey)
-        return Set(MetricConfiguration.decode(stored).visibleMetrics)
+        var metrics = Set(MetricConfiguration.decode(stored).visibleMetrics)
+        let menuBar = MenuBarValuePreference.resolve(UserDefaults.standard.string(forKey: MenuBarValuePreference.storageKey))
+        if let metric = menuBar.metric { metrics.insert(metric) }
+        return metrics
     }
 
     private func refreshPopover(force: Bool) {
@@ -427,7 +456,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         menu.addItem(connectionItem)
 
         let aboutItem = NSMenuItem(
-            title: "About & Credits",
+            title: "About Ring Stats",
             action: #selector(openAboutFromMenu(_:)),
             keyEquivalent: ""
         )
@@ -559,7 +588,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         })
         .environmentObject(model)
         let controller = makeWindow(
-            title: "Oura Connection",
+            title: "\(model.descriptor.displayName) Connection",
             content: view
         )
         connectionWindowController = controller

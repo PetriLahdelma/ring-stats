@@ -75,7 +75,10 @@ These are not negotiable. A pull request that breaks one is not merged.
 Requirements:
 
 - macOS 14 or later
-- Xcode 26, or another toolchain supporting Swift tools version 6.2
+- Xcode 26 or 27, or another toolchain supporting Swift tools version 6.2.
+  Release builds pin SwiftPM's native build engine (`--build-system native`),
+  because Xcode 27's Swift Build engine writes the build machine's paths into
+  every swiftmodule and so into the dSYM.
 - Git
 
 No package installation is needed.
@@ -121,8 +124,12 @@ public sandbox provides realistic data (step 5).
 - Put a test in the suite for the boundary it exercises: `AppViewModelTests`,
   `ProviderBoundaryTests`, `OuraAPITests`, `OAuthClientTests`,
   `InfrastructureSecurityTests`, `DiagnosticsTests`, `StateGalleryTests`, and
-  the feature suites beside them. Shared fakes live in `TestSupport.swift`.
-- Wait on explicit gates (`Gate`, `waitUntil`, `HTTPHold`). Never `sleep`.
+  the feature suites beside them. `RingStatsTests.swift` holds the older
+  free-standing tests of pure helpers (score bands, status text, reorder
+  math, contrast); add to a suite instead of there. Shared fakes live in
+  `TestSupport.swift`.
+- Wait on explicit gates (`Gate`, `waitUntil`, `HTTPHold`), and assert on
+  what happened, never on elapsed wall-clock time. Never `sleep`.
 - Write the test first for security-, state-, time-, or persistence-sensitive
   behavior, and show it failing without your change.
 - Tests must run offline. A test that needs the network must be opt-in, as
@@ -202,6 +209,12 @@ Then, depending on what you changed:
   ```bash
   RING_STATS_LIVE_SANDBOX=1 swift test --filter OuraSandboxTests
   ```
+
+- **Visual regressions:** each gallery folder also gets a `hashes.json`
+  with the SHA-256 of every render. Font rendering differs between Macs, so
+  comparing is opt-in: copy a known-good `hashes.json` aside and run
+  `RING_STATS_GALLERY_BASELINE=/path/to/hashes.json swift test`; renders
+  whose hash changed are reported.
 
 - **Untested code:** `scripts/coverage_report.sh` prints line coverage
   grouped by the boundaries in [ARCHITECTURE.md](ARCHITECTURE.md). Use it to

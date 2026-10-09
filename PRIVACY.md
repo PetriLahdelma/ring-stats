@@ -25,7 +25,11 @@ granted to the current OAuth token. Revoke or reauthorize to change the token's
 permissions.
 
 Ring Stats also stores local display preferences such as theme, visible metric
-order, and popover width. These preferences are not health data.
+order, popover width, text size, the low battery alert, and which value, if
+any, to show in the menu bar. These preferences are not health data. The
+menu bar value is off by default; when you turn it on, the chosen stat or a
+low battery percentage is drawn in the menu bar, where anyone who can see
+your screen can read it.
 
 ## How data is used and stored
 
@@ -56,9 +60,8 @@ Ring Stats runs in the macOS App Sandbox, so its local files live in its
 container at `~/Library/Containers/com.digitaltableteur.ringstats/`. Local
 interface preferences are stored there using macOS `UserDefaults`; on the
 first sandboxed launch, macOS moves existing preferences into the container. The OAuth
-callback is received by a temporary IPv4 loopback listener at
-`http://localhost:43828/oauth/callback` (or `http://127.0.0.1:43828/oauth/callback`
-for connections set up before 1.3.2); it is not a remote project server.
+callback is received by a temporary loopback listener (IPv4 and IPv6) at
+`http://localhost:43828/oauth/callback`; it is not a remote project server.
 
 Early development builds could store OAuth JSON under
 `~/Library/Application Support/Ring Stats Public/Legacy Secrets/`. Current

@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 import SwiftUI
 import Testing
@@ -26,14 +27,20 @@ struct StateGalleryTests {
         for state in GalleryState.allCases {
             for theme in AppTheme.allCases {
                 for width in Self.widths {
-                    let fixture = try await GalleryFixture(state: state, theme: theme)
-                    let render = try fixture.renderPopover(width: width)
-                    try gallery.add(render, name: "popover-\(state.rawValue)-\(theme.rawValue)-\(Int(width))")
+                    // The Ring Stats theme follows the system appearance, so
+                    // it is rendered in both; the other themes fix theirs.
+                    let appearances: [(String, NSAppearance.Name)] = theme == .ringStats
+                        ? [("", .aqua), ("-dark", .darkAqua)] : [("", .aqua)]
+                    for (suffix, appearance) in appearances {
+                        let fixture = try await GalleryFixture(state: state, theme: theme)
+                        let render = try fixture.renderPopover(width: width, appearance: appearance)
+                        try gallery.add(render, name: "popover-\(state.rawValue)-\(theme.rawValue)\(suffix)-\(Int(width))")
 
-                    #expect(render.size.width == width, "\(state) \(theme) \(width)")
-                    #expect(render.size.height >= 120, "\(state) \(theme) \(width) is collapsed")
-                    #expect(render.size.height <= 800, "\(state) \(theme) \(width) exceeds the panel limit")
-                    #expect(render.hasVisibleContent, "\(state) \(theme) \(width) rendered blank")
+                        #expect(render.size.width == width, "\(state) \(theme)\(suffix) \(width)")
+                        #expect(render.size.height >= 120, "\(state) \(theme)\(suffix) \(width) is collapsed")
+                        #expect(render.size.height <= 800, "\(state) \(theme)\(suffix) \(width) exceeds the panel limit")
+                        #expect(render.hasVisibleContent, "\(state) \(theme)\(suffix) \(width) rendered blank")
+                    }
                 }
             }
         }
@@ -97,7 +104,16 @@ struct StateGalleryTests {
             let render = try GalleryRender(view: scaled, width: fitted.width)
             try gallery.add(render, name: "extra-large-\(name)")
             #expect(render.hasVisibleContent, "\(name) rendered blank")
-            _ = fixedHeight
+            if let fixedHeight {
+                // A fixed-size window scaled for Extra Large must hold its
+                // content; a taller fit means something overflowed.
+                #expect(fitted.height <= (fixedHeight * scale).rounded() + 1, "\(name) overflows: \(fitted.height)")
+            }
+            // Windows follow the system appearance.
+            let dark = try GalleryRender(view: scaled, width: fitted.width, appearance: .darkAqua)
+            try gallery.add(dark, name: "extra-large-dark-\(name)")
+            #expect(dark.hasVisibleContent, "\(name) rendered blank in Dark Mode")
+            #expect(dark.size == render.size, "\(name) changes size in Dark Mode")
         }
         try gallery.writeIndex()
     }
@@ -111,6 +127,10 @@ struct StateGalleryTests {
             let landscape = try await GalleryFixture(state: state, theme: .landscape)
                 .renderPopover(width: PopoverLayout.defaultWidth)
             #expect(ringStats.size.height == landscape.size.height, "\(state)")
+            // Dark Mode changes colors only.
+            let dark = try await GalleryFixture(state: state, theme: .ringStats)
+                .renderPopover(width: PopoverLayout.defaultWidth, appearance: .darkAqua)
+            #expect(dark.size.height == ringStats.size.height, "\(state) dark")
         }
     }
 
@@ -341,7 +361,7 @@ struct GalleryFixture {
         )
     }
 
-    func renderPopover(width: CGFloat) throws -> GalleryRender {
+    func renderPopover(width: CGFloat, appearance: NSAppearance.Name = .aqua) throws -> GalleryRender {
         let view = MenuPopoverShell(geometry: PopoverGeometryModel()) {
             MenuPopoverView(
                 showConnection: {},
@@ -352,7 +372,7 @@ struct GalleryFixture {
         }
         .defaultAppStorage(defaults)
         defer { release() }
-        return try GalleryRender(view: view, width: width)
+        return try GalleryRender(view: view, width: width, appearance: appearance)
     }
 }
 
@@ -363,8 +383,9 @@ struct GalleryRender {
     let png: Data
     let hasVisibleContent: Bool
 
-    init<V: View>(view: V, width: CGFloat) throws {
+    init<V: View>(view: V, width: CGFloat, appearance: NSAppearance.Name = .aqua) throws {
         let hosting = NSHostingView(rootView: view.frame(width: width))
+        hosting.appearance = NSAppearance(named: appearance)
         let fitted = hosting.fittingSize
         let size = CGSize(width: width, height: min(fitted.height, 1_200))
         hosting.frame = CGRect(origin: .zero, size: size)
@@ -378,8 +399,9 @@ struct GalleryRender {
         window.backgroundColor = .clear
         window.contentView = hosting
         hosting.layoutSubtreeIfNeeded()
-        // Let SwiftUI settle onAppear-driven state before capturing.
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        // Let SwiftUI settle onAppear-driven state before capturing: a few
+        // run-loop passes, not a timed sleep.
+        for _ in 0..<3 { _ = RunLoop.main.run(mode: .default, before: Date()) }
         hosting.layoutSubtreeIfNeeded()
 
         let scale: CGFloat = 2
@@ -422,10 +444,19 @@ enum GalleryError: Error {
     case renderFailed
 }
 
+/// Render hashes, keyed by name.
+private final class HashList: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [String: String] = [:]
+    func set(_ name: String, _ hash: String) { lock.withLock { entries[name] = hash } }
+    var values: [String: String] { lock.withLock { entries } }
+}
+
 /// Writes renders and an HTML contact sheet for human review.
 struct GalleryWriter {
     let directory: URL
     private let names = NameList()
+    private let hashes = HashList()
 
     init(subdirectory: String = "popover") throws {
         let root = ProcessInfo.processInfo.environment["RING_STATS_GALLERY_DIR"].map(URL.init(fileURLWithPath:))
@@ -441,9 +472,25 @@ struct GalleryWriter {
     func add(_ render: GalleryRender, name: String) throws {
         try render.png.write(to: directory.appendingPathComponent("\(name).png"))
         names.append(name)
+        hashes.set(name, SHA256.hash(data: render.png).map { String(format: "%02x", $0) }.joined())
+    }
+
+    /// Writes every render's SHA-256 to hashes.json, so two runs on the same
+    /// machine can be diffed, and compares against a baseline file when
+    /// RING_STATS_GALLERY_BASELINE names one. Font rendering differs between
+    /// machines, so the comparison is opt-in.
+    func writeHashes() throws {
+        let recorded = hashes.values
+        let data = try JSONSerialization.data(withJSONObject: recorded, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: directory.appendingPathComponent("hashes.json"))
+        guard let baselinePath = ProcessInfo.processInfo.environment["RING_STATS_GALLERY_BASELINE"] else { return }
+        let baseline = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: baselinePath))) as? [String: String] ?? [:]
+        let changed = recorded.filter { baseline[$0.key] != nil && baseline[$0.key] != $0.value }.keys.sorted()
+        #expect(changed.isEmpty, "renders differ from the baseline: \(changed)")
     }
 
     func writeIndex() throws {
+        try writeHashes()
         let items = names.values.map { name in
             "<figure><img src=\"\(name).png\"><figcaption>\(name)</figcaption></figure>"
         }.joined(separator: "\n")

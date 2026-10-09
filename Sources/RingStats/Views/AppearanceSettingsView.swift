@@ -1,12 +1,12 @@
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 struct AppearanceSettingsView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var rawConfiguration = MetricConfiguration.default.encoded
     @AppStorage(TextSizePreference.storageKey) private var textSizeRaw = TextSizePreference.standard.rawValue
     @AppStorage(LowBatteryPreference.storageKey) private var lowBatteryAlerts = false
+    @AppStorage(MenuBarValuePreference.storageKey) private var menuBarValueRaw = MenuBarValuePreference.nothing.rawValue
     @State private var notificationsDenied = false
 
     private var textSize: Binding<TextSizePreference> {
@@ -99,7 +99,7 @@ struct AppearanceSettingsView: View {
                 .padding(.leading, 46)
             themeOption(.holographic)
         }
-        .background(.white.opacity(0.66))
+        .background(Palette.card)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -206,6 +206,30 @@ struct AppearanceSettingsView: View {
                     .tint(Palette.signalBlue)
                     .accessibilityHint("Notifies you when the ring battery drops below \(LowBatteryAlert.threshold)%")
             }
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("In the menu bar")
+                        .scaledFont(.headline)
+                    Text("Show a value beside the icon, so a glance needs no click. Anyone who sees your screen sees it too.")
+                        .scaledFont(.caption)
+                        .foregroundStyle(Palette.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Picker("In the menu bar", selection: $menuBarValueRaw) {
+                    ForEach(MenuBarValuePreference.allCases) { choice in
+                        Text(choice.title).tag(choice.rawValue)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .keyboardStepper(cornerRadius: 6) { offset in
+                    let all = MenuBarValuePreference.allCases
+                    let index = (all.firstIndex(of: MenuBarValuePreference.resolve(menuBarValueRaw)) ?? 0) + offset
+                    if all.indices.contains(index) { menuBarValueRaw = all[index].rawValue }
+                }
+                .accessibilityHint("Shows the chosen stat beside the menu bar icon")
+            }
             .onChange(of: lowBatteryAlerts) { _, enabled in
                 guard enabled else { return }
                 Task {
@@ -292,7 +316,6 @@ struct AppearanceSettingsView: View {
         )
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
-        .preferredColorScheme(.light)
         .onChange(of: rawConfiguration) { _, newValue in
             let updated = MetricConfiguration.decode(newValue)
             if updated != configuration {

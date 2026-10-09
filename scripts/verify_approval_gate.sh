@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
@@ -20,16 +21,6 @@ else
   CANDIDATE_MANIFEST="$PROJECT_DIR/dist/candidate-manifest.json"
 fi
 
-fail() { echo "error: $*" >&2; exit 1; }
-read_field() { /usr/bin/plutil -extract "$2" raw "$1" 2>/dev/null || true; }
-working_tree_hash() {
-  local temporary_index
-  temporary_index="$(mktemp "${TMPDIR:-/tmp}/ring-stats-gate-index.XXXXXX")"
-  GIT_INDEX_FILE="$temporary_index" /usr/bin/git -C "$PROJECT_DIR" read-tree HEAD
-  GIT_INDEX_FILE="$temporary_index" /usr/bin/git -C "$PROJECT_DIR" add -A
-  GIT_INDEX_FILE="$temporary_index" /usr/bin/git -C "$PROJECT_DIR" write-tree
-  /bin/rm -f "$temporary_index"
-}
 
 case "$kind" in
   gate-a)

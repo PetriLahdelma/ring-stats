@@ -19,22 +19,23 @@ enum ShortcutFailure: Error, Equatable {
     case unavailable(Metric)
     case batteryUnavailable
 
-    var message: String {
+    /// The sentence Shortcuts shows, naming the provider.
+    func message(provider: String) -> String {
         switch self {
         case .notConnected:
-            "Ring Stats is not connected to Oura. Open Ring Stats to connect."
+            "Ring Stats is not connected to \(provider). Open Ring Stats to connect."
         case .authorizationExpired:
-            "Your Oura authorization has expired. Open Ring Stats to reauthorize."
+            "Your \(provider) authorization has expired. Open Ring Stats to reauthorize."
         case .needsAccess(let metric):
-            "Ring Stats does not have Oura permission for \(metric.title). Reauthorize in Ring Stats with that stat shown."
+            "Ring Stats does not have \(provider) permission for \(metric.title). Reauthorize in Ring Stats with that stat shown."
         case .needsBatteryAccess:
-            "Ring Stats does not have Oura permission for the ring battery. Reauthorize in Ring Stats."
+            "Ring Stats does not have \(provider) permission for the ring battery. Reauthorize in Ring Stats."
         case .noData(let metric):
-            "Oura has no \(metric.title) data yet. Open the Oura phone app to sync."
+            "\(provider) has no \(metric.title) data yet. Open the \(provider) phone app to sync."
         case .unavailable(let metric):
-            "\(metric.title) could not be fetched from Oura. Try again shortly."
+            "\(metric.title) could not be fetched from \(provider). Try again shortly."
         case .batteryUnavailable:
-            "The ring battery could not be fetched from Oura. Try again shortly."
+            "The ring battery could not be fetched from \(provider). Try again shortly."
         }
     }
 }

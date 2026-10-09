@@ -1,6 +1,5 @@
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 struct AboutCreditsView: View {
     static let baseWidth: CGFloat = 420
@@ -50,6 +49,5 @@ struct AboutCreditsView: View {
         .frame(width: (Self.baseWidth * textScale).rounded())
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
-        .preferredColorScheme(.light)
     }
 }

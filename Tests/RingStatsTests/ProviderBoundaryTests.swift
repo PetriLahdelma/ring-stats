@@ -18,6 +18,48 @@ struct ProviderBoundaryTests {
         baseScopes: []
     )
 
+    /// The app reaches the Oura module only where it chooses the provider.
+    /// Any other import would let a view depend on Oura types silently.
+    @Test func onlyTheCompositionRootImportsTheOuraModule() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/RingStats")
+        let files = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+        let importers = try files.filter { try String(contentsOf: $0, encoding: .utf8).contains("import RingStatsOura") }
+        #expect(importers.map(\.lastPathComponent) == ["ProviderRegistry.swift"])
+    }
+
+    /// Core names no provider; the app passes the name in.
+    @Test func coreCarriesNoProviderName() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/RingStatsCore")
+        let files = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            .compactMap { $0 as? URL }
+            .filter { $0.pathExtension == "swift" }
+        // Comments may mention Oura's history and conventions; code and
+        // strings may not.
+        let offenders = try files.filter { file in
+            try String(contentsOf: file, encoding: .utf8).split(separator: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .contains { $0.contains("Oura") }
+        }
+        #expect(offenders.isEmpty, "\(offenders.map(\.lastPathComponent))")
+
+        #expect(RingStatsError.timedOut.message(provider: "Ultrahuman")
+            == "The request to Ultrahuman timed out. Check your connection and try again.")
+        #expect(RingStatsError.notConnected.message(provider: "Oura") == "Connect Oura first.")
+        // The generic fallback still reads as a sentence.
+        #expect(RingStatsError.timedOut.errorDescription == "The request to the service timed out. Check your connection and try again.")
+        #expect(RingStatsError.invalidResponse.errorDescription == "The service returned an invalid response.")
+        #expect(RingStatsError.rateLimited(retryAfter: 1e300).message(provider: "Oura").contains("3600 seconds"))
+        #expect(ShortcutFailure.notConnected.message(provider: "Ultrahuman")
+            == "Ring Stats is not connected to Ultrahuman. Open Ring Stats to connect.")
+        #expect(OuraProvider.descriptor.developerPortal?.host == "developer.ouraring.com")
+    }
+
     @Test func ouraDescriptorRequestsTheSameScopesAsBefore() {
         let all = Metric.allCases
         for mask in 0..<(1 << all.count) {

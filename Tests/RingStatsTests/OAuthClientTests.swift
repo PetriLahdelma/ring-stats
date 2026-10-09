@@ -142,6 +142,30 @@ extension HTTPStubbedTests {
             #expect(recorder.requests.count == 1)
         }
 
+        /// Oura rotates refresh tokens. A fresh pair the Keychain could not
+        /// store is kept in memory, or the consumed token would be replayed
+        /// and the user sent back through the browser.
+        @Test func freshTokenSurvivesAKeychainWriteFailure() async throws {
+            let store = SaveFailingAfterLoadStore()
+            let credentials = ClientCredentials(clientID: "client", clientSecret: "secret")
+            try store.save(credentials, account: "client-credentials")
+            try store.save(
+                OAuthToken(accessToken: "expired", refreshToken: "old", expiresAt: .distantPast),
+                account: "oauth-token"
+            )
+            let recorder = HTTPStubRecorder { request in
+                stubResponse(request, 200, #"{"access_token":"fresh","refresh_token":"next","expires_in":3600}"#)
+            }
+            let client = OAuthClient(store: store, session: recorder.session)
+            // The Keychain locks after the client has loaded.
+            store.failSaves = true
+
+            #expect(try await client.accessToken(forceRefresh: false) == "fresh")
+            // The second call uses the fresh token from memory; no refresh.
+            #expect(try await client.accessToken(forceRefresh: false) == "fresh")
+            #expect(recorder.requests.count == 1)
+        }
+
         @Test func rejectedTokenRefreshDurablyExpiresAuthorizationButKeepsCredentials() async throws {
             let store = TestCredentialStore()
             let credentials = ClientCredentials(clientID: "client", clientSecret: "secret")
@@ -328,7 +352,7 @@ extension HTTPStubbedTests {
                 .queryItems?.first(where: { $0.name == "redirect_uri" })?.value
             let scope = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?.first(where: { $0.name == "scope" })?.value
-            #expect(redirect == "http://127.0.0.1:43828/oauth/callback")
+            #expect(redirect == "http://localhost:43828/oauth/callback")
             #expect(scope == "daily")
         }
 
@@ -339,7 +363,7 @@ extension HTTPStubbedTests {
                 (ClientCredentials(clientID: "c", clientSecret: "s", redirectURI: OAuthLoopback.callbackURL),
                  "http://localhost:43828/oauth/callback"),
                 (ClientCredentials(clientID: "c", clientSecret: "s"),
-                 "http://127.0.0.1:43828/oauth/callback"),
+                 "http://localhost:43828/oauth/callback"),
             ] {
                 let store = TestCredentialStore()
                 try store.save(credentials, account: "client-credentials")
@@ -359,7 +383,7 @@ extension HTTPStubbedTests {
                 (ClientCredentials(clientID: "c", clientSecret: "s", redirectURI: OAuthLoopback.callbackURL),
                  "http://localhost:43828/oauth/callback"),
                 (ClientCredentials(clientID: "c", clientSecret: "s"),
-                 "http://127.0.0.1:43828/oauth/callback"),
+                 "http://localhost:43828/oauth/callback"),
             ] {
                 let store = TestCredentialStore()
                 try store.save(credentials, account: "client-credentials")
@@ -399,7 +423,7 @@ extension HTTPStubbedTests {
             let saved = Data(#"{"clientID":"c","clientSecret":"s"}"#.utf8)
             let decoded = try JSONDecoder().decode(ClientCredentials.self, from: saved)
             #expect(decoded.redirectURI == nil)
-            #expect(decoded.callbackURL == "http://127.0.0.1:43828/oauth/callback")
+            #expect(decoded.callbackURL == "http://localhost:43828/oauth/callback")
         }
 
         @Test func credentialLoadFailureIsSurfacedInsteadOfTreatedAsSignedOut() async {

@@ -78,6 +78,7 @@ Use dark ink and white as the functional base, with signal blue and a warm separ
 - **Ink** (`#181B1F`): primary text and menu-bar template artwork.
 - **Secondary Ink** (Ink at 62%, 4.65:1 on Canvas Warm): captions, theme circles, and the reorder grip in the windows. Never the system secondary gray, which is 3.88:1 on the canvas. Solid Ink under Increase Contrast, as is every theme's secondary text.
 - **Canvas Warm** (`#F4F1EC`): popover canvas.
+- **Dark Mode.** The Ring Stats theme and every window follow the system appearance. In Dark Mode the canvas is Ink, text is `#ECE9E4` (14.3:1) with secondary text at 62% (6.2:1), Signal Blue lifts to `#7FA6D8` (6.9:1 as text, well over 3:1 for arcs) with Ink text on filled buttons (6.9:1), alert text is `#F2857A` (6.9:1), separators are `#383B3E`, and raised surfaces are white at 6%. Landscape stays dark and Holographic stays light whatever the system setting. Every token is `Palette.adaptive(light, dark)`, and the contrast test measures both appearances.
 - **White** (`#FFFFFF`): setup/about window surfaces where native separation helps.
 
 **The One Blue Rule.** Normal scores share Signal Blue. Multiple unrelated score colors would turn the strip into a generic fitness dashboard.
@@ -101,7 +102,7 @@ The popover defaults to 680pt wide and can be resized horizontally from 420pt to
 - While fetching: a small spinner and "Refreshing…".
 - After a successful refresh: "Updated just now" for three seconds, then it fades out so the strip stays quiet.
 - When data is older than the five-minute refresh window: "Updated 12m ago", visible.
-- After a partial refresh: "Some stats not updated" in Alert Text, visible.
+- After a partial refresh: "Some stats stale · 1h ago · Retry" in Alert Text, visible.
 - After a failed refresh: "Update failed · 1h ago" in Alert Text, visible.
 
 The status is always available to VoiceOver, including while faded out, and it re-evaluates every second.
@@ -115,7 +116,7 @@ Use native macOS popover/window elevation. The Ring Stats theme adds no custom s
 ## Themes
 
 ### Ring Stats
-- Warm canvas, Ink text, and Signal Blue gauges and actions.
+- Warm canvas, Ink text, and Signal Blue gauges and actions by day; Ink canvas, warm-light text, and lifted Signal Blue in Dark Mode.
 - This remains the default theme.
 
 ### Landscape
@@ -147,7 +148,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Score centered in 28pt rounded system type with tabular numerals.
 - Metric and qualitative label below the ring.
 - Missing state uses no arc, an em dash, and an explicit caption.
-- A stale value dims to 62% and its detail reads "Not updated" in Alert Text.
+- A stale value dims to 62% and its detail reads "Stale · 2h" in Alert Text, with the age of the retained value. "Not updated · 23h" needs 96pt at the 11pt detail size and the tile is 92pt wide, so one short word, "Stale", is used on the tile, the battery row, and the status line alike; VoiceOver still hears the full sentence.
 
 ### Extended Metrics
 - Heart Rate shows the latest Oura sample as BPM and never presents it as a 0–100 score.
@@ -170,6 +171,12 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
   Leaving the strip restores the original preview, and Reduced Motion removes
   the positional interpolation.
 
+### Refresh Status
+- Top right, 10pt, always visible: "Updated 2m ago" in secondary content, or "Update failed · 1h ago · Retry" and "Some stats stale · 1h ago · Retry" in the alert color, with "Retry" semibold and underlined and a pointing-hand cursor. The whole line is a plain button that runs a refresh, reachable with Tab; "Refreshing…" shows a spinner and is not clickable. The age never hides, because it is the freshness promise, and the line is the only error surface in the popover; the full error text lives in Connection.
+
+### Menu Bar Value
+- Off by default. Appearance, "In the menu bar", offers Nothing, Readiness, Sleep, Activity, Heart rate (shown as "58 bpm"), or "Battery, only when low". Stress ("42m") and Resilience ("Solid") are not offered because they do not read on their own beside an icon. The value is drawn as text beside the template icon in the menu bar's 12pt medium monospaced-digit font. A stale stat still shows, as in the popover; a stale battery level does not, because "low" must be current to be worth a glance. VoiceOver reads "Ring Stats, Readiness 84".
+
 ### Battery Row
 - A native macOS battery symbol followed by the percentage. While the ring charges, a bolt is cut out of the battery fill, as macOS does, so it stays visible at every level.
 - Not charging is the usual state and shows no text. A charging ring adds "Charging", and a ring in its charger at 100% reads "Charged". VoiceOver always hears the state, including "Not charging", because it cannot see the bolt.
@@ -182,6 +189,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 
 ### Action Buttons
 - A step's main action uses the primary style: Signal Blue fill with white text (about 8:1). Back and Cancel use the secondary style: a 1pt Signal Blue outline with Signal Blue text on the canvas (about 7:1).
+- In the popover, Connect and the "Enable … Access" button use the themed action style: filled with the theme's action color (Signal Blue, white, or Holographic Ink) and text in `actionLabel`. The popover panel is never the key window, so the system prominent style drew them grey, as if disabled.
 - Both are custom styles because `.borderedProminent` turns grey whenever its window is not the active one, which erased the hierarchy in the connection window. A disabled primary fades to 45% rather than turning grey.
 - In-content utilities such as Copy keep the neutral system style, so only one button per step reads as the next step.
 
@@ -223,7 +231,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Connection remains available in every state. Refresh Now requires a connected account; Reauthorize Permissions requires stored developer credentials. Both are disabled while the app is already loading.
 - Diagnostics… sits with Appearance, Connection, and About & Credits.
 - Quit Ring Stats remains available as the final menu action.
-- Items: Appearance…, Connection…, About & Credits, Diagnostics…, a divider, Refresh Now (⌘R), Reauthorize Permissions, another divider, and Quit Ring Stats (⌘Q).
+- Items: Appearance…, Connection…, About Ring Stats, Diagnostics…, a divider, Refresh Now (⌘R), Reauthorize Permissions, another divider, and Quit Ring Stats (⌘Q).
 - Every item has an SF Symbol icon: `paintpalette`, `person.crop.circle`, `info.circle`, `stethoscope`, `arrow.clockwise`, `key`, and `power`. macOS 27 hides symbol images in menus of apps built with an earlier SDK, so each symbol is redrawn as a template image (`AppDelegate.menuIcon`), centered in an 18pt square so every title starts at the same edge. The icons are decorative; the titles carry the meaning.
 
 ## Do's and Don'ts

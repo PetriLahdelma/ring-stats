@@ -231,6 +231,9 @@ package struct HealthSnapshot: Sendable, Equatable {
     /// Why the latest battery request failed, if it did.
     package var batteryFailure: RingStatsError?
     package var batteryIsStale: Bool
+    /// When a stale battery reading was last fetched, so it expires like a
+    /// stale stat. Nil for a fresh reading, which was fetched at `fetchedAt`.
+    package var batteryFetchedAt: Date?
 
     package init(
         readings: [Metric: MetricReading],
@@ -239,7 +242,8 @@ package struct HealthSnapshot: Sendable, Equatable {
         coveredMetrics: Set<Metric>? = nil,
         failedMetrics: [Metric: RingStatsError] = [:],
         batteryFailure: RingStatsError? = nil,
-        batteryIsStale: Bool = false
+        batteryIsStale: Bool = false,
+        batteryFetchedAt: Date? = nil
     ) {
         self.readings = readings
         self.battery = battery
@@ -248,6 +252,7 @@ package struct HealthSnapshot: Sendable, Equatable {
         self.failedMetrics = failedMetrics
         self.batteryFailure = batteryFailure
         self.batteryIsStale = batteryIsStale
+        self.batteryFetchedAt = batteryFetchedAt
     }
 
     package static let empty = HealthSnapshot(
@@ -284,7 +289,7 @@ package struct HealthSnapshot: Sendable, Equatable {
             if case .rateLimited(let seconds) = failure { return seconds }
             return nil
         }.max() ?? 0
-        return max(Self.failureRetryInterval, retryAfter)
+        return max(Self.failureRetryInterval, min(retryAfter, 3_600))
     }
 
     package func isFresh(at date: Date, ttl: TimeInterval) -> Bool {
@@ -320,8 +325,12 @@ package struct HealthSnapshot: Sendable, Equatable {
             merged.readings[metric] = stale
         }
         if batteryFailedTransiently, battery == nil, let earlierBattery = previous.battery {
-            merged.battery = earlierBattery
-            merged.batteryIsStale = true
+            let lastFetched = previous.batteryFetchedAt ?? previous.fetchedAt
+            if fetchedAt.timeIntervalSince(lastFetched) < Self.staleRetentionLimit {
+                merged.battery = earlierBattery
+                merged.batteryIsStale = true
+                merged.batteryFetchedAt = lastFetched
+            }
         }
         return merged
     }
@@ -373,9 +382,11 @@ package enum AppState: Sendable, Equatable {
 }
 
 package enum QueryDates {
+    /// Two days back to tomorrow: when a night went unsynced, the newest
+    /// published score still shows, labelled with its day, instead of nothing.
     package static func boundedRange(now: Date = Date(), calendar: Calendar = .current) -> (start: String, end: String) {
         let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let start = calendar.date(byAdding: .day, value: -2, to: today) ?? today
         let end = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         let formatter = DateFormatter()
         formatter.calendar = calendar
@@ -397,7 +408,8 @@ package struct ClientCredentials: Codable, Sendable, Equatable {
     package let clientID: String
     package let clientSecret: String
     /// The redirect URI registered with this application. Credentials saved
-    /// before Oura required `localhost` have none and keep the numeric one.
+    /// before 1.3.2 have none; they used the numeric address, which Oura now
+    /// rejects outright, so they use `localhost` like new ones.
     package let redirectURI: String?
 
     package init(clientID: String, clientSecret: String, redirectURI: String? = nil) {
@@ -406,7 +418,21 @@ package struct ClientCredentials: Codable, Sendable, Equatable {
         self.redirectURI = redirectURI
     }
 
-    package var callbackURL: String { redirectURI ?? OAuthLoopback.legacyCallbackURL }
+    package var callbackURL: String { redirectURI ?? OAuthLoopback.callbackURL }
+}
+
+extension MetricReading {
+    /// What a tile shows when a stat has no value, by why it has none.
+    package static func placeholder(for failure: RingStatsError?) -> MetricReading {
+        switch failure {
+        case .none:
+            MetricReading(value: "—", detail: "Not published", score: nil, availability: .noData)
+        case .some(.insufficientScope):
+            MetricReading(value: "—", detail: "Needs access", score: nil, availability: .permissionRequired)
+        case .some:
+            MetricReading(value: "—", detail: "Unavailable", score: nil, availability: .unavailable)
+        }
+    }
 }
 
 package enum RingStatsError: LocalizedError, Sendable, Equatable {
@@ -438,30 +464,38 @@ package enum RingStatsError: LocalizedError, Sendable, Equatable {
         }
     }
 
-    /// Messages name Oura because it is the only provider. A second provider
-    /// needs them to name the source of the failure instead.
-    package var errorDescription: String? {
-        switch self {
-        case .notConfigured: "Enter Oura application credentials first."
-        case .notConnected: "Connect your Oura account first."
-        case .invalidResponse: "Oura returned an invalid response."
-        case .authenticationRequired: "Your Oura authorization has expired. Reauthorize to continue."
-        case .invalidClientCredentials: "Oura rejected the Client ID or Client Secret. Check the developer application credentials and try again."
-        case .authorizationRestartRequired: "Oura rejected the authorization code. Start the browser connection again."
-        case .invalidRequestedScope: "Oura rejected a requested permission. Check the developer application scopes and reconnect."
-        case .insufficientScope: "Oura permission is missing for this statistic. Reauthorize with the requested permission."
+    /// The name used when no provider is known, such as through
+    /// `localizedDescription`. The app passes the provider's display name.
+    package static let unknownProviderName = "the service"
+
+    package var errorDescription: String? { message(provider: Self.unknownProviderName) }
+
+    /// The user-facing message, naming the provider that failed. Templates
+    /// read correctly with a brand name ("Oura") and with the generic
+    /// fallback ("the service"); the first letter is capitalized either way.
+    package func message(provider: String) -> String {
+        let text: String = switch self {
+        case .notConfigured: "Enter the application credentials for \(provider) first."
+        case .notConnected: "Connect \(provider) first."
+        case .invalidResponse: "\(provider) returned an invalid response."
+        case .authenticationRequired: "The authorization with \(provider) has expired. Reauthorize to continue."
+        case .invalidClientCredentials: "\(provider) rejected the Client ID or Client Secret. Check the developer application credentials and try again."
+        case .authorizationRestartRequired: "\(provider) rejected the authorization code. Start the browser connection again."
+        case .invalidRequestedScope: "\(provider) rejected a requested permission. Check the developer application scopes and reconnect."
+        case .insufficientScope: "Permission from \(provider) is missing for this statistic. Reauthorize with the requested permission."
         case .rateLimited(let retryAfter):
-            if let retryAfter {
-                "Oura is temporarily rate limiting requests. Try again in \(Int(ceil(retryAfter))) seconds."
+            if let retryAfter, retryAfter.isFinite {
+                "\(provider) is temporarily rate limiting requests. Try again in \(Int(ceil(min(retryAfter, 3_600)))) seconds."
             } else {
-                "Oura is temporarily rate limiting requests. Try again shortly."
+                "\(provider) is temporarily rate limiting requests. Try again shortly."
             }
-        case .timedOut: "The Oura request timed out. Check your connection and try again."
-        case .malformedData: "Oura returned data in an unexpected format."
+        case .timedOut: "The request to \(provider) timed out. Check your connection and try again."
+        case .malformedData: "\(provider) returned data in an unexpected format."
         case .credentialStore(let message): message
         case .transport(let message): message
         case .server(let message): message
         case .callback(let message): message
         }
+        return text.prefix(1).uppercased() + text.dropFirst()
     }
 }

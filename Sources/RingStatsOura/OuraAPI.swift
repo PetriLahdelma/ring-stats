@@ -114,11 +114,11 @@ package actor OuraAPI: SnapshotFetching {
                         )
                     }
                 case .stress(let value):
-                    if let value {
-                        let minutes = value.stressHigh.map { max(0, ($0 + 30) / 60) }
+                    if let value, let stressHigh = value.stressHigh {
+                        let minutes = max(0, (stressHigh + 30) / 60)
                         readings[.stress] = MetricReading(
-                            value: minutes.map { "\($0)m" } ?? "—",
-                            detail: value.daySummary?.capitalized ?? "High stress",
+                            value: "\(minutes)m",
+                            detail: value.daySummary?.capitalized ?? "Today",
                             score: nil,
                             sourceDay: value.day
                         )
@@ -153,7 +153,9 @@ package actor OuraAPI: SnapshotFetching {
             throw RingStatsError.authenticationRequired
         }
 
-        guard !readings.isEmpty || battery != nil else {
+        // A successful empty response is still a success: only when every
+        // request failed is the whole refresh a failure.
+        guard !readings.isEmpty || battery != nil || failures.count < metrics.count + 1 else {
             throw Self.preferredError(from: failures)
                 ?? RingStatsError.server("No Oura data was available. Open the Oura phone app to sync, then try again.")
         }
@@ -173,20 +175,9 @@ package actor OuraAPI: SnapshotFetching {
 
     /// The reading shown when a metric has no value from this refresh. The view
     /// model replaces transient-failure placeholders with the last known value.
+    /// Forwards to the provider-neutral placeholder in Core.
     package static func placeholder(for failure: RingStatsError?) -> MetricReading {
-        switch failure {
-        case .none:
-            MetricReading(value: "—", detail: "No data yet", score: nil, availability: .noData)
-        case .some(.insufficientScope):
-            MetricReading(
-                value: "—",
-                detail: "Needs access",
-                score: nil,
-                availability: .permissionRequired
-            )
-        case .some:
-            MetricReading(value: "—", detail: "Unavailable", score: nil, availability: .unavailable)
-        }
+        MetricReading.placeholder(for: failure)
     }
 
     private static func fetchPart(
@@ -285,7 +276,7 @@ package actor OuraAPI: SnapshotFetching {
         let data = try await fetch(components.url!, token: token, session: session)
         do {
             return try JSONDecoder().decode(DailyStressEnvelope.self, from: data).data
-                .filter { $0.stressHigh != nil || $0.daySummary != nil }
+                .filter { $0.stressHigh != nil }
                 .max { $0.day < $1.day }
         } catch {
             throw RingStatsError.malformedData
@@ -332,6 +323,17 @@ package actor OuraAPI: SnapshotFetching {
         } catch {
             throw RingStatsError.malformedData
         }
+    }
+
+    /// The seconds to wait from a Retry-After header, or nil when the header
+    /// is absent, not a whole number of seconds, or outside one second to an
+    /// hour. Parsing it as a Double accepted "inf" and "1e400", which crashed
+    /// the message formatter and could suppress refreshes for years.
+    static func retryAfter(_ header: String?) -> TimeInterval? {
+        guard let header, let seconds = Int(header.trimmingCharacters(in: .whitespaces)),
+              (1...3_600).contains(seconds)
+        else { return nil }
+        return TimeInterval(seconds)
     }
 
     private static func dateQuery(
@@ -384,8 +386,9 @@ package actor OuraAPI: SnapshotFetching {
             case 403:
                 throw RingStatsError.insufficientScope
             case 429:
-                let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
-                throw RingStatsError.rateLimited(retryAfter: retryAfter)
+                throw RingStatsError.rateLimited(
+                    retryAfter: Self.retryAfter(http.value(forHTTPHeaderField: "Retry-After"))
+                )
             case 408, 504:
                 throw RingStatsError.timedOut
             default:

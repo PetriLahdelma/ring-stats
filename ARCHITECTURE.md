@@ -8,9 +8,9 @@ and click behavior.
 
 | Target | Holds | Knows about Oura |
 | --- | --- | --- |
-| `RingStatsCore` | Models, freshness and merging, the `HealthProvider` boundary, diagnostics, Keychain storage, the loopback callback, network sessions | No, apart from user-facing error text |
+| `RingStatsCore` | Models, freshness and merging, the `HealthProvider` boundary, diagnostics, Keychain storage, the loopback callback, network sessions | No. Error messages take the provider's name as a parameter |
 | `RingStatsOura` | `OuraProvider`, `OuraAPI`, `OAuthClient`, Oura response models, scopes, endpoints, and score bands | Yes |
-| `RingStats` | The app: AppKit shell, SwiftUI views, `AppViewModel`, diagnostics report | Only where it creates `OuraProvider` and in onboarding copy |
+| `RingStats` | The app: AppKit shell, SwiftUI views, `AppViewModel`, diagnostics report | Only in `ProviderRegistry`, which chooses the provider; a test keeps the `RingStatsOura` import there. Onboarding and credits copy names Oura through `descriptor.displayName` and `descriptor.developerPortal`, except the About window's trademark notice |
 
 Cross-target declarations use `package` access, so nothing is public outside
 the package. Providers are compiled in, not loaded as plugins.
@@ -112,7 +112,7 @@ NSStatusItem / AppDelegate
 | Health snapshot | Process memory | Until replaced or app quits |
 | OAuth credentials and current/queued tokens | macOS Keychain | Until successful revocation, disconnect, or manual deletion |
 | Empty OAuth migration tombstone | macOS Keychain | May remain after token deletion to prevent legacy-token reimport |
-| Theme, metric order/visibility, width | `UserDefaults` | Until preference-domain deletion |
+| Theme, metric order/visibility, width, text size, low battery alert, menu bar value | `UserDefaults` | Until preference-domain deletion |
 | OAuth state/callback listener | Process memory | One authorization attempt |
 | Diagnostic events (no values or secrets) | Unified log and a 200-event memory buffer | macOS log retention; buffer until quit |
 
@@ -129,8 +129,8 @@ credential.
   A container-migration manifest moves existing preferences on first launch.
 - OAuth and health requests use dedicated ephemeral sessions with caching and
   cookies disabled and finite request/resource timeouts.
-- The app connects only to documented Oura HTTPS endpoints and the numeric local
-  loopback callback.
+- The app connects only to documented Oura HTTPS endpoints and its own
+  loopback callback listener on `localhost` (IPv4 and IPv6).
 - Reauthorization stores a working replacement token before revoking the old
   token. Failed old-token revocations remain queued in Keychain and are retried
   without making the replacement unusable.

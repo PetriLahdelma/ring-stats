@@ -100,6 +100,52 @@ struct AppViewModelTests {
         #expect(model.state == .connected)
     }
 
+    /// Two callers waiting on one refresh must not both start their own
+    /// afterwards. The second waiter judges coverage against the refresh the
+    /// first waiter starts, not the one that already finished.
+    @Test @MainActor func waitersDoNotStartOverlappingRefreshes() async {
+        let now = Date(timeIntervalSince1970: 12_500)
+        func snapshot(_ metrics: Set<Metric>) -> HealthSnapshot {
+            HealthSnapshot(
+                readings: Dictionary(uniqueKeysWithValues: metrics.map {
+                    ($0, MetricReading(value: "70", detail: "Good", score: 70))
+                }),
+                battery: nil,
+                fetchedAt: now,
+                coveredMetrics: metrics
+            )
+        }
+        let api = SnapshotStub(
+            results: [.success(snapshot([.sleep])), .success(snapshot([.sleep, .resilience])), .success(snapshot([.sleep]))],
+            holdsFirstCall: true
+        )
+        let model = AppViewModel(
+            auth: AuthStub(configured: true, connected: true),
+            api: api,
+            descriptor: OuraProvider.descriptor,
+            now: { now },
+            checkConnectionOnInit: false
+        )
+
+        let first = Task { await model.refreshNow(metrics: [.sleep]) }
+        await api.started.wait()
+        // Not covered by the running refresh, so it will start its own.
+        let wider = Task { await model.refreshNow(metrics: [.sleep, .resilience]) }
+        await waitUntil("wider refresh to queue") { model.waitingOperationCount == 1 }
+        // Covered by the wider refresh once it starts, so it must join that
+        // one rather than start a third.
+        let narrow = Task { await model.refreshNow(metrics: [.sleep]) }
+        await waitUntil("narrow refresh to queue") { model.waitingOperationCount == 2 }
+        api.release.open()
+        await first.value
+        await wider.value
+        await narrow.value
+
+        #expect(await api.callCount == 2)
+        #expect(model.snapshot.coveredMetrics == [.sleep, .resilience])
+        #expect(model.state == .connected)
+    }
+
     @Test @MainActor func forceRefreshRequestsOnlyCurrentlyVisibleMetrics() async {
         let now = Date(timeIntervalSince1970: 13_000)
         let auth = AuthStub(configured: true, connected: true)
@@ -248,6 +294,41 @@ struct AppViewModelTests {
 
         #expect(await probe.wasCancelled)
         #expect(model.state == .configured)
+    }
+
+    /// A refresh queued behind an authorization must finish once the
+    /// authorization does. The waiter can resume before the authorization's
+    /// own cleanup, so it has to yield instead of spinning on the main actor.
+    @Test(.timeLimit(.minutes(1))) @MainActor func refreshQueuedBehindAnAuthorizationCompletes() async {
+        let now = Date(timeIntervalSince1970: 14_000)
+        let auth = AuthStub(configured: true, connected: false)
+        let probe = AuthorizationProbe()
+        let snapshot = HealthSnapshot(
+            readings: [.readiness: MetricReading(value: "80", detail: "Good", score: 80)],
+            battery: nil,
+            fetchedAt: now
+        )
+        let api = SnapshotStub(results: [.success(snapshot), .success(snapshot)])
+        let model = AppViewModel(
+            auth: auth,
+            api: api,
+            descriptor: OuraProvider.descriptor,
+            now: { now },
+            authorizationHandler: { scopes in try await probe.run(scopes: scopes) },
+            checkConnectionOnInit: false
+        )
+
+        let authorization = Task { await model.reauthorize(metrics: [.readiness]) }
+        await probe.started.wait()
+        let refresh = Task { await model.refreshNow(metrics: [.readiness]) }
+        await waitUntil("refresh to queue behind the authorization") { model.waitingOperationCount == 1 }
+        await auth.markConnected()
+        probe.release.open()
+        await authorization.value
+        await refresh.value
+
+        #expect(model.state == .connected)
+        #expect(await api.callCount >= 1)
     }
 
     @Test @MainActor func duplicateConnectRequestsShareOneAuthorizationAndFetch() async {
@@ -555,6 +636,48 @@ struct SnapshotFreshnessTests {
         let timedOut = partial(failure: .timedOut, at: start)
         #expect(timedOut.isFresh(for: metrics, at: start.addingTimeInterval(59), ttl: 300))
         #expect(!timedOut.isFresh(for: metrics, at: start.addingTimeInterval(61), ttl: 300))
+    }
+
+    /// A Retry-After the app cannot act on is ignored rather than trusted:
+    /// "inf" and "1e400" parse as infinity, which crashed the message, and a
+    /// huge value would have silenced refresh-on-open for years.
+    @Test func retryAfterAcceptsOnlyWholeSecondsUpToAnHour() {
+        #expect(OuraAPI.retryAfter("30") == 30)
+        #expect(OuraAPI.retryAfter(" 3600 ") == 3_600)
+        for bad in ["inf", "nan", "1e400", "-5", "0", "3601", "abc", "1.5", "Wed, 21 Oct 2026 07:28:00 GMT"] {
+            #expect(OuraAPI.retryAfter(bad) == nil, "\(bad)")
+        }
+        #expect(OuraAPI.retryAfter(nil) == nil)
+        let limited = partial(failure: .rateLimited(retryAfter: .infinity), at: Date())
+        #expect(limited.retryDelay == 3_600)
+        #expect(RingStatsError.rateLimited(retryAfter: .infinity).errorDescription?.contains("shortly") == true)
+    }
+
+    /// A battery reading kept through failures expires like a stale stat,
+    /// instead of showing a week-old percentage with full confidence.
+    @Test func staleBatteryIsDroppedAfterTheRetentionLimit() {
+        let start = Date(timeIntervalSince1970: 80_000)
+        let original = HealthSnapshot(
+            readings: [.sleep: MetricReading(value: "80", detail: "Good", score: 80)],
+            battery: BatteryReading(level: 63, isCharging: false),
+            fetchedAt: start
+        )
+        func batteryFailed(at date: Date) -> HealthSnapshot {
+            HealthSnapshot(
+                readings: [.sleep: MetricReading(value: "81", detail: "Good", score: 81)],
+                battery: nil,
+                fetchedAt: date,
+                batteryFailure: .timedOut
+            )
+        }
+        let hourLater = batteryFailed(at: start.addingTimeInterval(3_600)).merging(previous: original)
+        #expect(hourLater.battery?.level == 63)
+        #expect(hourLater.batteryIsStale)
+        #expect(hourLater.batteryFetchedAt == start)
+
+        let dayLater = batteryFailed(at: start.addingTimeInterval(25 * 3_600)).merging(previous: hourLater)
+        #expect(dayLater.battery == nil)
+        #expect(!dayLater.batteryIsStale)
     }
 
     @Test func staleValuesAreDroppedAfterTheRetentionLimit() {

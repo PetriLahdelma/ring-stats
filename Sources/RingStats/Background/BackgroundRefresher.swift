@@ -72,8 +72,11 @@ final class BackgroundRefresher {
             DiagnosticsLog.shared.record(.backgroundRefreshSkipped(.notConnected))
             return false
         }
+        // A failed attempt counts, or a Mac on battery with no network would
+        // retry every wake instead of every two hours.
+        let lastAttempt = [model.lastUpdatedAt, model.lastRefreshAttemptAt].compactMap { $0 }.max()
         guard BackgroundRefreshPolicy.shouldRefresh(
-            lastFetchedAt: model.lastUpdatedAt,
+            lastFetchedAt: lastAttempt,
             now: now(),
             constrained: power.isConstrained
         ) else {

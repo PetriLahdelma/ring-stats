@@ -2,7 +2,6 @@ import AppKit
 import Foundation
 import SwiftUI
 import RingStatsCore
-import RingStatsOura
 
 @MainActor
 final class AppViewModel: ObservableObject {
@@ -17,6 +16,13 @@ final class AppViewModel: ObservableObject {
     var isRefreshing: Bool { state == .refreshing }
     var refreshInterval: TimeInterval { refreshTTL }
     var lastUpdatedAt: Date? { snapshot.hasData ? snapshot.fetchedAt : nil }
+    /// When the last refresh ran, whether or not it succeeded.
+    var lastRefreshAttemptAt: Date? {
+        switch lastRefreshOutcome {
+        case .none: nil
+        case .succeeded(let at), .partial(let at), .failed(let at): at
+        }
+    }
     var isShowingStaleData: Bool {
         snapshot.hasData
             && (errorMessage != nil || !snapshot.staleMetrics.isEmpty || snapshot.batteryIsStale)
@@ -42,7 +48,7 @@ final class AppViewModel: ObservableObject {
     private(set) var waitingOperationCount = 0
 
     convenience init() {
-        self.init(provider: OuraProvider())
+        self.init(provider: ProviderRegistry.makeDefault())
     }
 
     convenience init(provider: any HealthProvider) {
@@ -71,12 +77,15 @@ final class AppViewModel: ObservableObject {
 
     func updateConnectionState() async {
         if let startupError = await auth.startupError {
-            errorMessage = startupError.localizedDescription
-            state = .failed(message: startupError.localizedDescription, connected: false, configured: true)
+            errorMessage = describe(startupError)
+            state = .failed(message: describe(startupError), connected: false, configured: true)
             return
         }
         let configured = await auth.isConfigured
         let connected = await auth.isConnected
+        // An expired authorization has already cleared its token, so it
+        // would read as merely configured; keep the more useful state.
+        if state == .authorizationExpired, !connected { return }
         state = Self.connectionState(configured: configured, connected: connected)
     }
 
@@ -98,19 +107,28 @@ final class AppViewModel: ObservableObject {
         guard !isDisconnecting else { return }
         let metrics = descriptor.supported(metrics)
         let generation = operationGeneration
-        if let authorizationTask {
-            await waitFor(authorizationTask)
-            guard operationIsCurrent(generation) else { return }
-        }
-        if let refreshTask {
+        // Another waiter can start a refresh or an authorization while this
+        // one waits, so keep waiting until nothing is running, and judge
+        // coverage against each refresh as it runs.
+        while authorizationTask != nil || refreshTask != nil {
+            if let authorizationTask {
+                await waitFor(authorizationTask)
+                guard operationIsCurrent(generation) else { return }
+                // Same as below: the finished authorization clears itself in
+                // its own continuation, which must run before this loop looks.
+                if self.authorizationTask == authorizationTask { await Task.yield() }
+                continue
+            }
+            guard let running = refreshTask else { continue }
             let coveredByActiveRefresh = activeRefreshMetrics.isSuperset(of: metrics)
                 && (policy == .ifStale || activeRefreshPolicy == .force)
-            await waitFor(refreshTask)
+            await waitFor(running)
             guard operationIsCurrent(generation) else { return }
             if coveredByActiveRefresh { return }
+            // The finished refresh clears itself in its own continuation;
+            // yield so that runs before this loop looks again.
+            if refreshTask == running { await Task.yield() }
         }
-
-        guard operationIsCurrent(generation) else { return }
         let requestedMetrics = metrics
         let operationID = UUID()
         let task = Task { @MainActor [weak self] in
@@ -149,6 +167,7 @@ final class AppViewModel: ObservableObject {
         }
         if policy == .ifStale, snapshot.isFresh(for: metrics, at: now(), ttl: refreshTTL) {
             state = .connected
+            errorMessage = nil
             return
         }
 
@@ -161,7 +180,7 @@ final class AppViewModel: ObservableObject {
             state = .connected
         } catch let error as RingStatsError where error == .authenticationRequired || error == .notConnected {
             guard operationIsCurrent(generation) else { return }
-            errorMessage = error.localizedDescription
+            errorMessage = describe(error)
             lastRefreshOutcome = .failed(at: now())
             DiagnosticsLog.shared.record(.refreshFailed(error))
             state = .authorizationExpired
@@ -169,7 +188,7 @@ final class AppViewModel: ObservableObject {
             // Keep the last successful snapshot visible. Freshness and the error
             // state make it explicit that the values could not be updated.
             guard operationIsCurrent(generation) else { return }
-            errorMessage = error.localizedDescription
+            errorMessage = describe(error)
             lastRefreshOutcome = .failed(at: now())
             DiagnosticsLog.shared.record(.refreshFailed(Self.classified(error)))
             let configured = await auth.isConfigured
@@ -177,7 +196,7 @@ final class AppViewModel: ObservableObject {
             let connected = await auth.isConnected
             guard operationIsCurrent(generation) else { return }
             state = .failed(
-                message: error.localizedDescription,
+                message: describe(error),
                 connected: connected,
                 configured: configured
             )
@@ -211,19 +230,18 @@ final class AppViewModel: ObservableObject {
     ) async {
         guard !isDisconnecting else { return }
         let generation = operationGeneration
-        if let authorizationTask {
-            await waitFor(authorizationTask)
-            return
-        }
-        if let refreshTask {
-            await waitFor(refreshTask)
+        // A refresh started by another waiter must not run beside the
+        // browser flow, or it would overwrite the authorizing state.
+        while authorizationTask != nil || refreshTask != nil {
+            if let authorizationTask {
+                await waitFor(authorizationTask)
+                return
+            }
+            guard let running = refreshTask else { continue }
+            await waitFor(running)
             guard operationIsCurrent(generation) else { return }
+            if refreshTask == running { await Task.yield() }
         }
-        if let authorizationTask {
-            await waitFor(authorizationTask)
-            return
-        }
-        guard operationIsCurrent(generation) else { return }
         let operationID = UUID()
         let metrics = descriptor.supported(metrics)
         let task = Task { @MainActor [weak self] in
@@ -276,7 +294,7 @@ final class AppViewModel: ObservableObject {
                 await updateConnectionState()
                 return
             }
-            errorMessage = error.localizedDescription
+            errorMessage = describe(error)
             DiagnosticsLog.shared.record(.authorizationFailed(Self.classified(error)))
             let configured = await auth.isConfigured
             let connected = await auth.isConnected
@@ -286,7 +304,7 @@ final class AppViewModel: ObservableObject {
                 lastRefreshOutcome = .failed(at: now())
             }
             state = connected
-                ? .failed(message: error.localizedDescription, connected: true, configured: configured)
+                ? .failed(message: describe(error), connected: true, configured: configured)
                 : Self.connectionState(configured: configured, connected: false)
         }
     }
@@ -339,11 +357,11 @@ final class AppViewModel: ObservableObject {
             state = .unconfigured
             DiagnosticsLog.shared.record(.disconnected)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = describe(error)
             let configured = await auth.isConfigured
             let connected = await auth.isConnected
             state = .failed(
-                message: error.localizedDescription,
+                message: describe(error),
                 connected: connected,
                 configured: configured
             )
@@ -413,6 +431,11 @@ final class AppViewModel: ObservableObject {
         waitingOperationCount += 1
         defer { waitingOperationCount -= 1 }
         await task.value
+    }
+
+    /// The user-facing text for an error, naming the provider.
+    private func describe(_ error: Error) -> String {
+        (error as? RingStatsError)?.message(provider: descriptor.displayName) ?? error.localizedDescription
     }
 
     private static func connectionState(configured: Bool, connected: Bool) -> AppState {

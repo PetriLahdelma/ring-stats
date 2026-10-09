@@ -94,7 +94,7 @@ extension HTTPStubbedTests {
             let snapshot = try await api.fetchSnapshot(metrics: [.readiness, .sleep], now: Date())
 
             #expect(snapshot.readings[.sleep]?.availability == .noData)
-            #expect(snapshot.readings[.sleep]?.detail == "No data yet")
+            #expect(snapshot.readings[.sleep]?.detail == "Not published")
             #expect(snapshot.failedMetrics.isEmpty)
             #expect(snapshot.batteryFailure != nil)
         }

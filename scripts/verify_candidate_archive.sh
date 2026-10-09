@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
 
 archive="${1:-}"
 expected_hash="${2:-$(basename "$archive")}" 
-fail() { echo "error: $*" >&2; exit 1; }
 [[ -d "$archive" && ! -L "$archive" && "$expected_hash" =~ ^[0-9a-f]{64}$ ]] || fail "Invalid candidate archive"
 expected_entries="Ring-Stats.dSYM.zip
 Ring-Stats.dSYM.zip.sha256

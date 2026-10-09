@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd -P)"
 APP_NAME="Ring Stats"
@@ -33,10 +34,6 @@ else
 fi
 INSTALLED_APP="$USER_APPLICATIONS_DIR/$APP_NAME.app"
 
-fail() {
-  echo "error: $*" >&2
-  exit 1
-}
 
 is_running() {
   local phase="$1"

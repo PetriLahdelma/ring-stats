@@ -176,6 +176,29 @@ final class TestCredentialStore: CredentialStoring, @unchecked Sendable {
     }
 }
 
+/// Loads and saves normally until `failSaves` is set, then rejects writes.
+final class SaveFailingAfterLoadStore: CredentialStoring, @unchecked Sendable {
+    private let backing = TestCredentialStore()
+    private let lock = NSLock()
+    private var failing = false
+
+    var failSaves: Bool {
+        get { lock.withLock { failing } }
+        set { lock.withLock { failing = newValue } }
+    }
+
+    func load<T: Decodable & Sendable>(_ type: T.Type, account: String) throws -> T? {
+        try backing.load(type, account: account)
+    }
+
+    func save<T: Encodable & Sendable>(_ value: T, account: String) throws {
+        if failSaves { throw RingStatsError.credentialStore("Keychain locked.") }
+        try backing.save(value, account: account)
+    }
+
+    func delete(account: String) throws { try backing.delete(account: account) }
+}
+
 struct FailingCredentialStore: CredentialStoring {
     func load<T: Decodable & Sendable>(_ type: T.Type, account: String) throws -> T? {
         throw RingStatsError.credentialStore("Unreadable test store.")

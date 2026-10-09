@@ -29,6 +29,8 @@ package actor OAuthClient: OAuthServicing {
     private var credentials: ClientCredentials?
     private var loadError: RingStatsError?
     private var refreshTask: Task<OAuthToken, any Error>?
+    /// A fresh token is in memory but its Keychain write failed.
+    private var needsPersist = false
     private var revocationRetryTask: Task<Void, Never>?
     private var revocationRetryRequested = false
     /// Callers currently waiting on another caller's token refresh. Tests use
@@ -135,12 +137,13 @@ package actor OAuthClient: OAuthServicing {
         }
         // Commit the replacement token and every cleanup obligation in one
         // Keychain item so a partial write cannot orphan the previous token.
-        try persistAuthorization(updatedAuthorization)
+        persistFreshAuthorization(updatedAuthorization)
         schedulePendingRevocationRetry()
     }
 
     package func accessToken(forceRefresh: Bool = false) async throws -> String {
         try ensureStoreLoaded()
+        retryPendingPersist()
         schedulePendingRevocationRetry()
         guard var current = authorization.token else { throw RingStatsError.notConnected }
         if current.needsRefresh || forceRefresh {
@@ -151,7 +154,7 @@ package actor OAuthClient: OAuthServicing {
                 current = try await refreshTask.value
                 var updatedAuthorization = authorization
                 updatedAuthorization.token = current
-                try persistAuthorization(updatedAuthorization)
+                persistFreshAuthorization(updatedAuthorization)
                 return current.accessToken
             }
             let refreshToken = current.refreshToken
@@ -171,7 +174,7 @@ package actor OAuthClient: OAuthServicing {
                 current = try await task.value
                 var updatedAuthorization = authorization
                 updatedAuthorization.token = current
-                try persistAuthorization(updatedAuthorization)
+                persistFreshAuthorization(updatedAuthorization)
                 refreshTask = nil
                 DiagnosticsLog.shared.record(.tokenRefreshed)
             } catch {
@@ -253,6 +256,28 @@ package actor OAuthClient: OAuthServicing {
 
     private func ensureStoreLoaded() throws {
         if let loadError { throw loadError }
+    }
+
+    /// Keeps a token the provider just issued even if the Keychain write
+    /// fails. Oura rotates refresh tokens, so discarding the new pair would
+    /// replay the consumed one, get invalid_grant, and send the user back
+    /// through the browser. The write is retried on the next change.
+    private func persistFreshAuthorization(_ updated: StoredOAuthAuthorization) {
+        authorization = updated
+        do {
+            try store.save(updated, account: "oauth-authorization")
+            needsPersist = false
+        } catch {
+            needsPersist = true
+            DiagnosticsLog.shared.record(.tokenPersistFailed)
+        }
+    }
+
+    /// Retries a Keychain write that failed, so a token kept only in memory
+    /// reaches the Keychain before the app quits.
+    private func retryPendingPersist() {
+        guard needsPersist else { return }
+        persistFreshAuthorization(authorization)
     }
 
     private func persistAuthorization(_ updated: StoredOAuthAuthorization) throws {

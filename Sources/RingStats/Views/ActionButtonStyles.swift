@@ -22,6 +22,32 @@ extension ButtonStyle where Self == PrimaryActionButtonStyle {
     static var primaryAction: PrimaryActionButtonStyle { PrimaryActionButtonStyle() }
 }
 
+/// The popover's main action in the current theme: filled with the theme's
+/// action color. The popover panel is never the key window, so the system
+/// prominent style always drew it grey, as if disabled.
+struct ThemedActionButtonStyle: ButtonStyle {
+    let theme: AppTheme
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        configuration.label
+            .scaledFont(.body, weight: .medium)
+            .lineLimit(1)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 5)
+            .frame(minHeight: 28)
+            .foregroundStyle(theme.actionLabel)
+            .background(shape.fill(theme.action))
+            .contentShape(shape)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.45)
+    }
+}
+
+extension ButtonStyle where Self == ThemedActionButtonStyle {
+    static func themedAction(_ theme: AppTheme) -> ThemedActionButtonStyle { ThemedActionButtonStyle(theme: theme) }
+}
+
 extension ButtonStyle where Self == SecondaryActionButtonStyle {
     static var secondaryAction: SecondaryActionButtonStyle { SecondaryActionButtonStyle() }
 }
@@ -44,7 +70,7 @@ private struct ActionButtonBody: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 5)
             .frame(minHeight: 28)
-            .foregroundStyle(prominence == .primary ? Color.white : Palette.signalBlue)
+            .foregroundStyle(prominence == .primary ? Palette.onSignalBlue : Palette.signalBlue)
             .background {
                 if prominence == .primary {
                     shape.fill(Palette.signalBlue)

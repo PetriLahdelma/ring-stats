@@ -1,6 +1,5 @@
 import Foundation
 import RingStatsCore
-import RingStatsOura
 
 /// A plain-text report for a support request. It describes state and recent
 /// events without any health values, identifiers, or secrets.

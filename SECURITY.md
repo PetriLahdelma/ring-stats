@@ -67,7 +67,7 @@ spctl --assess --type open --context context:primary-signature --verbose=2 \
 After mounting the disk image, the enclosed application signature can be
 checked with `codesign --verify --deep --strict --verbose=2 "Ring Stats.app"`.
 
-Future releases also publish a CycloneDX SBOM (`Ring-Stats-<version>.cdx.json`)
+Releases also publish a CycloneDX SBOM (`Ring-Stats-<version>.cdx.json`)
 and a signed in-toto attestation (`Ring-Stats-<version>.intoto.json` with
 `.sig`) that binds the DMG, SBOM, and provenance archive to the signed tag.
 With the maintainer's allowed-signers line saved as `allowed_signers`, verify
@@ -85,7 +85,7 @@ Then verify:
 
 ```bash
 scripts/verify_release_attestation.sh "Ring-Stats-<version>.intoto.json" \
-  allowed_signers <maintainer-email> \
+  allowed_signers ring-stats@users.noreply.github.com \
   "Ring-Stats-<version>.dmg" "Ring-Stats-<version>.cdx.json"
 ```
 
@@ -116,3 +116,7 @@ DMG; CI artifacts are test evidence, not authenticated public releases.
 
 Never publish signing certificates, private keys, notary passwords, OAuth
 client secrets, or exported Keychain data.
+
+Installing through the Homebrew cask relies on the tap repository's copy of
+the DMG checksum and skips the attestation check above; verify the DMG
+yourself if that matters to you.
