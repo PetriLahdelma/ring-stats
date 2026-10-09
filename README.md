@@ -132,9 +132,11 @@ them.
 
 ## Troubleshooting
 
-- **Authorization never returns:** the registered redirect must be exactly
-  `http://localhost:43828/oauth/callback`. Connections made before 1.3.2
-  registered `http://127.0.0.1:43828/oauth/callback` and keep working.
+- **Authorization never returns, or Oura shows "invalid_request":** the
+  registered redirect must be exactly `http://localhost:43828/oauth/callback`.
+  Connections made before 1.3.2 used `http://127.0.0.1:43828/oauth/callback`,
+  which Oura no longer accepts; add the `localhost` address to your Oura
+  application, then choose **Reauthorize Permissions**.
 - **Oura says "http protocol is only allowed for localhost":** register the
   `localhost` address, not `127.0.0.1`.
 - **A stat says it needs access:** enable it in Appearance, then choose

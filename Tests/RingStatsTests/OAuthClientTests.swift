@@ -352,7 +352,7 @@ extension HTTPStubbedTests {
                 .queryItems?.first(where: { $0.name == "redirect_uri" })?.value
             let scope = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?.first(where: { $0.name == "scope" })?.value
-            #expect(redirect == "http://127.0.0.1:43828/oauth/callback")
+            #expect(redirect == "http://localhost:43828/oauth/callback")
             #expect(scope == "daily")
         }
 
@@ -363,7 +363,7 @@ extension HTTPStubbedTests {
                 (ClientCredentials(clientID: "c", clientSecret: "s", redirectURI: OAuthLoopback.callbackURL),
                  "http://localhost:43828/oauth/callback"),
                 (ClientCredentials(clientID: "c", clientSecret: "s"),
-                 "http://127.0.0.1:43828/oauth/callback"),
+                 "http://localhost:43828/oauth/callback"),
             ] {
                 let store = TestCredentialStore()
                 try store.save(credentials, account: "client-credentials")
@@ -383,7 +383,7 @@ extension HTTPStubbedTests {
                 (ClientCredentials(clientID: "c", clientSecret: "s", redirectURI: OAuthLoopback.callbackURL),
                  "http://localhost:43828/oauth/callback"),
                 (ClientCredentials(clientID: "c", clientSecret: "s"),
-                 "http://127.0.0.1:43828/oauth/callback"),
+                 "http://localhost:43828/oauth/callback"),
             ] {
                 let store = TestCredentialStore()
                 try store.save(credentials, account: "client-credentials")
@@ -423,7 +423,7 @@ extension HTTPStubbedTests {
             let saved = Data(#"{"clientID":"c","clientSecret":"s"}"#.utf8)
             let decoded = try JSONDecoder().decode(ClientCredentials.self, from: saved)
             #expect(decoded.redirectURI == nil)
-            #expect(decoded.callbackURL == "http://127.0.0.1:43828/oauth/callback")
+            #expect(decoded.callbackURL == "http://localhost:43828/oauth/callback")
         }
 
         @Test func credentialLoadFailureIsSurfacedInsteadOfTreatedAsSignedOut() async {

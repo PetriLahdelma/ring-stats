@@ -18,12 +18,18 @@ versioned GitHub releases and annotated tags for new releases.
   · Retry", and the separate error sentence under the stats is gone.
 - A stale stat shows how old it is ("Stale · 2h"), and so does a stale
   battery reading.
+- Daily scores look back two days, so after an unsynced night the newest
+  published score shows with its day ("From Oct 8") instead of nothing.
 - A stat Oura has not published yet reads "Not published" instead of
   "No data yet" under an "Updated just now" status.
 - The About menu item is now "About Ring Stats", matching its window.
 
 ### Fixed
 
+- Reauthorizing a connection made before 1.3.2 failed with "invalid_request"
+  at Oura, because the app still sent the old `127.0.0.1` redirect, which
+  Oura now rejects. Every connection uses `localhost`; add that address to
+  your Oura application if it only has the old one.
 - A malformed rate-limit header from the API no longer crashes the app or
   silences refreshes; only whole seconds up to an hour are honored.
 - Two refreshes could run at once when several parts of the app waited on

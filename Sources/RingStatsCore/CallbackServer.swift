@@ -8,9 +8,6 @@ package enum OAuthLoopback {
     /// The redirect URI new connections register. Oura's developer portal
     /// accepts plain http only for `localhost`.
     package static let callbackURL = "http://localhost:\(port)\(path)"
-    /// The numeric redirect URI registered by connections made before Oura
-    /// required `localhost`. Credentials saved then keep using it.
-    package static let legacyCallbackURL = "\(origin)\(path)"
     package static let acceptedHostHeaders = ["\(host):\(port)", "localhost:\(port)"]
 }
 

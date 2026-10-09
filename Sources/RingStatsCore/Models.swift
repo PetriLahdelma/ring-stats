@@ -382,9 +382,11 @@ package enum AppState: Sendable, Equatable {
 }
 
 package enum QueryDates {
+    /// Two days back to tomorrow: when a night went unsynced, the newest
+    /// published score still shows, labelled with its day, instead of nothing.
     package static func boundedRange(now: Date = Date(), calendar: Calendar = .current) -> (start: String, end: String) {
         let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let start = calendar.date(byAdding: .day, value: -2, to: today) ?? today
         let end = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         let formatter = DateFormatter()
         formatter.calendar = calendar
@@ -406,7 +408,8 @@ package struct ClientCredentials: Codable, Sendable, Equatable {
     package let clientID: String
     package let clientSecret: String
     /// The redirect URI registered with this application. Credentials saved
-    /// before Oura required `localhost` have none and keep the numeric one.
+    /// before 1.3.2 have none; they used the numeric address, which Oura now
+    /// rejects outright, so they use `localhost` like new ones.
     package let redirectURI: String?
 
     package init(clientID: String, clientSecret: String, redirectURI: String? = nil) {
@@ -415,7 +418,7 @@ package struct ClientCredentials: Codable, Sendable, Equatable {
         self.redirectURI = redirectURI
     }
 
-    package var callbackURL: String { redirectURI ?? OAuthLoopback.legacyCallbackURL }
+    package var callbackURL: String { redirectURI ?? OAuthLoopback.callbackURL }
 }
 
 extension MetricReading {

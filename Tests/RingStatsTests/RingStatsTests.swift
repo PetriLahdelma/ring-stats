@@ -17,12 +17,12 @@ import Testing
     #expect(ScoreBand.label(for: nil) == "No data")
 }
 
-@Test func boundedRangeIncludesOnlyYesterdayThroughTomorrowBoundary() throws {
+@Test func boundedRangeCoversTwoDaysBackThroughTomorrowBoundary() throws {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0)!
     let now = try #require(ISO8601DateFormatter().date(from: "2026-09-26T18:00:00Z"))
     let range = QueryDates.boundedRange(now: now, calendar: calendar)
-    #expect(range.start == "2026-09-25")
+    #expect(range.start == "2026-09-24")
     #expect(range.end == "2026-09-27")
 }
 
