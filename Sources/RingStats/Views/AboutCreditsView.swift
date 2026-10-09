@@ -49,6 +49,5 @@ struct AboutCreditsView: View {
         .frame(width: (Self.baseWidth * textScale).rounded())
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
-        .preferredColorScheme(.light)
     }
 }

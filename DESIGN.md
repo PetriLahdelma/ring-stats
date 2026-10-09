@@ -78,6 +78,7 @@ Use dark ink and white as the functional base, with signal blue and a warm separ
 - **Ink** (`#181B1F`): primary text and menu-bar template artwork.
 - **Secondary Ink** (Ink at 62%, 4.65:1 on Canvas Warm): captions, theme circles, and the reorder grip in the windows. Never the system secondary gray, which is 3.88:1 on the canvas. Solid Ink under Increase Contrast, as is every theme's secondary text.
 - **Canvas Warm** (`#F4F1EC`): popover canvas.
+- **Dark Mode.** The Ring Stats theme and every window follow the system appearance. In Dark Mode the canvas is Ink, text is `#ECE9E4` (14.3:1) with secondary text at 62% (6.2:1), Signal Blue lifts to `#7FA6D8` (6.9:1 as text, well over 3:1 for arcs) with Ink text on filled buttons (6.9:1), alert text is `#F2857A` (6.9:1), separators are `#383B3E`, and raised surfaces are white at 6%. Landscape stays dark and Holographic stays light whatever the system setting. Every token is `Palette.adaptive(light, dark)`, and the contrast test measures both appearances.
 - **White** (`#FFFFFF`): setup/about window surfaces where native separation helps.
 
 **The One Blue Rule.** Normal scores share Signal Blue. Multiple unrelated score colors would turn the strip into a generic fitness dashboard.
@@ -115,7 +116,7 @@ Use native macOS popover/window elevation. The Ring Stats theme adds no custom s
 ## Themes
 
 ### Ring Stats
-- Warm canvas, Ink text, and Signal Blue gauges and actions.
+- Warm canvas, Ink text, and Signal Blue gauges and actions by day; Ink canvas, warm-light text, and lifted Signal Blue in Dark Mode.
 - This remains the default theme.
 
 ### Landscape
@@ -147,7 +148,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 - Score centered in 28pt rounded system type with tabular numerals.
 - Metric and qualitative label below the ring.
 - Missing state uses no arc, an em dash, and an explicit caption.
-- A stale value dims to 62% and its detail reads "Not updated" in Alert Text.
+- A stale value dims to 62% and its detail reads "Stale · 2h" in Alert Text, with the age of the retained value. "Not updated · 23h" needs 96pt at the 11pt detail size and the tile is 92pt wide, so the tile uses the short word; the battery row and the status line, which have room, say "Not updated · 2h".
 
 ### Extended Metrics
 - Heart Rate shows the latest Oura sample as BPM and never presents it as a 0–100 score.
@@ -169,6 +170,12 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
   produces one short source snap before the stored order commits without replay.
   Leaving the strip restores the original preview, and Reduced Motion removes
   the positional interpolation.
+
+### Refresh Status
+- Top right, 10pt, always visible: "Updated 2m ago" in secondary content, or "Update failed · 1h ago · Retry" and "Some stats not updated · 1h ago · Retry" in the alert color. The whole line is a plain button that runs a refresh, reachable with Tab; "Refreshing…" shows a spinner and is not clickable. The age never hides, because it is the freshness promise, and the line is the only error surface in the popover; the full error text lives in Connection.
+
+### Menu Bar Value
+- Off by default. Appearance, "In the menu bar", offers Nothing, each stat, or "Battery, only when low". The value is drawn as text beside the template icon in the menu bar's 12pt medium monospaced-digit font. A stale stat still shows, as in the popover; a stale battery level does not, because "low" must be current to be worth a glance. VoiceOver reads "Ring Stats, Readiness 84".
 
 ### Battery Row
 - A native macOS battery symbol followed by the percentage. While the ring charges, a bolt is cut out of the battery fill, as macOS does, so it stays visible at every level.

@@ -61,9 +61,13 @@ AppKit; web techniques such as ARIA do not apply.
 11. **Custom targets are at least 24 by 24 points.** Custom controls such as
     the ☰ menu (28 points) and the reorder grip (24 points) meet it; native
     controls keep their system size. (2.5.8)
-12. **Notifications stand alone.** A notification's text makes sense
+12. **A value in the menu bar is opt-in.** It is visible to anyone who can
+    see the screen, so Appearance says so and the default is Nothing. The
+    menu-bar item's VoiceOver label names the stat and value. (Privacy, not
+    a WCAG criterion.)
+13. **Notifications stand alone.** A notification's text makes sense
     without opening the app: "Your ring is at 15%". (3.3.1)
-13. **Record the evidence.** When behavior changes, update the matrix below,
+14. **Record the evidence.** When behavior changes, update the matrix below,
     and when a manual check is run, add it to the log.
 
 Status key: **Verified** (automated), **Verified** (manual, dated), **Needs
@@ -75,16 +79,19 @@ manual check** (implemented, not yet confirmed with assistive technology), or
 | Area | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | Contrast | Small text meets 4.5:1 in every theme | Verified (automated) | `themeTextColorsMeetWCAGContrastForSmallText`; ratios below |
-| Contrast | Icons and arcs meet 3:1 | Verified (calculated) | Signal blue 6.99:1, alert icon 3.21:1 on canvas |
+| Contrast | Icons and arcs meet 3:1 | Verified (automated) | Light: Signal Blue 6.99:1, alert icon 3.21:1 on canvas. Dark: Signal Blue 6.87:1, alert icon 4.78:1 on Ink; `themeTextColorsMeetWCAGContrastForSmallText` |
+| Dark Mode | The Ring Stats theme and all windows follow the system appearance | Verified (automated) | Every popover state and window renders in both appearances in the state gallery; heights match (`themesKeepTheSameLayoutForEveryState`, `windowsRenderAtExtraLargeText`); dark tokens are measured in the contrast test |
 | Contrast | Window captions and control glyphs meet 4.5:1 | Verified (automated) | `Palette.secondaryInk` 4.65:1 in `themeTextColorsMeetWCAGContrastForSmallText`; replaced the system secondary label color (3.88:1), the unselected theme circle (2.21:1), and the reorder grip (1.96:1) |
 | Color independence | Every value and state appears as text | Verified (automated) | `staleTileSaysSoInTextAndToVoiceOver`, detail copy tests, state gallery |
+| Freshness | A stale value shows its age to sighted users, not only to VoiceOver | Verified (automated) | `staleTileSaysSoInTextAndToVoiceOver`: tiles say "Stale · 2h", the battery row "Not updated · 2h"; `everyTileDetailFitsTheTileWithoutTruncation` covers the longest ages |
+| Freshness | The refresh status is always visible and is the retry control | Verified (automated) | `successAgeStaysVisibleAndIsRetryable`, `failuresStayVisibleInAlertTone`; the status line is a button reachable with Tab, disabled while refreshing |
 | Truncation | Tile detail text is never cut off | Verified (automated) | `everyTileDetailFitsTheTileWithoutTruncation` |
 | Theme parity | Themes show the same lines and labels | Verified (automated) | `themesKeepTheSameLayoutForEveryState` |
 | Widths | Layout holds at 420, 680, and 840 pt | Verified (automated) | `popoverStatesRenderWithinBoundsAtEverySupportedWidth` |
 | Overflow | Hidden stats are discoverable | Verified (automated) plus hint | Edge fades from `MetricStripLayout.overflow`; VoiceOver hint "More stats are available by scrolling" |
 | Reduced motion | Reordering, settling, and status fades do not animate | Verified (automated) for reordering; Needs manual check for status fade and spinner | `reducedMotionReorderSettlementIsImmediate`; `RefreshStatusView` and `ScoreLoadingSpinner` read `accessibilityReduceMotion` |
 | VoiceOver labels | Each tile reads title, value, and state | Verified (automated) for label text; Needs manual check for reading order | `MetricGauge.accessibilityLabel` tests |
-| VoiceOver status | Refresh status is readable even when visually hidden | Needs manual check | Always-present accessibility element in `RefreshStatusView` |
+| VoiceOver status | Refresh status is readable and actionable | Needs manual check | `RefreshStatusView` is a button with the status as its label and "Refreshes the stats now" as its hint |
 | VoiceOver announcements | Reorder, copy, and connection success are announced | Needs manual check | `AccessibilityNotification.Announcement` in reorder, callback copy, diagnostics copy, and connection |
 | VoiceOver announcements | Refresh Now announces its result | Verified (automated) for text; Needs manual check in use | `explicitRefreshAnnouncesEveryOutcome`; posted after Refresh Now from either menu, never for background refreshes |
 | Keyboard | Popover dismisses with Escape | Verified (automated) | `statusPopoverEscapeInvokesCancellationHandler` |
@@ -122,6 +129,11 @@ Holographic is measured against the darkest pixel of the bundled marble, pink
 | Holographic ink `#0D0F10` | Holographic values, titles, arcs | 11.73:1 worst | 4.5:1 |
 | Holographic ink at 68% | Holographic details | 5.39:1 worst | 4.5:1 |
 | Holographic alert `#8C2A1F` | Holographic failures and low-battery icon | 5.20:1 worst | 4.5:1 |
+| Dark text `#ECE9E4` | Dark Mode values, titles, window text, on Ink | 14.27:1 | 4.5:1 |
+| Dark text at 62% | Dark Mode details and captions | 6.2:1 | 4.5:1 |
+| Dark Signal Blue `#7FA6D8` | Dark Mode arcs, links, secondary buttons | 6.87:1 | 3:1 (non-text), 4.5:1 (text) |
+| Ink on Dark Signal Blue | Dark Mode filled buttons | 6.87:1 | 4.5:1 |
+| Dark alert text `#F2857A` | Dark Mode failures and staleness | 6.92:1 | 4.5:1 |
 | Secondary ink (ink at 62%) | Window captions, theme circles, reorder grip | 4.65:1 | 4.5:1 |
 
 Before this pass, the battery sample age used ink at 50% (3.23:1) and failure

@@ -48,9 +48,12 @@ import Testing
     #expect(status.label == "Refreshing…")
     #expect(status.showsSpinner)
     #expect(status.isVisible)
+    #expect(!status.isRetryable)
 }
 
-@Test func successConfirmationFadesAfterThreeSecondsWhileDataIsFresh() throws {
+/// The age never hides: it is the freshness promise, and clicking it
+/// refreshes.
+@Test func successAgeStaysVisibleAndIsRetryable() throws {
     let refreshedAt = Date(timeIntervalSince1970: 10_000)
     func status(after seconds: TimeInterval) throws -> RefreshStatusPresentation {
         try #require(
@@ -65,11 +68,11 @@ import Testing
     }
     #expect(try status(after: 0).isVisible)
     #expect(try status(after: 0).label == "Updated just now")
-    #expect(try status(after: 2.9).isVisible)
-    #expect(try !status(after: 3).isVisible)
-    #expect(try !status(after: 299).isVisible)
-    // VoiceOver still gets the age while nothing is drawn.
+    #expect(try status(after: 3).isVisible)
+    #expect(try status(after: 299).isVisible)
+    #expect(try status(after: 120).label == "Updated 2m ago")
     #expect(try status(after: 120).accessibility == "Updated 2m ago")
+    #expect(try status(after: 120).isRetryable)
 }
 
 @Test func agedDataKeepsItsAgeVisible() throws {
@@ -99,9 +102,11 @@ import Testing
             refreshInterval: 300
         )
     )
-    #expect(failed.label == "Update failed · 1h ago")
+    #expect(failed.label == "Update failed · 1h ago · Retry")
+    #expect(failed.accessibility == "Update failed. Showing values from 1h ago. Retry.")
     #expect(failed.tone == .alert)
     #expect(failed.isVisible)
+    #expect(failed.isRetryable)
 
     let partial = try #require(
         PopoverTimestampText.refreshStatus(
@@ -112,7 +117,7 @@ import Testing
             refreshInterval: 300
         )
     )
-    #expect(partial.label == "Some stats not updated")
+    #expect(partial.label == "Some stats not updated · 1m ago · Retry")
     #expect(partial.tone == .alert)
     #expect(partial.isVisible)
 }
@@ -130,10 +135,19 @@ import Testing
 }
 
 @Test func staleTileSaysSoInTextAndToVoiceOver() {
-    let stale = MetricReading(value: "80", detail: "Good", score: 80).markedStale()
-    #expect(MetricGauge.detailText(reading: stale, pending: false, now: Date()) == "Not updated")
+    let now = Date(timeIntervalSince1970: 20_000)
+    let stale = MetricReading(value: "80", detail: "Good", score: 80).markedStale(fetchedAt: now.addingTimeInterval(-7_200))
+    // Sighted users see the age too, not only VoiceOver.
+    #expect(MetricGauge.detailText(reading: stale, pending: false, now: now) == "Stale · 2h")
+    #expect(MetricGauge.staleAge(since: now.addingTimeInterval(-90), now: now) == "1m")
+    #expect(MetricGauge.staleAge(since: now.addingTimeInterval(-3 * 86_400), now: now) == "3d")
+    let unknownAge = MetricReading(value: "80", detail: "Good", score: 80).markedStale()
+    #expect(MetricGauge.detailText(reading: unknownAge, pending: false, now: now) == "Not updated")
+    let spoken = MetricGauge.accessibilityLabel(metric: .activity, reading: stale, pending: false, now: now)
+    #expect(spoken.hasPrefix("Activity, 80, Good. Not updated; showing the last known value"), "\(spoken)")
+    #expect(spoken.contains("2h"), "\(spoken)")
     #expect(
-        MetricGauge.accessibilityLabel(metric: .activity, reading: stale, pending: false)
+        MetricGauge.accessibilityLabel(metric: .activity, reading: unknownAge, pending: false, now: now)
             == "Activity, 80, Good. Not updated; showing the last known value."
     )
 }
@@ -476,6 +490,7 @@ import Testing
     let now = Date(timeIntervalSince1970: 1_790_467_200)
     var details: [String] = [60, 70, 85, 40].map { ScoreBand.label(for: $0) }
     details += ["Updating…", "No data", "Not updated", "Long-term", "High stress"]
+    details += ["Stale · 59m", "Stale · 23h"]
     details += ["Restored", "Normal", "Stressful"]
     details += [nil, .insufficientScope, .timedOut].compactMap { OuraAPI.placeholder(for: $0).detail }
     details += [59, 3_540, 82_800].map { age in
@@ -510,8 +525,18 @@ import Testing
 }
 
 @Test @MainActor func themeTextColorsMeetWCAGContrastForSmallText() throws {
-    func components(_ color: Color, over background: (Double, Double, Double)) throws -> (Double, Double, Double) {
-        let ns = try #require(NSColor(color).usingColorSpace(.sRGB))
+    // Palette colors follow the appearance, so resolve them under the one
+    // being measured rather than whatever this Mac is set to.
+    func components(
+        _ color: Color,
+        over background: (Double, Double, Double),
+        appearance: NSAppearance.Name = .aqua
+    ) throws -> (Double, Double, Double) {
+        var resolved: NSColor?
+        NSAppearance(named: appearance)!.performAsCurrentDrawingAppearance {
+            resolved = NSColor(color).usingColorSpace(.sRGB)
+        }
+        let ns = try #require(resolved)
         let alpha = Double(ns.alphaComponent)
         return (
             Double(ns.redComponent) * alpha + background.0 * (1 - alpha),
@@ -530,7 +555,8 @@ import Testing
         return (high + 0.05) / (low + 0.05)
     }
 
-    let canvas = try components(Palette.canvasWarm, over: (1, 1, 1))
+    let canvas = try components(Palette.Light.canvasWarm, over: (1, 1, 1))
+    let darkCanvas = try components(Palette.Dark.canvas, over: (0, 0, 0))
     // The brightest pixel of the landscape photograph under its darkest-at-top
     // veil, measured from the bundled asset. See ACCESSIBILITY.md.
     let landscapeWorstCase = (108.0 / 255, 92.0 / 255, 81.0 / 255)
@@ -552,12 +578,39 @@ import Testing
         ("holographic secondary, Increase Contrast", AppTheme.holographic.secondaryContent(increasedContrast: true), holographicWorstCase),
         // Window captions and control glyphs, which replaced the system
         // secondary label color (3.88:1 on the canvas).
-        ("window secondary ink", Palette.secondaryInk(increasedContrast: false), canvas),
-        ("window secondary ink, Increase Contrast", Palette.secondaryInk(increasedContrast: true), canvas),
+        ("window secondary ink", Palette.Light.ink.opacity(0.62), canvas),
+        ("window secondary ink, Increase Contrast", Palette.Light.ink, canvas),
+        // Dark Mode for the Ring Stats theme and the windows, both as the
+        // fixed dark tokens and as the theme resolves them.
+        ("dark primary", Palette.Dark.ink, darkCanvas),
+        ("dark secondary", Palette.Dark.ink.opacity(0.62), darkCanvas),
+        ("dark alert text", Palette.Dark.alertText, darkCanvas),
+        ("dark signal blue as text", Palette.Dark.signalBlue, darkCanvas),
+        ("dark text on signal blue button", Palette.Dark.onSignalBlue, try components(Palette.Dark.signalBlue, over: (0, 0, 0))),
+        ("dark text on card", Palette.Dark.ink, try components(Palette.Dark.card, over: darkCanvas)),
+        ("dark secondary on card", Palette.Dark.ink.opacity(0.62), try components(Palette.Dark.card, over: darkCanvas)),
     ]
     for (name, color, background) in cases {
         let ratio = contrast(try components(color, over: background), background)
         #expect(ratio >= 4.5, "\(name) is \(ratio):1")
+    }
+    for (name, color) in [
+        ("ring-stats primary", AppTheme.ringStats.primaryContent),
+        ("ring-stats secondary", AppTheme.ringStats.secondaryContent(increasedContrast: false)),
+        ("ring-stats alert", AppTheme.ringStats.alert),
+    ] {
+        let ratio = contrast(try components(color, over: darkCanvas, appearance: .darkAqua), darkCanvas)
+        #expect(ratio >= 4.5, "\(name) in Dark Mode is \(ratio):1")
+    }
+    // Arcs and icons need 3:1.
+    for (name, color, background) in [
+        ("dark arcs", Palette.Dark.signalBlue, darkCanvas),
+        ("dark alert icon", Palette.Dark.alert, darkCanvas),
+        ("light arcs", Palette.Light.signalBlue, canvas),
+        ("light alert icon", Palette.Light.alert, canvas),
+    ] {
+        let ratio = contrast(try components(color, over: background), background)
+        #expect(ratio >= 3, "\(name) is \(ratio):1")
     }
 }
 

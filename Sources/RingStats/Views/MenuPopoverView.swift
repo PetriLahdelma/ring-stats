@@ -16,6 +16,8 @@ struct RefreshStatusPresentation: Equatable {
     let isVisible: Bool
     let showsSpinner: Bool
     let tone: Tone
+    /// Whether the status offers to run a refresh when clicked.
+    var isRetryable = false
 }
 
 enum PopoverTimestampText {
@@ -44,40 +46,45 @@ enum PopoverTimestampText {
         case .failed:
             guard let lastUpdatedAt else {
                 return RefreshStatusPresentation(
-                    label: "Update failed",
-                    accessibility: "Update failed",
+                    label: "Update failed · Retry",
+                    accessibility: "Update failed. Retry.",
                     isVisible: true,
                     showsSpinner: false,
-                    tone: .alert
+                    tone: .alert,
+                    isRetryable: true
                 )
             }
             let age = relativeAge(since: lastUpdatedAt, now: now)
             return RefreshStatusPresentation(
-                label: "Update failed · \(age)",
-                accessibility: "Update failed. Showing values from \(age).",
+                label: "Update failed · \(age) · Retry",
+                accessibility: "Update failed. Showing values from \(age). Retry.",
                 isVisible: true,
                 showsSpinner: false,
-                tone: .alert
+                tone: .alert,
+                isRetryable: true
             )
         case .partial(let at):
             let age = relativeAge(since: at, now: now)
             return RefreshStatusPresentation(
-                label: "Some stats not updated",
-                accessibility: "Updated \(age). Some stats could not be updated and show their last known values.",
+                label: "Some stats not updated · \(age) · Retry",
+                accessibility: "Updated \(age). Some stats could not be updated and show their last known values. Retry.",
                 isVisible: true,
                 showsSpinner: false,
-                tone: .alert
+                tone: .alert,
+                isRetryable: true
             )
         case .succeeded(let at):
-            let sinceRefresh = max(0, now.timeIntervalSince(at))
+            // Always visible: the age is the freshness promise, and hiding it
+            // between the confirmation and the next refresh hid it most of
+            // the time.
             let label = "Updated \(relativeAge(since: at, now: now))"
-            let isVisible = sinceRefresh < confirmationDuration || sinceRefresh >= refreshInterval
             return RefreshStatusPresentation(
                 label: label,
                 accessibility: label,
-                isVisible: isVisible,
+                isVisible: true,
                 showsSpinner: false,
-                tone: .neutral
+                tone: .neutral,
+                isRetryable: true
             )
         }
     }
@@ -116,6 +123,8 @@ struct MenuPopoverView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.textScale) private var textScale
     let showConnection: () -> Void
+    /// Runs a refresh now; the status line calls it.
+    var requestRefresh: () -> Void = {}
     /// Draws the keyboard focus ring on this tile without real focus, for the
     /// state gallery.
     var previewFocusRing: Metric?
@@ -547,19 +556,13 @@ struct MenuPopoverView: View {
                     .disabled(model.loading)
                     .accessibilityHint("Opens Oura authorization to grant the missing data permission")
                 }
-                if let error = model.errorMessage {
-                    Text(error)
-                        .scaledFont(.caption)
-                        .foregroundStyle(theme.secondaryContent)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 Divider().overlay(theme.divider)
                 HStack {
                     BatteryRow(
                         battery: model.snapshot.battery,
                         loading: model.loading,
                         stale: model.snapshot.batteryIsStale,
+                        staleSince: model.snapshot.batteryFetchedAt,
                         needsPermission: batteryNeedsAccess,
                         theme: theme
                     )
@@ -593,10 +596,10 @@ struct MenuPopoverView: View {
         .padding(.bottom, 22)
         .frame(minWidth: 420, maxWidth: .infinity)
         .foregroundStyle(theme.primaryContent)
-        .preferredColorScheme(theme == .landscape ? .dark : .light)
+        .preferredColorScheme(theme.preferredColorScheme)
         .overlay(alignment: .topTrailing) {
             if model.connected || model.snapshot.hasData {
-                RefreshStatusView(theme: theme)
+                RefreshStatusView(theme: theme, requestRefresh: requestRefresh)
                     .padding(.top, 10)
                     .padding(.trailing, 24)
             }
@@ -619,6 +622,7 @@ struct RefreshStatusView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.popoverIsPresented) private var isPresented
     let theme: AppTheme
+    var requestRefresh: () -> Void = {}
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1, paused: !isPresented)) { context in
@@ -629,7 +633,9 @@ struct RefreshStatusView: View {
                 now: context.date,
                 refreshInterval: model.refreshInterval
             ) {
-                ZStack(alignment: .trailing) {
+                // The status is the retry control: clicking "Updated 2m ago"
+                // refreshes, and a failure says "Retry" in the line itself.
+                Button(action: requestRefresh) {
                     HStack(spacing: 5) {
                         if status.showsSpinner {
                             ScoreLoadingSpinner(theme: theme, diameter: (9 * textScale).rounded(), lineWidth: 1.5)
@@ -640,18 +646,15 @@ struct RefreshStatusView: View {
                             .truncationMode(.tail)
                     }
                     .foregroundStyle(status.tone == .alert ? theme.alert : theme.secondaryContent)
-                    .frame(maxWidth: 280, alignment: .trailing)
-                    .opacity(status.isVisible ? 1 : 0)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: status.isVisible)
-                    .accessibilityHidden(true)
-
-                    // Stays readable to VoiceOver while the visual label is faded out.
-                    Color.clear
-                        .frame(width: 1, height: 1)
-                        .accessibilityElement()
-                        .accessibilityLabel(status.accessibility)
-                        .accessibilitySortPriority(1)
+                    .frame(maxWidth: 300, alignment: .trailing)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .disabled(!status.isRetryable)
+                .keyboardActivatable(theme: theme, cornerRadius: 4, action: requestRefresh)
+                .accessibilityLabel(status.accessibility)
+                .accessibilityHint(status.isRetryable ? "Refreshes the stats now" : "")
+                .accessibilitySortPriority(1)
             }
         }
     }

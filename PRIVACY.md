@@ -25,7 +25,11 @@ granted to the current OAuth token. Revoke or reauthorize to change the token's
 permissions.
 
 Ring Stats also stores local display preferences such as theme, visible metric
-order, and popover width. These preferences are not health data.
+order, popover width, text size, the low battery alert, and which value, if
+any, to show in the menu bar. These preferences are not health data. The
+menu bar value is off by default; when you turn it on, the chosen stat or a
+low battery percentage is drawn in the menu bar, where anyone who can see
+your screen can read it.
 
 ## How data is used and stored
 

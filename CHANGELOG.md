@@ -5,6 +5,20 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Added
+
+- Dark Mode. The Ring Stats theme and every window now follow the system
+  appearance, with colors measured for contrast in both. Landscape stays
+  dark and Holographic stays light.
+- An optional value beside the menu-bar icon: today's Readiness, any other
+  stat, or the battery percentage only when it is low. Off by default; set it
+  in Appearance under "In the menu bar".
+- The refresh status now stays visible ("Updated 2m ago") and is a button:
+  click it to refresh. When an update fails it reads "Update failed · 1h ago
+  · Retry", and the separate error sentence under the stats is gone.
+- A stale stat shows how old it is ("Stale · 2h"), and so does a stale
+  battery reading ("Not updated · 2h").
+
 ### Fixed
 
 - A malformed rate-limit header from the API no longer crashes the app or

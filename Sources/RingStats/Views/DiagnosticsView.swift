@@ -27,7 +27,7 @@ struct DiagnosticsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
             }
-            .background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(Palette.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .accessibilityLabel("Diagnostics report")
             HStack {
                 Button("Refresh Report", action: regenerate)
@@ -50,7 +50,6 @@ struct DiagnosticsView: View {
         )
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
-        .preferredColorScheme(.light)
         .onAppear { regenerate() }
     }
 

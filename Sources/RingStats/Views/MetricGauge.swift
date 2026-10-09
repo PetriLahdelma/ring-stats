@@ -64,7 +64,14 @@ struct MetricGauge: View {
         calendar: Calendar = .current
     ) -> String {
         guard let reading else { return pending ? "Updating…" : "No data" }
-        if reading.availability == .stale { return "Not updated" }
+        if reading.availability == .stale {
+            // Sighted users need the age as much as VoiceOver users hear it.
+            // "Not updated · 23h" is 96 points at the detail size and the
+            // tile is 92, so the tile says "Stale"; the battery row and the
+            // status line, which have room, keep "Not updated".
+            guard let since = reading.lastFetchedAt else { return "Not updated" }
+            return "Stale · \(staleAge(since: since, now: now))"
+        }
         if let earlier = earlierDayLabel(sourceDay: reading.sourceDay, now: now, calendar: calendar) {
             return "From \(earlier)"
         }
@@ -74,6 +81,16 @@ struct MetricGauge: View {
             ? "\(max(1, Int(age / 60)))m ago"
             : "\(Int(age / 3_600))h ago"
         return [reading.detail, compactAge].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// A compact age for a stale value: "15m", "2h", "3d".
+    nonisolated static func staleAge(since date: Date, now: Date) -> String {
+        let age = max(0, now.timeIntervalSince(date))
+        return switch age {
+        case ..<3_600: "\(max(1, Int(age / 60)))m"
+        case ..<86_400: "\(Int(age / 3_600))h"
+        default: "\(Int(age / 86_400))d"
+        }
     }
 
     /// "yesterday" or a short date for a source day before today; nil for today.
@@ -214,8 +231,15 @@ struct BatteryRow: View {
     let battery: BatteryReading?
     let loading: Bool
     var stale = false
+    /// When a stale reading was fetched, shown as its age beside "Not updated".
+    var staleSince: Date?
     var needsPermission = false
     let theme: AppTheme
+
+    private var staleText: String {
+        guard let staleSince else { return "Not updated" }
+        return "Not updated · \(MetricGauge.staleAge(since: staleSince, now: Date()))"
+    }
 
     private var batteryStatus: String {
         guard let battery else { return "Battery" }
@@ -243,7 +267,7 @@ struct BatteryRow: View {
     var accessibilityDescription: String {
         var parts = [batteryStatus, chargingStatus ?? "Not charging"]
         if stale {
-            parts.append("Not updated")
+            parts.append(staleText)
         }
         return parts.joined(separator: ", ")
     }
@@ -258,7 +282,7 @@ struct BatteryRow: View {
                     .foregroundStyle(theme.primaryContent.opacity(AppTheme.increasesContrast ? 1 : 0.68))
             }
             if showsTrailing, stale {
-                Text("Not updated")
+                Text(staleText)
                     .foregroundStyle(theme.alert)
             }
         }

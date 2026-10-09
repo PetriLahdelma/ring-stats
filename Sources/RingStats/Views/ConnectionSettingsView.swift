@@ -76,7 +76,6 @@ struct ConnectionSettingsView: View {
         )
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
-        .preferredColorScheme(.light)
         .confirmationDialog(
             "Disconnect and delete saved authorization?",
             isPresented: $showingDisconnectConfirmation
@@ -157,7 +156,7 @@ struct ConnectionSettingsView: View {
                     .textSelection(.enabled)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 10)
-                    .background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background(Palette.card, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 Button {
                     copyCallbackURL()
                 } label: {

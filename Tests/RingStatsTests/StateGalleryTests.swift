@@ -26,14 +26,20 @@ struct StateGalleryTests {
         for state in GalleryState.allCases {
             for theme in AppTheme.allCases {
                 for width in Self.widths {
-                    let fixture = try await GalleryFixture(state: state, theme: theme)
-                    let render = try fixture.renderPopover(width: width)
-                    try gallery.add(render, name: "popover-\(state.rawValue)-\(theme.rawValue)-\(Int(width))")
+                    // The Ring Stats theme follows the system appearance, so
+                    // it is rendered in both; the other themes fix theirs.
+                    let appearances: [(String, NSAppearance.Name)] = theme == .ringStats
+                        ? [("", .aqua), ("-dark", .darkAqua)] : [("", .aqua)]
+                    for (suffix, appearance) in appearances {
+                        let fixture = try await GalleryFixture(state: state, theme: theme)
+                        let render = try fixture.renderPopover(width: width, appearance: appearance)
+                        try gallery.add(render, name: "popover-\(state.rawValue)-\(theme.rawValue)\(suffix)-\(Int(width))")
 
-                    #expect(render.size.width == width, "\(state) \(theme) \(width)")
-                    #expect(render.size.height >= 120, "\(state) \(theme) \(width) is collapsed")
-                    #expect(render.size.height <= 800, "\(state) \(theme) \(width) exceeds the panel limit")
-                    #expect(render.hasVisibleContent, "\(state) \(theme) \(width) rendered blank")
+                        #expect(render.size.width == width, "\(state) \(theme)\(suffix) \(width)")
+                        #expect(render.size.height >= 120, "\(state) \(theme)\(suffix) \(width) is collapsed")
+                        #expect(render.size.height <= 800, "\(state) \(theme)\(suffix) \(width) exceeds the panel limit")
+                        #expect(render.hasVisibleContent, "\(state) \(theme)\(suffix) \(width) rendered blank")
+                    }
                 }
             }
         }
@@ -97,7 +103,16 @@ struct StateGalleryTests {
             let render = try GalleryRender(view: scaled, width: fitted.width)
             try gallery.add(render, name: "extra-large-\(name)")
             #expect(render.hasVisibleContent, "\(name) rendered blank")
-            _ = fixedHeight
+            if let fixedHeight {
+                // A fixed-size window scaled for Extra Large must hold its
+                // content; a taller fit means something overflowed.
+                #expect(fitted.height <= (fixedHeight * scale).rounded() + 1, "\(name) overflows: \(fitted.height)")
+            }
+            // Windows follow the system appearance.
+            let dark = try GalleryRender(view: scaled, width: fitted.width, appearance: .darkAqua)
+            try gallery.add(dark, name: "extra-large-dark-\(name)")
+            #expect(dark.hasVisibleContent, "\(name) rendered blank in Dark Mode")
+            #expect(dark.size == render.size, "\(name) changes size in Dark Mode")
         }
         try gallery.writeIndex()
     }
@@ -111,6 +126,10 @@ struct StateGalleryTests {
             let landscape = try await GalleryFixture(state: state, theme: .landscape)
                 .renderPopover(width: PopoverLayout.defaultWidth)
             #expect(ringStats.size.height == landscape.size.height, "\(state)")
+            // Dark Mode changes colors only.
+            let dark = try await GalleryFixture(state: state, theme: .ringStats)
+                .renderPopover(width: PopoverLayout.defaultWidth, appearance: .darkAqua)
+            #expect(dark.size.height == ringStats.size.height, "\(state) dark")
         }
     }
 
@@ -341,7 +360,7 @@ struct GalleryFixture {
         )
     }
 
-    func renderPopover(width: CGFloat) throws -> GalleryRender {
+    func renderPopover(width: CGFloat, appearance: NSAppearance.Name = .aqua) throws -> GalleryRender {
         let view = MenuPopoverShell(geometry: PopoverGeometryModel()) {
             MenuPopoverView(
                 showConnection: {},
@@ -352,7 +371,7 @@ struct GalleryFixture {
         }
         .defaultAppStorage(defaults)
         defer { release() }
-        return try GalleryRender(view: view, width: width)
+        return try GalleryRender(view: view, width: width, appearance: appearance)
     }
 }
 
@@ -363,8 +382,9 @@ struct GalleryRender {
     let png: Data
     let hasVisibleContent: Bool
 
-    init<V: View>(view: V, width: CGFloat) throws {
+    init<V: View>(view: V, width: CGFloat, appearance: NSAppearance.Name = .aqua) throws {
         let hosting = NSHostingView(rootView: view.frame(width: width))
+        hosting.appearance = NSAppearance(named: appearance)
         let fitted = hosting.fittingSize
         let size = CGSize(width: width, height: min(fitted.height, 1_200))
         hosting.frame = CGRect(origin: .zero, size: size)

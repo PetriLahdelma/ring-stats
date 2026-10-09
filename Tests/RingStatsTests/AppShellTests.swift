@@ -144,10 +144,9 @@ struct AppShellTests {
         let panel = try #require(delegate.popoverPanel)
         let stops = await tabStops(in: panel)
         let stats = Metric.defaultVisible.count
-        #expect(stops.count == stats + 1, "\(stops)")
-        // The last stop is the 28-point ☰ button, below the stats.
-        let menu = try #require(stops.last)
-        #expect(menu.width == 28 && menu.height == 28, "\(menu)")
+        // Every stat, the ☰ button, and the status line.
+        #expect(stops.count == stats + 2, "\(stops)")
+        #expect(stops.contains { $0.width == 28 && $0.height == 28 }, "no 28-point ☰ stop in \(stops)")
     }
 
     @Test func optionsMenuOpensBelowTheButton() {
@@ -204,8 +203,9 @@ struct AppShellTests {
         connected.showConnectionWindow()
         defer { NSApp.windows.forEach { $0.close() } }
         let expected: [(String, NSWindowController?, Int)] = [
-            // Theme group, text size, low battery alert, Reset, stats list.
-            ("Appearance", connected.appearanceWindowController, 5),
+            // Theme group, text size, low battery alert, menu bar value,
+            // Reset, stats list.
+            ("Appearance", connected.appearanceWindowController, 6),
             // GitHub, Privacy, Releases.
             ("About", connected.aboutWindowController, 3),
             // Refresh Report, Copy, Save.

@@ -70,7 +70,7 @@ private struct ActionButtonBody: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 5)
             .frame(minHeight: 28)
-            .foregroundStyle(prominence == .primary ? Color.white : Palette.signalBlue)
+            .foregroundStyle(prominence == .primary ? Palette.onSignalBlue : Palette.signalBlue)
             .background {
                 if prominence == .primary {
                     shape.fill(Palette.signalBlue)
