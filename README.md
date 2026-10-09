@@ -14,6 +14,7 @@ from Oura to your Mac and nowhere else.
   <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&amp;logoColor=white" alt="macOS 14 or later">
   <img src="https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-universal-000000" alt="Universal binary">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2F855A.svg" alt="MIT License"></a>
+  <a href="https://github.com/PetriLahdelma/ring-stats/releases"><img src="https://img.shields.io/github/downloads/PetriLahdelma/ring-stats/total" alt="Downloads"></a>
 </p>
 
 <p align="center">
