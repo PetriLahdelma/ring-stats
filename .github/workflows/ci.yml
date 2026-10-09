@@ -67,7 +67,9 @@ jobs:
           [ -z "$stray" ] || { echo "Stray files:"; echo "$stray"; exit 1; }
 
       - name: Lint shell scripts
-        run: shellcheck -S warning scripts/*.sh scripts/lib/*.sh scripts/tests/*.sh
+        run: |
+          command -v shellcheck >/dev/null || brew install --quiet shellcheck
+          shellcheck -S warning scripts/*.sh scripts/lib/*.sh scripts/tests/*.sh
 
       - name: Run tests
         run: swift test -Xswiftc -warnings-as-errors
