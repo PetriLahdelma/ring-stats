@@ -22,9 +22,7 @@ jobs:
       matrix:
         runner: [macos-26, macos-15]
     # The package supports macOS 14; macos-15 exercises AppKit focus and menu
-    # behavior one release back. It is advisory until its image reliably
-    # carries an Xcode 26 toolchain.
-    continue-on-error: ${{ matrix.runner == 'macos-15' }}
+    # behavior one release back and is required, like macos-26.
     permissions:
       contents: read
     timeout-minutes: 20
