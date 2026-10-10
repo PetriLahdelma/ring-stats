@@ -67,8 +67,10 @@ entitlements_plist="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/ring-stats-entitlements.X
 /usr/bin/codesign -d --entitlements - --xml "$APP_DIR" > "$entitlements_plist" 2>/dev/null \
   || fail "Could not read the signed entitlements"
 entitlement_value() {
-  # plutil key paths split on dots, so escape the dots in entitlement names.
-  /usr/bin/plutil -extract "${1//./\\.}" raw -o - "$entitlements_plist" 2>/dev/null || echo absent
+  # PlistBuddy, not plutil -extract: plutil's handling of a missing key path
+  # differs between macOS releases (macOS 15 returned a value for one), while
+  # PlistBuddy fails with "Does Not Exist" on every release.
+  /usr/libexec/PlistBuddy -c "Print :$1" "$entitlements_plist" 2>/dev/null || echo absent
 }
 for entitlement in \
   com.apple.security.app-sandbox \
