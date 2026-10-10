@@ -22,7 +22,10 @@ jobs:
       matrix:
         runner: [macos-26, macos-15]
     # The package supports macOS 14; macos-15 exercises AppKit focus and menu
-    # behavior one release back and is required, like macos-26.
+    # behavior one release back. It is advisory: its Tab traversal counts
+    # vary between runs of the same commit (one stop more in the popover, one
+    # fewer in a window), so it cannot gate merges until that is understood.
+    continue-on-error: ${{ matrix.runner == 'macos-15' }}
     permissions:
       contents: read
     timeout-minutes: 20
