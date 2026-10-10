@@ -1,5 +1,8 @@
 <p align="center">
-  <img src=".github/assets/ring-stats-hero.png" alt="The Ring Stats popover in the Holographic theme: Readiness, Sleep, Activity, Heart rate, Stress, and Resilience with the ring battery" width="680">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/ring-stats-banner.svg">
+    <img src=".github/assets/ring-stats-banner.png" alt="Ring Stats" width="900">
+  </picture>
 </p>
 
 # Ring Stats
@@ -10,6 +13,7 @@ Mac app. Ring Stats is a native one with no server of its own: your data goes
 from Oura to your Mac and nowhere else.
 
 <p align="center">
+  <a href="https://github.com/PetriLahdelma/ring-stats/actions/workflows/ci.yml"><img src="https://github.com/PetriLahdelma/ring-stats/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/PetriLahdelma/ring-stats/releases/latest"><img src="https://img.shields.io/github/v/release/PetriLahdelma/ring-stats?display_name=tag&amp;label=Download" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple&amp;logoColor=white" alt="macOS 14 or later">
   <img src="https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-universal-000000" alt="Universal binary">
@@ -27,6 +31,10 @@ from Oura to your Mac and nowhere else.
 
 *Ring Stats is an independent open-source project, not affiliated with or
 endorsed by Oura Health Oy. Oura and Oura Ring are trademarks of Oura Health Oy.*
+
+<p align="center">
+  <img src=".github/assets/ring-stats-hero.png" alt="The Ring Stats popover in the Holographic theme: Readiness, Sleep, Activity, Heart rate, Stress, and Resilience with the ring battery" width="680">
+</p>
 
 ## Install
 
