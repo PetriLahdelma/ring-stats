@@ -174,28 +174,48 @@ struct AppShellTests {
         }
     }
 
-    /// The distinct controls Tab visits in a window, in order, with each
-    /// one's frame when last focused. A control is the same control when
-    /// the backing view is the same object (on a slow machine the layout can
-    /// still be settling, so one control may move between two visits) or
-    /// when the frame is the same (macOS 15 hands SwiftUI focus a fresh
-    /// backing view object on each visit, so identity alone double counts).
+    /// The distinct controls Tab visits in a window, in order, by frame.
+    ///
+    /// SwiftUI hands AppKit focus to proxy views. On macOS 15 a proxy is
+    /// reused for different controls and takes a run-loop turn or two to
+    /// move, so a frame read straight after the Tab press can still be the
+    /// previous control's, which double counts one stop and skips another.
+    /// Each press therefore waits until the focused frame has moved away
+    /// from the previous stop and held still before it is recorded, and
+    /// identity plays no part.
+    /// One turn of the main run loop, so AppKit and SwiftUI can lay out the
+    /// focus proxy. A plain `Task.yield` runs other tasks but not the loop.
+    private func turnRunLoop() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+    }
+
     private func tabStops(in window: NSWindow) async -> [NSRect] {
         window.contentView?.layoutSubtreeIfNeeded()
-        var stops: [(id: ObjectIdentifier, frame: NSRect)] = []
+        var stops: [NSRect] = []
+        var previous: NSRect?
         for _ in 0..<24 {
             window.selectNextKeyView(nil)
-            for _ in 0..<3 { await Task.yield() }
-            guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
-            let id = ObjectIdentifier(view)
-            let frame = view.convert(view.bounds, to: nil)
-            if let index = stops.firstIndex(where: { $0.id == id }) {
-                stops[index].frame = frame
-            } else if !stops.contains(where: { $0.frame == frame }) {
-                stops.append((id, frame))
+            var frame: NSRect?
+            var unchangedReads = 0
+            for _ in 0..<200 {
+                await turnRunLoop()
+                guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
+                let current = view.convert(view.bounds, to: nil)
+                if current == frame {
+                    unchangedReads += 1
+                } else {
+                    frame = current
+                    unchangedReads = 0
+                }
+                if unchangedReads >= 3, current != previous { break }
             }
+            guard let frame else { continue }
+            previous = frame
+            if !stops.contains(frame) { stops.append(frame) }
         }
-        return stops.map(\.frame)
+        return stops
     }
 
     /// Tab reaches every control in every window, with the system Keyboard
