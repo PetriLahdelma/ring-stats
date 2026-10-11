@@ -121,6 +121,9 @@ credentials and tokens from the Keychain.
   analytics, telemetry, or third-party code. The app runs in the macOS App
   Sandbox. [PRIVACY.md](PRIVACY.md) has the complete data flow.
 
+Every screen is explained, with screenshots, in the
+[user guide](docs/USER_GUIDE.md).
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset=".github/assets/ring-stats-themes-v6-dark.png">

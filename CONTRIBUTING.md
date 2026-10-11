@@ -159,7 +159,7 @@ request:
 
 | If you change | Update |
 |---|---|
-| Anything a user can see or do | [CHANGELOG.md](CHANGELOG.md), under `## Unreleased` |
+| Anything a user can see or do | [CHANGELOG.md](CHANGELOG.md), under `## Unreleased`, and [docs/USER_GUIDE.md](docs/USER_GUIDE.md) with fresh renders from the state gallery if a screenshot changes |
 | Data collected, stored, or sent | [PRIVACY.md](PRIVACY.md), [THREAT_MODEL.md](THREAT_MODEL.md) |
 | Modules, the provider boundary, runtime flow | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Visual design, copy, or layout | [DESIGN.md](DESIGN.md) |
