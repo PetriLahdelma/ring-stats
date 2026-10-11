@@ -75,10 +75,10 @@ struct StateGalleryTests {
         #expect(heights == heights.sorted() && Set(heights).count == heights.count, "\(heights)")
     }
 
-    /// Renders every window at Extra Large for review. Fixed-height roots pin
-    /// their own height, so overflow is checked by eye in the gallery rather
-    /// than by measurement.
-    @Test func windowsRenderAtExtraLargeText() async throws {
+    /// Renders every window at every text size for review and for the user
+    /// guide's screenshots. Fixed-height roots pin their own height, so
+    /// overflow is checked by eye in the gallery rather than by measurement.
+    @Test func windowsRenderAtEveryTextSize() async throws {
         let gallery = try GalleryWriter(subdirectory: "windows")
         let model = AppViewModel(
             auth: AuthStub(configured: false, connected: false),
@@ -87,33 +87,35 @@ struct StateGalleryTests {
             checkConnectionOnInit: false
         )
         await model.updateConnectionState()
-        let scale = TextSizePreference.extraLarge.scale
-        let windows: [(String, AnyView, CGFloat?)] = [
-            ("appearance", AnyView(AppearanceSettingsView()), AppearanceSettingsView.baseSize.height),
-            ("about", AnyView(AboutCreditsView()), nil),
-            ("diagnostics", AnyView(DiagnosticsView().environmentObject(model)), DiagnosticsView.baseSize.height),
-        ] + ConnectionStep.allCases.map { step in
-            ("connection-\(step.rawValue)",
-             AnyView(ConnectionSettingsView(initialStep: step).environmentObject(model)),
-             ConnectionSettingsView.windowHeight)
-        }
-        for (name, view, fixedHeight) in windows {
-            let scaled = view.environment(\.textScale, scale)
-            let hosting = NSHostingView(rootView: scaled)
-            let fitted = hosting.fittingSize
-            let render = try GalleryRender(view: scaled, width: fitted.width)
-            try gallery.add(render, name: "extra-large-\(name)")
-            #expect(render.hasVisibleContent, "\(name) rendered blank")
-            if let fixedHeight {
-                // A fixed-size window scaled for Extra Large must hold its
-                // content; a taller fit means something overflowed.
-                #expect(fitted.height <= (fixedHeight * scale).rounded() + 1, "\(name) overflows: \(fitted.height)")
+        for textSize in TextSizePreference.allCases {
+            let scale = textSize.scale
+            let windows: [(String, AnyView, CGFloat?)] = [
+                ("appearance", AnyView(AppearanceSettingsView()), nil),
+                ("about", AnyView(AboutCreditsView()), nil),
+                ("diagnostics", AnyView(DiagnosticsView().environmentObject(model)), DiagnosticsView.baseSize.height),
+            ] + ConnectionStep.allCases.map { step in
+                ("connection-\(step.rawValue)",
+                 AnyView(ConnectionSettingsView(initialStep: step).environmentObject(model)),
+                 ConnectionSettingsView.windowHeight)
             }
-            // Windows follow the system appearance.
-            let dark = try GalleryRender(view: scaled, width: fitted.width, appearance: .darkAqua)
-            try gallery.add(dark, name: "extra-large-dark-\(name)")
-            #expect(dark.hasVisibleContent, "\(name) rendered blank in Dark Mode")
-            #expect(dark.size == render.size, "\(name) changes size in Dark Mode")
+            for (name, view, fixedHeight) in windows {
+                let scaled = view.environment(\.textScale, scale)
+                let hosting = NSHostingView(rootView: scaled)
+                let fitted = hosting.fittingSize
+                let render = try GalleryRender(view: scaled, width: fitted.width)
+                try gallery.add(render, name: "\(textSize.rawValue)-\(name)")
+                #expect(render.hasVisibleContent, "\(name) rendered blank")
+                if let fixedHeight {
+                    // A fixed-size window scaled for Extra Large must hold its
+                    // content; a taller fit means something overflowed.
+                    #expect(fitted.height <= (fixedHeight * scale).rounded() + 1, "\(name) overflows: \(fitted.height)")
+                }
+                // Windows follow the system appearance.
+                let dark = try GalleryRender(view: scaled, width: fitted.width, appearance: .darkAqua)
+                try gallery.add(dark, name: "\(textSize.rawValue)-dark-\(name)")
+                #expect(dark.hasVisibleContent, "\(name) rendered blank in Dark Mode")
+                #expect(dark.size == render.size, "\(name) changes size in Dark Mode")
+            }
         }
         try gallery.writeIndex()
     }

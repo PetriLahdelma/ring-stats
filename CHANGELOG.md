@@ -5,6 +5,13 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Fixed
+
+- The Appearance window now fits its content. At the standard text size its
+  last line, the note about keeping one stat visible and reordering with the
+  keyboard, was cut off; at Extra Large there was an empty band under the
+  stats list.
+
 ## 1.4.0 (2026-10-10)
 
 ### Added

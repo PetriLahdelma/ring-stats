@@ -17,7 +17,14 @@ struct AppearanceSettingsView: View {
     }
     @Environment(\.textScale) private var textScale
 
-    static let baseSize = CGSize(width: 500, height: 815)
+    static let windowWidth: CGFloat = 500
+
+    /// The stats list shows every row without scrolling. A row is 38 pt
+    /// until Extra Large text outgrows that; the insets are the list's own.
+    static func listHeight(rows: Int, textScale: CGFloat) -> CGFloat {
+        let row = max(38, (17 * textScale).rounded() + 16)
+        return CGFloat(rows) * row + 20
+    }
     @State private var configuration: MetricConfiguration
     /// The stats list's selected row, which Space shows or hides and
     /// Option-Up and Option-Down move.
@@ -299,7 +306,7 @@ struct AppearanceSettingsView: View {
                     apply(configuration.moving(fromOffsets: offsets, toOffset: destination))
                 }
             }
-            .frame(height: (260 * textScale).rounded())
+            .frame(height: Self.listHeight(rows: configuration.order.count, textScale: textScale))
             .scrollContentBackground(.hidden)
             .onKeyPress(keys: [.space, .upArrow, .downArrow], action: handleListKey)
 
@@ -309,11 +316,8 @@ struct AppearanceSettingsView: View {
         }
         .padding(24)
         .scaledFont(.body)
-        .frame(
-            width: (Self.baseSize.width * textScale).rounded(),
-            height: (Self.baseSize.height * textScale).rounded(),
-            alignment: .topLeading
-        )
+        .frame(width: (Self.windowWidth * textScale).rounded(), alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
         .background(Palette.canvasWarm)
         .foregroundStyle(Palette.ink)
         .onChange(of: rawConfiguration) { _, newValue in
