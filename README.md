@@ -35,7 +35,7 @@ goes from Oura to your Mac and nowhere else.
 endorsed by Oura Health Oy. Oura and Oura Ring are trademarks of Oura Health Oy.*
 
 <p align="center">
-  <img src=".github/assets/ring-stats-hero.png" alt="The Ring Stats popover in the Holographic theme: Readiness, Sleep, Activity, Heart rate, Stress, and Resilience with the ring battery" width="680">
+  <img src=".github/assets/ring-stats-hero.webp" alt="The Ring Stats popover in the Holographic theme: Readiness, Sleep, Activity, Heart rate, Stress, and Resilience with the ring battery" width="680">
 </p>
 
 ## Install
@@ -130,8 +130,8 @@ Every screen is explained, with screenshots, in the
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/ring-stats-themes-v6-dark.png">
-    <img src=".github/assets/ring-stats-themes-v6-light.png" alt="The popover in the Landscape, Holographic, and Ring Stats themes" width="680">
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/ring-stats-themes-v6-dark.webp">
+    <img src=".github/assets/ring-stats-themes-v6-light.webp" alt="The popover in the Landscape, Holographic, and Ring Stats themes" width="680">
   </picture>
 </p>
 
