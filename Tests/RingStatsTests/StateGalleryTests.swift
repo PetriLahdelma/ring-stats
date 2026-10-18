@@ -120,6 +120,34 @@ struct StateGalleryTests {
         try gallery.writeIndex()
     }
 
+    /// Renders the frames behind the README's Holographic GIF: the pointer
+    /// sweeps across the foil and leaves. Opt-in, since it writes 80 frames
+    /// and takes a few seconds; `scripts/assets/holographic_gif.sh` runs it.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["RING_STATS_RENDER_HOVER"] == "1"))
+    func holographicHoverFramesRenderForTheReadmeGif() async throws {
+        let fixture = try await GalleryFixture(state: .connected, theme: .holographic)
+        let width: CGFloat = 680
+        var path: [CGPoint?] = Array(repeating: nil, count: 10)
+        let sweep = 56
+        for i in 0...sweep {
+            let t = Double(i) / Double(sweep)
+            let x = 48 + (width - 96) * CGFloat((1 - cos(t * .pi)) / 2)
+            let y = 70 + 150 * CGFloat((1 - cos(t * .pi * 2)) / 2)
+            path.append(CGPoint(x: x, y: y))
+        }
+        path.append(contentsOf: Array(repeating: nil, count: 14))
+        let frames = try fixture.renderHoverFrames(width: width, pointer: path)
+        let directory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent(".build/state-gallery/hover", isDirectory: true)
+        try? FileManager.default.removeItem(at: directory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for (index, png) in frames.enumerated() {
+            try png.write(to: directory.appendingPathComponent(String(format: "frame-%03d.png", index)))
+        }
+        #expect(frames.count == path.count)
+    }
+
     @Test func themesKeepTheSameLayoutForEveryState() async throws {
         // Semantic parity: Landscape may change color and imagery, but not
         // which lines exist. Equal heights mean neither theme drops a row.
@@ -361,6 +389,52 @@ struct GalleryFixture {
             fetchedAt: date,
             coveredMetrics: metrics
         )
+    }
+
+    /// Frames of the Holographic popover with the pointer at each point, from
+    /// one live hosting view so the foil's distorter keeps its state between
+    /// frames, as it does in the app.
+    func renderHoverFrames(width: CGFloat, pointer path: [CGPoint?]) throws -> [Data] {
+        func shell(_ hover: CGPoint?) -> AnyView {
+            AnyView(
+                MenuPopoverShell(geometry: PopoverGeometryModel(), previewHover: hover) {
+                    MenuPopoverView(showConnection: {})
+                        .environmentObject(model)
+                }
+                .defaultAppStorage(defaults)
+                .frame(width: width)
+            )
+        }
+        let hosting = NSHostingView(rootView: shell(nil))
+        hosting.appearance = NSAppearance(named: .aqua)
+        let size = CGSize(width: width, height: hosting.fittingSize.height)
+        hosting.frame = CGRect(origin: .zero, size: size)
+        let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        window.backgroundColor = .clear
+        window.contentView = hosting
+        defer { window.close() }
+        func settle(_ seconds: TimeInterval) {
+            let until = Date().addingTimeInterval(seconds)
+            while Date() < until { _ = RunLoop.main.run(mode: .default, before: until) }
+            hosting.layoutSubtreeIfNeeded()
+        }
+        settle(0.2)
+        var frames: [Data] = []
+        for point in path {
+            hosting.rootView = shell(point)
+            settle(0.05)
+            guard let bitmap = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+            ) else { throw GalleryError.renderFailed }
+            bitmap.size = size
+            hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+            guard let png = bitmap.representation(using: .png, properties: [:]) else { throw GalleryError.renderFailed }
+            frames.append(png)
+        }
+        return frames
     }
 
     func renderPopover(width: CGFloat, appearance: NSAppearance.Name = .aqua) throws -> GalleryRender {
