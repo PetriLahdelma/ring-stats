@@ -26,6 +26,18 @@ import Testing
     #expect(range.end == "2026-09-27")
 }
 
+/// The query dates follow the calendar's time zone, not the machine's, so
+/// a day boundary is the user's and the test is the same on every Mac.
+@Test func dayStringHonorsCalendarTimeZone() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 7_200)!
+    let lateUTC = try #require(ISO8601DateFormatter().date(from: "2026-09-26T23:30:00Z"))
+    #expect(QueryDates.dayString(for: lateUTC, calendar: calendar) == "2026-09-27")
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = TimeZone(secondsFromGMT: 0)!
+    #expect(QueryDates.dayString(for: lateUTC, calendar: utc) == "2026-09-26")
+}
+
 @Test func batteryDecodesCurrentFields() throws {
     let json = #"{"data":[{"level":73,"charging":true,"in_charger":true,"timestamp":"2026-09-26T12:00:00+00:00"}]}"#.data(using: .utf8)!
     let envelope = try JSONDecoder().decode(BatteryEnvelope.self, from: json)
@@ -49,6 +61,25 @@ import Testing
     #expect(status.showsSpinner)
     #expect(status.isVisible)
     #expect(!status.isRetryable)
+}
+
+/// A fetch that worked but returned no scores must not read as "Updated"
+/// above a strip of empty tiles; it says what happened and stays retryable.
+@Test func aSuccessfulFetchWithNothingPublishedSaysSo() throws {
+    let now = Date(timeIntervalSince1970: 10_000)
+    let status = try #require(
+        PopoverTimestampText.refreshStatus(
+            isRefreshing: false,
+            outcome: .succeeded(at: now.addingTimeInterval(-120)),
+            lastUpdatedAt: now.addingTimeInterval(-120),
+            now: now,
+            refreshInterval: 300,
+            nothingPublished: true
+        )
+    )
+    #expect(status.label == "Checked 2m ago · nothing published yet")
+    #expect(status.tone == .neutral)
+    #expect(status.isRetryable)
 }
 
 /// The age never hides: it is the freshness promise, and clicking it

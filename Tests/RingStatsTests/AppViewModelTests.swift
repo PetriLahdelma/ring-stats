@@ -397,6 +397,66 @@ struct AppViewModelTests {
         #expect(model.state.isConnected)
     }
 
+    /// A background refresh or a Shortcut asking for the connection state
+    /// while the browser is open must not replace .authorizing: the
+    /// Connection window keys its Cancel button and fields on it.
+    @Test(.timeLimit(.minutes(1))) @MainActor func updateConnectionStateDuringPendingAuthorizationKeepsAuthorizing() async {
+        let now = Date(timeIntervalSince1970: 15_000)
+        let auth = AuthStub(configured: true, connected: false)
+        let probe = AuthorizationProbe()
+        let snapshot = HealthSnapshot(
+            readings: [.readiness: MetricReading(value: "80", detail: "Good", score: 80)],
+            battery: nil,
+            fetchedAt: now
+        )
+        let model = AppViewModel(
+            auth: auth,
+            api: SnapshotStub(results: [.success(snapshot)]),
+            descriptor: OuraProvider.descriptor,
+            now: { now },
+            authorizationHandler: { scopes in try await probe.run(scopes: scopes) },
+            checkConnectionOnInit: false
+        )
+
+        let authorization = Task { await model.reauthorize(metrics: [.readiness]) }
+        await probe.started.wait()
+        #expect(model.state == .authorizing)
+        await model.updateConnectionState()
+        #expect(model.state == .authorizing)
+        await auth.markConnected()
+        probe.release.open()
+        await authorization.value
+        #expect(model.state == .connected)
+    }
+
+    /// Opening the popover after the authorization expired must not demote
+    /// the state to "configured", which Shortcuts report as "not connected".
+    @Test @MainActor func popoverRefreshAfterExpiryKeepsAuthorizationExpired() async {
+        let now = Date(timeIntervalSince1970: 31_000)
+        let auth = AuthStub(configured: true, connected: true)
+        let first = HealthSnapshot(
+            readings: [.activity: MetricReading(value: "76", detail: "Good", score: 76)],
+            battery: nil,
+            fetchedAt: now
+        )
+        let api = SnapshotStub(results: [.success(first), .failure(.authenticationRequired)])
+        let model = AppViewModel(
+            auth: auth,
+            api: api,
+            descriptor: OuraProvider.descriptor,
+            now: { now.addingTimeInterval(1_000) },
+            checkConnectionOnInit: false
+        )
+        await model.refreshNow(metrics: [.activity])
+        await model.refreshNow(metrics: [.activity])
+        #expect(model.state == .authorizationExpired)
+        await auth.markDisconnected()
+
+        await model.refreshOnOpen(metrics: [.activity])
+
+        #expect(model.state == .authorizationExpired)
+    }
+
     @Test @MainActor func authenticationFailureTransitionsToExpiredWithoutErasingData() async {
         let now = Date(timeIntervalSince1970: 30_000)
         let auth = AuthStub(configured: true, connected: true)
@@ -636,6 +696,17 @@ struct SnapshotFreshnessTests {
         let timedOut = partial(failure: .timedOut, at: start)
         #expect(timedOut.isFresh(for: metrics, at: start.addingTimeInterval(59), ttl: 300))
         #expect(!timedOut.isFresh(for: metrics, at: start.addingTimeInterval(61), ttl: 300))
+    }
+
+    /// A Retry-After longer than the TTL is still honored, so a popover
+    /// opened inside the window the provider asked for does not hit the
+    /// limited endpoint again.
+    @Test func rateLimitedRetryAfterLongerThanTTLDefersTheRetry() {
+        let start = Date(timeIntervalSince1970: 61_000)
+        let limited = partial(failure: .rateLimited(retryAfter: 900), at: start)
+        let metrics: Set<Metric> = [.readiness, .sleep]
+        #expect(limited.isFresh(for: metrics, at: start.addingTimeInterval(600), ttl: 300))
+        #expect(!limited.isFresh(for: metrics, at: start.addingTimeInterval(901), ttl: 300))
     }
 
     /// A Retry-After the app cannot act on is ignored rather than trusted:

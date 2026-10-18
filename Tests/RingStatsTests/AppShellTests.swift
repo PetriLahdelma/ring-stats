@@ -247,8 +247,8 @@ struct AppShellTests {
         let setup = await delegate(connected: false)
         setup.showConnectionWindow()
         let window = try #require(setup.connectionWindowController?.window)
-        // Open Oura developer portal, I Have Created It.
-        #expect(await tabStops(in: window).count == 2)
+        // Open Oura developer portal, Copy callback URL, I Have Created It.
+        #expect(await tabStops(in: window).count == 3)
     }
 
     @Test func themeArrowsStopAtEitherEnd() {

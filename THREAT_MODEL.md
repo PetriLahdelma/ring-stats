@@ -51,9 +51,12 @@ application and enters its Client ID and Client Secret.
 The redirect URI is `http://localhost:43828/oauth/callback`, because Oura's
 developer portal accepts plain http only for `localhost`. RFC 8252 section 8.3
 prefers a numeric address because a browser resolving `localhost` may try `::1`
-first, where another local process could be listening. Connections set up
-before 1.3.2 keep the numeric `http://127.0.0.1:43828/oauth/callback` they
-registered.
+first, where another local process could be listening. The redirect URI sent
+to the provider is always one of the app's two loopback forms: a saved
+credential that carries any other value is ignored, so a redirect planted in
+the legacy credentials file by another process running as the user cannot send
+the authorization code elsewhere. Credentials saved before 1.3.2 have no
+stored redirect and use `localhost`.
 
 - **Mitigated:** the listener opens one BSD socket bound to `127.0.0.1` and
   one IPv6-only socket bound to `::1`, both on port 43828 without
@@ -110,6 +113,13 @@ registered.
 - Disconnect deletes local secrets even when remote revocation fails, and says
   so. Deleting the app alone does not revoke tokens; the privacy policy and
   README explain this.
+- A refresh that completes after a disconnect or invalidation does not write
+  its token back; the tombstone wins.
+- **Accepted risk:** Oura's revocation endpoint takes the access token as a
+  query parameter, so a token being retired appears in Oura's request logs.
+  The token is invalid once the call succeeds.
+- The provider's callback `error` value is never shown; a declined consent is
+  named, anything else gets one generic sentence.
 
 ## Keychain migration
 
@@ -124,6 +134,11 @@ builds used the file-based login Keychain.
   refused to delete from being re-imported after disconnect.
 - **Residual risk:** if file permissions block cleanup, a plaintext legacy file
   can remain. The privacy policy tells affected users how to remove it.
+- **Mitigated:** the legacy file is writable by any process running as the
+  user, so nothing in it is trusted beyond the client ID and secret: a planted
+  redirect URI is ignored (see OAuth callback), and a planted client ID only
+  makes the user's own consent fail against an application they did not
+  create.
 
 ## Local data and diagnostics
 
@@ -186,6 +201,10 @@ Ring Stats runs in the App Sandbox with the hardened runtime. Its entitlements
 - **Residual risk:** public releases are built on the maintainer's Mac, so the
   attestation proves who built and signed them, not that an isolated builder
   did. CI attests only the unsigned artifacts it builds itself.
+- **Residual risk:** the release scripts, entitlements, and workflow are the
+  trust root, and a merged pull request can change them. `CODEOWNERS` routes
+  every change there to the maintainer, who reviews release-path diffs before
+  tagging.
 
 ## Out of scope
 

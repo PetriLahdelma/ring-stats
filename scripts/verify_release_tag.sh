@@ -8,8 +8,7 @@
 # signatures, trust comes from gpg.ssh.allowedSignersFile, which pins the
 # release key. For GPG signatures, the key must be at least fully trusted in
 # the local keyring (gpg.minTrustLevel=fully), so a valid signature from an
-# arbitrary imported key is not enough. ALLOW_UNSIGNED_TAG=1 skips only the
-# signature check, for a documented exception.
+# arbitrary imported key is not enough.
 set -euo pipefail
 
 repo_dir="${1:?repository directory required}"
@@ -45,9 +44,7 @@ if [[ "$tag_commit" != "$branch_commit" ]]; then
   echo "Release tag $exact_tag must point to the exact $branch_ref commit." >&2
   exit 1
 fi
-if [[ "${ALLOW_UNSIGNED_TAG:-0}" == "1" ]]; then
-  echo "warning: signature verification skipped for $exact_tag (ALLOW_UNSIGNED_TAG=1)." >&2
-elif ! /usr/bin/git -C "$repo_dir" -c gpg.minTrustLevel=fully verify-tag "$exact_tag" >/dev/null 2>&1; then
+if ! /usr/bin/git -C "$repo_dir" -c gpg.minTrustLevel=fully verify-tag "$exact_tag" >/dev/null 2>&1; then
   echo "Release tag $exact_tag has no valid signature from a trusted release key." >&2
   echo "Create it with 'git tag -s' using the pinned release key." >&2
   echo "See RELEASING.md for signing-key setup." >&2

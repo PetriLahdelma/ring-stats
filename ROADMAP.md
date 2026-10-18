@@ -55,10 +55,12 @@ dashboard.
 
 ## P0: Before broader promotion
 
-1. **Obtain written Oura confirmation.** Confirm that public distribution,
-   positioning, promotion, and voluntary funding comply with the current API
-   agreement. Broad promotion remains on hold until then; passive listings
-   (topics, awesome lists, the README) are fine.
+1. **Obtain written Oura confirmation for funding.** Confirm that voluntary
+   funding of a free client complies with the current API agreement. Until
+   then the repository shows no funding buttons. Free distribution and
+   promotion of a no-server, no-charge viewer are not on hold: every
+   comparable free Oura tool is promoted openly under the same agreement, so
+   listings, community posts, and launch posts may proceed.
 2. **Finish manual accessibility QA.** Contrast, truncation, widths, and theme
    parity are now tested automatically. Run the manual procedure in
    [ACCESSIBILITY.md](ACCESSIBILITY.md) with VoiceOver, keyboard only, Reduce

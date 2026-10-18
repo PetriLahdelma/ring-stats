@@ -1,0 +1,6 @@
+# The release path is the trust root: every change here is reviewed by the
+# maintainer before the next release is tagged (THREAT_MODEL.md).
+/scripts/                     @PetriLahdelma
+/.github/                     @PetriLahdelma
+/native/RingStats.entitlements @PetriLahdelma
+/Package.swift                @PetriLahdelma

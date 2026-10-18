@@ -34,7 +34,9 @@ mitigations, and accepted residual risks in detail.
 - Users bring their own Oura developer application credentials.
 - OAuth credentials, current tokens, and access tokens queued after a temporary
   revocation failure are stored as generic-password items in the user's macOS
-  Keychain with device-only accessibility and are not committed to this
+  Keychain, device-only in the data-protection Keychain that signed builds
+  use (local unsandboxed builds that fall back to the login Keychain rely on
+  its access control list instead), and are not committed to this
   repository. Queued revocations are retried and cleared on success or
   disconnect. Older compatible Keychain items and early plaintext development
   files are migrated only when the protected write succeeds.
