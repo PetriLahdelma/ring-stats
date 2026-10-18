@@ -35,7 +35,7 @@ goes from Oura to your Mac and nowhere else.
 endorsed by Oura Health Oy. Oura and Oura Ring are trademarks of Oura Health Oy.*
 
 <p align="center">
-  <img src=".github/assets/ring-stats-hero.webp" alt="The Ring Stats popover in the Holographic theme: Readiness, Sleep, Activity, Heart rate, Stress, and Resilience with the ring battery" width="680">
+  <img src=".github/assets/ring-stats-holographic.gif" alt="The Ring Stats popover in the Holographic theme: Readiness, Sleep, Activity, Heart rate, and Stress with the ring battery, the foil shifting as the pointer moves over it" width="560">
 </p>
 
 ## Install

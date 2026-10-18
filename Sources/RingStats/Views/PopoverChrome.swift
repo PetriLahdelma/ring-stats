@@ -120,14 +120,19 @@ struct MenuPopoverShell<Content: View>: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @ObservedObject private var geometry: PopoverGeometryModel
     @State private var hoverLocation: CGPoint?
+    /// A pointer position supplied by the state gallery, which renders the
+    /// Holographic foil under a moving pointer for the README; the app never
+    /// sets it.
+    private let previewHover: CGPoint?
     private let content: Content
 
     private var theme: AppTheme {
         AppTheme.resolve(selectedThemeRaw)
     }
 
-    init(geometry: PopoverGeometryModel, @ViewBuilder content: () -> Content) {
+    init(geometry: PopoverGeometryModel, previewHover: CGPoint? = nil, @ViewBuilder content: () -> Content) {
         self.geometry = geometry
+        self.previewHover = previewHover
         self.content = content()
     }
 
@@ -150,7 +155,7 @@ struct MenuPopoverShell<Content: View>: View {
         // shape masks the content layer, which renders multi-layer SF Symbols
         // such as the battery gauge white instead of their foreground color.
         .background {
-            MenuPopoverBackground(theme: theme, hover: theme == .holographic ? hoverLocation : nil)
+            MenuPopoverBackground(theme: theme, hover: theme == .holographic ? (hoverLocation ?? previewHover) : nil)
                 .clipShape(MenuPopoverBubbleShape(arrowX: geometry.arrowX))
         }
         .overlay {
