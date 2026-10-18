@@ -8,9 +8,11 @@
 # Ring Stats
 
 **Your Oura scores in the Mac menu bar.** Readiness, Sleep, Activity, heart
-rate, Stress, Resilience, and the ring battery, one click away. Oura makes no
-Mac app. Ring Stats is a native one with no server of its own: your data goes
-from Oura to your Mac and nowhere else.
+rate, Stress, Resilience, and the ring battery, one click away. It also tells
+you before the ring dies: the battery in the menu bar when it is low, and a
+nudge at 20%. Oura makes no Mac app and shut down Oura on the Web in October
+2026. Ring Stats is a native Mac app with no server of its own: your data
+goes from Oura to your Mac and nowhere else.
 
 <p align="center">
   <a href="https://github.com/PetriLahdelma/ring-stats/actions/workflows/ci.yml"><img src="https://github.com/PetriLahdelma/ring-stats/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -76,10 +78,12 @@ usually after you wake up. Ring Stats does not talk to the ring itself.
 ## Connect in two minutes
 
 Ring Stats connects through an Oura developer application that **you** own.
-That is the point: there is no Ring Stats server and no shared secret inside
-the app, so your health data travels from Oura to your Mac only, and Oura's
-10-user limit on unapproved apps never applies to you. The cost is a free,
-one-time, two-minute step that the app walks you through:
+Every free Oura tool works this way since Oura retired personal access tokens
+in December 2025; Ring Stats makes the step short and turns it into a
+feature: there is no Ring Stats server and no shared secret inside the app,
+so your health data travels from Oura to your Mac only, and Oura's 10-user
+limit on unapproved apps never applies to you. The cost is a free, one-time,
+two-minute step that the app walks you through:
 
 1. In the [Oura developer portal](https://developer.ouraring.com/applications),
    create an application. Any name works. Gen3 and Ring 4 need an active
@@ -133,18 +137,23 @@ Every screen is explained, with screenshots, in the
 
 ## Compared with
 
-| | Ring Stats | Oura's own widgets | Ring Widget (App Store) | Cracked Oura |
-|---|---|---|---|---|
-| Where it runs | Mac menu bar, native | iOS, Android, and Apple Watch widgets | iPhone, iPad, and Watch widgets; the iPad app runs on Apple silicon Macs | Electron dashboard on Mac, Windows, Linux |
-| Needs an Oura Membership | Yes for Gen3 and Ring 4 (Oura's API rule) | Yes | Yes | No; it reads Oura's data export |
-| Keeps history on disk | No; today's values, in memory | Yes, in the Oura app | Unknown | Yes, in a local database |
-| Uses your own Oura developer app (no shared secret) | Yes | n/a | No | No |
-| Price | Free | Free with membership | Free with in-app subscription | Free |
-| Open source | MIT | No | No | Yes |
+The other ways to see Oura data on a Mac, as of October 2026:
 
-Ring Stats is a glance, not a dashboard. If you want trends and history, Oura's
-own app or Cracked Oura serve that better, and Ring Stats will not duplicate
-them.
+| | Ring Stats | Vitra | Raycast Oura extension | oura-bar | Cracked Oura |
+|---|---|---|---|---|---|
+| What it is | Native menu-bar app | Desktop app with a menu-bar readout, Mac and Windows | Raycast commands, one of them a menu-bar item | Menu-bar app, Swift and Bun | Electron dashboard, Mac, Windows, Linux |
+| Price | Free | 19 or 29 euro one-time | Free, needs Raycast | Free | Free |
+| Open source | MIT | No | MIT | MIT | Yes |
+| Install | Signed, notarized DMG or Homebrew | Download | Raycast Store | Build from source, unsigned | Download |
+| Ring battery | Yes, with a low-battery nudge | No | No | No | No |
+| Stress and Resilience | Yes | No | Yes | Stress | Yes |
+| Your own Oura developer app, no shared secret | Yes | Not stated | Yes | Yes | No; reads Oura's data export |
+| Keeps history on disk | No; today's values, in memory | Yes | No | No | Yes, in a local database |
+| Dark Mode, Shortcuts, Intel Macs | Yes, yes, yes | Yes, no, yes | Follows Raycast, no, yes | Not stated | Yes, no, yes |
+
+Oura's own widgets are phone and watch only. Ring Stats is a glance, not a
+dashboard: if you want trends and history, Vitra or Cracked Oura serve that
+better, and Ring Stats will not duplicate them.
 
 ## Troubleshooting
 

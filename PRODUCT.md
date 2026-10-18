@@ -8,7 +8,7 @@ macOS 14 or later; native SwiftUI/AppKit menu-bar accessory
 
 ## Users
 
-The primary user is the owner of an Oura Ring using a Mac who wants a fast glance at today's core status without opening a phone app or a full analytics product.
+The primary user is an Oura member who works at a Mac all day, already keeps Raycast or similar utilities in the menu bar, and checks Readiness and the ring battery before planning the day's effort. They want a fast glance at today's core status without opening a phone app or a full analytics product. Since Oura shut down Oura on the Web in October 2026, the Mac has no first-party surface for this at all.
 
 ## Product Purpose
 

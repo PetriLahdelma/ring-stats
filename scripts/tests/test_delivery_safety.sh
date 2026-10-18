@@ -321,7 +321,8 @@ expect_failure verify_tag
 /usr/bin/git -C "$tag_repo" tag -d v9.9 >/dev/null
 /usr/bin/git -C "$tag_repo" tag -a v9.9 -m "unsigned"
 expect_failure verify_tag
-[[ "$(ALLOW_UNSIGNED_TAG=1 verify_tag 2>/dev/null)" == "v9.9" ]] || fail "documented unsigned override was rejected"
+# There is no override: the former ALLOW_UNSIGNED_TAG=1 must not be honored.
+ALLOW_UNSIGNED_TAG=1 expect_failure verify_tag
 /usr/bin/git -C "$tag_repo" tag -d v9.9 >/dev/null
 
 /usr/bin/ssh-keygen -q -t ed25519 -N "" -C release-test -f "$TEST_ROOT/release-key"

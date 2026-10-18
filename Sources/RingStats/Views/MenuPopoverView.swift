@@ -29,7 +29,8 @@ enum PopoverTimestampText {
         outcome: RefreshOutcome,
         lastUpdatedAt: Date?,
         now: Date,
-        refreshInterval: TimeInterval
+        refreshInterval: TimeInterval,
+        nothingPublished: Bool = false
     ) -> RefreshStatusPresentation? {
         if isRefreshing {
             return RefreshStatusPresentation(
@@ -77,7 +78,11 @@ enum PopoverTimestampText {
             // Always visible: the age is the freshness promise, and hiding it
             // between the confirmation and the next refresh hid it most of
             // the time.
-            let label = "Updated \(relativeAge(since: at, now: now))"
+            // A successful fetch that returned no scores must not read as
+            // "updated" above a strip of empty tiles.
+            let label = nothingPublished
+                ? "Checked \(relativeAge(since: at, now: now)) · nothing published yet"
+                : "Updated \(relativeAge(since: at, now: now))"
             return RefreshStatusPresentation(
                 label: label,
                 accessibility: label,
@@ -182,6 +187,15 @@ struct MenuPopoverView: View {
 
     private var hasMissingPermissions: Bool {
         !missingPermissionMetrics.isEmpty || batteryNeedsAccess
+    }
+
+    /// Every visible stat is waiting on the provider to publish today's
+    /// value: the fetch worked, the ring has not synced yet.
+    private var nothingPublishedYet: Bool {
+        let visible = metricConfiguration.visibleMetrics
+        return !visible.isEmpty && visible.allSatisfy {
+            model.snapshot.readings[$0]?.availability == .noData
+        }
     }
 
     private var permissionActionTitle: String {
@@ -539,6 +553,16 @@ struct MenuPopoverView: View {
                 }
                 }
                 .accessibilityHint(overflowEdges.trailing ? "More stats are available by scrolling" : "")
+                if nothingPublishedYet {
+                    // Wrapped at the narrowest content width at every width,
+                    // so the popover height stays width-independent.
+                    Text("Today’s scores arrive after your ring syncs with the \(model.descriptor.displayName) app on your phone, usually in the morning.")
+                        .scaledFont(size: 11)
+                        .foregroundStyle(theme.secondaryContent)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: PopoverLayout.captionWidth * textScale, alignment: .leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 if hasMissingPermissions {
                     Button {
                         Task { await model.reauthorize(metrics: Set(metricConfiguration.visibleMetrics)) }
@@ -574,6 +598,12 @@ struct MenuPopoverView: View {
                     RingStatsLogoView(size: 30, color: theme.action)
                     Text("Connect \(model.descriptor.displayName) to see today’s scores")
                         .scaledFont(size: 14, weight: .medium)
+                    Text("Free, about two minutes. Uses your own \(model.descriptor.displayName) developer app, so your data goes from \(model.descriptor.displayName) to this Mac only.")
+                        .scaledFont(size: 11)
+                        .foregroundStyle(theme.secondaryContent)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: PopoverLayout.captionWidth * textScale)
                     Button("Connect", action: showConnection)
                         .buttonStyle(.themedAction(theme))
                         .keyboardActivatable(theme: theme, action: showConnection)
@@ -599,7 +629,7 @@ struct MenuPopoverView: View {
         .preferredColorScheme(theme.preferredColorScheme)
         .overlay(alignment: .topTrailing) {
             if model.connected || model.snapshot.hasData {
-                RefreshStatusView(theme: theme, requestRefresh: requestRefresh)
+                RefreshStatusView(theme: theme, nothingPublished: nothingPublishedYet, requestRefresh: requestRefresh)
                     .padding(.top, 10)
                     .padding(.trailing, 24)
             }
@@ -622,6 +652,7 @@ struct RefreshStatusView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.popoverIsPresented) private var isPresented
     let theme: AppTheme
+    var nothingPublished = false
     var requestRefresh: () -> Void = {}
 
     var body: some View {
@@ -631,7 +662,8 @@ struct RefreshStatusView: View {
                 outcome: model.lastRefreshOutcome,
                 lastUpdatedAt: model.lastUpdatedAt,
                 now: context.date,
-                refreshInterval: model.refreshInterval
+                refreshInterval: model.refreshInterval,
+                nothingPublished: nothingPublished
             ) {
                 // The status is the retry control: clicking "Updated 2m ago"
                 // refreshes, and a failure says "Retry" in the line itself.

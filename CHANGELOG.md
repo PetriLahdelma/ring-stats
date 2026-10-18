@@ -5,7 +5,36 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Changed
+
+- First-run setup is two steps instead of three: the redirect URI, with its
+  Copy button, now sits on the first step beside the portal link, because the
+  portal asks for it when the application is created. The first step also
+  says that Gen3 and Ring 4 need an Oura Membership, the credentials step
+  links back to the portal, and after 20 seconds in the browser the window
+  names the usual cause of a browser-side error.
+- When every stat is waiting for today's scores, the popover says that they
+  arrive after the ring syncs, and the status line reads "Checked 2m ago ·
+  nothing published yet" instead of "Updated".
+- The disconnected popover says connecting is free, takes about two minutes,
+  and uses your own Oura developer app.
+- A port already in use by another copy of Ring Stats is named as such when
+  connecting, instead of a POSIX message.
+- A declined consent in the browser is reported as declined; other provider
+  error codes are no longer echoed.
+
 ### Fixed
+
+- A background refresh or a Shortcut running while the browser was open for
+  authorization no longer resets the Connection window, which dropped its
+  Cancel button and re-enabled the fields mid-flow.
+- Opening the popover after the authorization expired no longer demotes the
+  state to "not connected" for Shortcuts and Diagnostics.
+- A Retry-After longer than five minutes from Oura is honored when the
+  popover opens, instead of re-hitting the rate-limited endpoint.
+- A saved redirect URI outside the app's loopback address is ignored.
+- A token refresh that finishes after a disconnect no longer restores the
+  connection.
 
 - The Appearance window now fits its content. At the standard text size its
   last line, the note about keeping one stat visible and reordering with the

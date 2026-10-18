@@ -105,9 +105,9 @@ verified.
 lightweight or unsigned tag, a version mismatch, or a tag that is not the exact
 `origin/main` commit; the release script also rejects a dirty tree or a
 non-Developer-ID signing identity. Set `RELEASE_BRANCH_REF` only when the
-protected release branch is intentionally different. `ALLOW_UNSIGNED_TAG=1`
-skips only the signature check and must be justified in the release notes.
-Tags v1.0 through v1.1.1 predate this rule and are not rewritten.
+protected release branch is intentionally different. There is no way to skip
+the signature check. Tags v1.0 through v1.1.1 predate this rule and are not
+rewritten.
 
 ## Build, sign, and notarize
 

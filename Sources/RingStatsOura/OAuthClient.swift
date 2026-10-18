@@ -152,6 +152,9 @@ package actor OAuthClient: OAuthServicing {
                 refreshWaiterCount += 1
                 defer { refreshWaiterCount -= 1 }
                 current = try await refreshTask.value
+                // The actor is reentrant across the await: a disconnect or an
+                // invalidation that ran meanwhile must not be overwritten.
+                guard authorization.token != nil else { throw RingStatsError.notConnected }
                 var updatedAuthorization = authorization
                 updatedAuthorization.token = current
                 persistFreshAuthorization(updatedAuthorization)
@@ -172,10 +175,18 @@ package actor OAuthClient: OAuthServicing {
             refreshTask = task
             do {
                 current = try await task.value
+                refreshTask = nil
+                // A waiter may already have persisted this response; a token
+                // that is neither the one refreshed nor the result means a
+                // disconnect or invalidation ran meanwhile, and the response
+                // must not resurrect it.
+                guard let kept = authorization.token?.refreshToken,
+                      kept == refreshToken || kept == current.refreshToken else {
+                    throw RingStatsError.notConnected
+                }
                 var updatedAuthorization = authorization
                 updatedAuthorization.token = current
                 persistFreshAuthorization(updatedAuthorization)
-                refreshTask = nil
                 DiagnosticsLog.shared.record(.tokenRefreshed)
             } catch {
                 refreshTask = nil

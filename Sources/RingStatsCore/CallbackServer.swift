@@ -9,6 +9,8 @@ package enum OAuthLoopback {
     /// accepts plain http only for `localhost`.
     package static let callbackURL = "http://localhost:\(port)\(path)"
     package static let acceptedHostHeaders = ["\(host):\(port)", "localhost:\(port)"]
+    /// The only redirect URIs a saved credential may carry.
+    package static let acceptedRedirectURIs = [callbackURL, "\(origin)\(path)"]
 }
 
 package actor CallbackServer {
@@ -124,7 +126,13 @@ package actor CallbackServer {
     private nonisolated static func listeningSocket(ipv6: Bool) throws -> Int32 {
         let fd = socket(ipv6 ? AF_INET6 : AF_INET, SOCK_STREAM, IPPROTO_TCP)
         guard fd >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
-        func fail() -> POSIXError {
+        func fail() -> any Error {
+            if errno == EADDRINUSE {
+                close(fd)
+                return RingStatsError.callback(
+                    "Port \(OAuthLoopback.port) is in use, probably by another copy of Ring Stats. Quit it and start the connection again."
+                )
+            }
             let error = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
             close(fd)
             return error

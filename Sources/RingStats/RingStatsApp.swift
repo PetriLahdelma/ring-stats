@@ -7,6 +7,10 @@ enum PopoverLayout {
     static let minimumWidth: CGFloat = 420
     static let defaultWidth: CGFloat = 680
     static let maximumWidth: CGFloat = 840
+    /// Captions wrap at the narrowest content width (420 minus the 24 pt
+    /// side padding) at every width, so the popover height never depends on
+    /// its width.
+    static let captionWidth: CGFloat = minimumWidth - 48
     static let widthDefaultsKey = "popover-width"
 
     static func clampedWidth(_ proposedWidth: CGFloat, availableWidth: CGFloat) -> CGFloat {

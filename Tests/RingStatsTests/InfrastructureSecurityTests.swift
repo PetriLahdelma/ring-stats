@@ -219,6 +219,21 @@ struct InfrastructureSecurityTests {
         await #expect(throws: (any Error).self) { try await server.start() }
     }
 
+    /// The taken port is explained in the app's words, not as a POSIX code:
+    /// the usual holder is a second copy of Ring Stats.
+    @Test func startOnAnOccupiedPortExplainsTheConflict() async throws {
+        let holder = try #require(Self.listeningSocket(ipv6: false))
+        defer { close(holder) }
+        let server = CallbackServer(expectedState: "occupied-state")
+        do {
+            try await server.start()
+            Issue.record("start() succeeded on an occupied port")
+        } catch let error as RingStatsError {
+            #expect(error.message(provider: "Oura").contains("43828"))
+            #expect(error.message(provider: "Oura").contains("another copy of Ring Stats"))
+        }
+    }
+
     /// A peer trickling a byte at a time is closed at the deadline for its
     /// whole request, not kept alive by a per-read timeout.
     @Test func tricklingConnectionIsClosedAtItsTotalDeadline() async throws {

@@ -307,7 +307,9 @@ package struct HealthSnapshot: Sendable, Equatable {
         guard hasData, coveredMetrics.isSuperset(of: metrics) else { return false }
         let age = date.timeIntervalSince(fetchedAt)
         let failedRequested = !transientFailures.isDisjoint(with: metrics) || batteryFailedTransiently
-        return age < (failedRequested ? min(ttl, retryDelay) : ttl)
+        // A provider's Retry-After is honored even past the TTL, so a popover
+        // opened inside that window does not hit the limited endpoint again.
+        return age < (failedRequested ? retryDelay : ttl)
     }
 
     /// Combines a new refresh with the previous snapshot. A metric that failed
@@ -390,6 +392,7 @@ package enum QueryDates {
         let end = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         let formatter = DateFormatter()
         formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         return (formatter.string(from: start), formatter.string(from: end))
@@ -398,6 +401,7 @@ package enum QueryDates {
     package static func dayString(for date: Date, calendar: Calendar = .current) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
@@ -418,7 +422,28 @@ package struct ClientCredentials: Codable, Sendable, Equatable {
         self.redirectURI = redirectURI
     }
 
-    package var callbackURL: String { redirectURI ?? OAuthLoopback.callbackURL }
+    /// The redirect URI sent to the provider. Only the app's own loopback
+    /// forms are honored: a saved value that points anywhere else, for example
+    /// planted in the legacy credentials file by another process, would send
+    /// the authorization code to that address instead of this Mac.
+    package var callbackURL: String {
+        guard let redirectURI, OAuthLoopback.acceptedRedirectURIs.contains(redirectURI) else {
+            return OAuthLoopback.callbackURL
+        }
+        return redirectURI
+    }
+}
+
+extension RingStatsError {
+    /// The sentence shown when the provider's callback carries an `error`
+    /// instead of a code. The raw value is a provider-controlled string and
+    /// is never shown; only the one case a user can act on is named.
+    package static func authorizationCallbackFailure(oauthError: String, provider: String) -> RingStatsError {
+        if oauthError == "access_denied" {
+            return .callback("You declined \(provider) access. Start the connection again to approve it.")
+        }
+        return .callback("\(provider) did not complete the authorization. Check the application's redirect URI and try again.")
+    }
 }
 
 extension MetricReading {

@@ -76,6 +76,10 @@ final class AppViewModel: ObservableObject {
     }
 
     func updateConnectionState() async {
+        // A background refresh or a Shortcut asking mid-flight must not
+        // replace .authorizing or .refreshing with the resting state: the
+        // Connection window keys its Cancel button and fields on it.
+        guard authorizationTask == nil, refreshTask == nil else { return }
         if let startupError = await auth.startupError {
             errorMessage = describe(startupError)
             state = .failed(message: describe(startupError), connected: false, configured: true)
@@ -162,7 +166,11 @@ final class AppViewModel: ObservableObject {
         let connected = await auth.isConnected
         guard operationIsCurrent(generation) else { return }
         guard connected else {
-            state = Self.connectionState(configured: configured, connected: connected)
+            // An expired authorization has cleared its token; keep that state
+            // so Shortcuts and Diagnostics say "expired", not "not connected".
+            if state != .authorizationExpired {
+                state = Self.connectionState(configured: configured, connected: connected)
+            }
             return
         }
         if policy == .ifStale, snapshot.isFresh(for: metrics, at: now(), ttl: refreshTTL) {
@@ -418,7 +426,7 @@ final class AppViewModel: ObservableObject {
             throw RingStatsError.callback("The connection state did not match.")
         }
         if let oauthError = items.first(where: { $0.name == "error" })?.value {
-            throw RingStatsError.callback("\(providerName) authorization failed: \(oauthError)")
+            throw RingStatsError.authorizationCallbackFailure(oauthError: oauthError, provider: providerName)
         }
         guard let code = items.first(where: { $0.name == "code" })?.value else {
             throw RingStatsError.callback("\(providerName) did not return an authorization code.")

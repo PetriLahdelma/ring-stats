@@ -101,6 +101,34 @@ extension HTTPStubbedTests {
             }
         }
 
+        /// A refresh that finishes after the authorization was invalidated
+        /// or disconnected must not write its token back: the actor is
+        /// reentrant across the request, and the tombstone wins.
+        @Test func refreshFinishingAfterInvalidateDoesNotResurrectTheToken() async throws {
+            let store = TestCredentialStore()
+            try store.save(ClientCredentials(clientID: "client", clientSecret: "secret"), account: "client-credentials")
+            try store.save(
+                OAuthToken(accessToken: "expired", refreshToken: "refresh", expiresAt: .distantPast),
+                account: "oauth-token"
+            )
+            let hold = HTTPHold()
+            let recorder = HTTPStubRecorder { request in
+                hold.hold()
+                defer { hold.leave() }
+                return stubResponse(request, 200, #"{"access_token":"fresh","refresh_token":"next","expires_in":3600}"#)
+            }
+            let client = OAuthClient(store: store, session: recorder.session)
+
+            let refresh = Task { try await client.accessToken(forceRefresh: false) }
+            await eventually("refresh to reach the token endpoint") { hold.entered == 1 }
+            try await client.invalidateAuthorization()
+            hold.release()
+            await #expect(throws: (any Error).self) { try await refresh.value }
+
+            #expect(!(await client.isConnected))
+            #expect(try store.load(OAuthToken.self, account: "oauth-token")?.accessToken != "fresh")
+        }
+
         @Test func concurrentExpiredTokenRequestsShareOneRefresh() async throws {
             let store = TestCredentialStore()
             try store.save(
@@ -417,6 +445,28 @@ extension HTTPStubbedTests {
                 data.append(buffer, count: count)
             }
             return String(data: data, encoding: .utf8)
+        }
+
+        /// A saved redirect outside the loopback would send the authorization
+        /// code to that address. The legacy credentials file is writable by any
+        /// process running as the user, so the value is never trusted.
+        @Test func aSavedRedirectOutsideTheLoopbackIsIgnored() throws {
+            for planted in ["https://attacker.example/cb", "http://localhost:43829/oauth/callback", "http://localhost:43828/other"] {
+                let credentials = ClientCredentials(clientID: "c", clientSecret: "s", redirectURI: planted)
+                #expect(credentials.callbackURL == "http://localhost:43828/oauth/callback", "\(planted)")
+            }
+            let numeric = ClientCredentials(clientID: "c", clientSecret: "s", redirectURI: "http://127.0.0.1:43828/oauth/callback")
+            #expect(numeric.callbackURL == "http://127.0.0.1:43828/oauth/callback")
+        }
+
+        /// The provider's `error` value is never echoed; a declined consent is
+        /// the one case the user can act on and is named.
+        @Test func callbackErrorsAreNotEchoedToTheUser() {
+            let declined = RingStatsError.authorizationCallbackFailure(oauthError: "access_denied", provider: "Oura")
+            #expect(declined.message(provider: "Oura").contains("declined"))
+            let other = RingStatsError.authorizationCallbackFailure(oauthError: "<script>evil", provider: "Oura")
+            #expect(!other.message(provider: "Oura").contains("evil"))
+            #expect(other.message(provider: "Oura").contains("redirect URI"))
         }
 
         @Test func credentialsSavedWithoutARedirectDecodeAsLegacy() throws {

@@ -123,6 +123,7 @@ actor AuthStub: OAuthServicing {
     func disconnect() async throws { isConfigured = false; isConnected = false }
     func exchange(code: String) async throws { isConnected = true }
     func markConnected() { isConnected = true }
+    func markDisconnected() { isConnected = false }
     func accessToken(forceRefresh: Bool) async throws -> String { "access" }
     func invalidateAuthorization() async throws { isConnected = false }
 

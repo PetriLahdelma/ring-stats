@@ -40,9 +40,11 @@ closes the popover; so does clicking anywhere else.
 
 A tile says **Not published** when Oura has not published that stat for
 today yet. Daily scores arrive after the ring syncs with the Oura app on your
-phone, usually after you wake up. A tile says **Needs access** when the stat
-is not covered by the permissions you granted; choose **Reauthorize
-Permissions** from the menu to add it.
+phone, usually after you wake up; when every tile is waiting, the popover says
+so under the stats. A tile says **Needs access** when the stat is not covered
+by the permissions you granted; click **Enable … Access** under the stats to
+grant it, or choose **Reauthorize Permissions** from the menu, which does the
+same.
 
 ## The menu
 
@@ -93,7 +95,7 @@ menu bar, and which stats show in what order.
 
 Ring Stats connects through an Oura developer application that you own, so
 there is no Ring Stats server and no shared secret. The Connection window
-walks you through it the first time, in four steps.
+walks you through it the first time, in two steps.
 
 <p align="center">
   <picture>
@@ -104,20 +106,26 @@ walks you through it the first time, in four steps.
 
 1. **Create an application** in the
    [Oura developer portal](https://developer.ouraring.com/applications).
-   Any name works. Gen3 and Ring 4 need an active Oura Membership for API
-   access.
-2. **Register the callback.** Add this redirect URI to the application,
-   exactly as written; Oura accepts `localhost` but not `127.0.0.1`:
+   Any name and website work. Paste this as its redirect URI, exactly as
+   written; Oura accepts `localhost` but not `127.0.0.1`, and the window
+   has a Copy button for it:
 
    ```text
    http://localhost:43828/oauth/callback
    ```
 
-3. **Enter the credentials.** Paste the application's Client ID and Client
-   Secret. They go into your Mac's Keychain and nowhere else. Your browser
-   opens so you can approve access; Ring Stats asks only for the
-   permissions the stats you show need.
-4. **Connected.** Choose **Show My Stats** and the popover fills in.
+   Gen3 and Ring 4 need an active Oura Membership for API access.
+2. **Enter the credentials.** Open the application in the portal and paste
+   its Client ID and Client Secret. They go into your Mac's Keychain and
+   nowhere else. Your browser opens so you can approve access; Ring Stats
+   asks only for the permissions the stats you show need. If the browser
+   shows an error instead, the usual cause is a redirect URI that does not
+   match step 1 exactly.
+
+Then **Connected**: choose **Show My Stats** and the popover fills in. Today's
+scores appear once your ring has synced with the Oura app, usually after you
+wake up; until then the tiles say **Not published** and the status line says
+so.
 
 Once connected, the window offers two actions. **Reauthorize Permissions**
 runs the browser approval again, which you need after enabling a stat that
