@@ -79,9 +79,15 @@ menu bar, and which stats show in what order.
   gradient behind black gauges. All three show the same information.
 - **Text size.** Standard, Large, or Extra Large. It scales the type and the
   tiles everywhere in the app, independent of any macOS setting.
-- **Low battery alert.** Off by default. When on, Ring Stats notifies you
-  once when the ring drops below 20%, and not again until it has charged.
-  macOS asks you to allow notifications the first time you turn it on.
+- **Notifications.** All off by default; macOS asks you to allow them the
+  first time you turn one on. **Low battery alert** notifies you once when
+  the ring drops below the level you choose (10% to 30%, 20% by default), and
+  not again until it has charged. **Quiet hours** hold notifications between
+  the hours you set; a ring that is still low afterwards is announced then.
+  **Charge before bed** watches today's drain and, in the evening, suggests
+  charging when the ring would be low by morning. **Today's scores are in**
+  notifies you once a day when the morning sync lands, without naming a
+  value.
 - **In the menu bar.** A value beside the icon, so a glance needs no click:
   Nothing, Readiness, Sleep, Activity, Heart rate, or the battery percentage
   only when it is low. Anyone who sees your screen sees it too, which is why

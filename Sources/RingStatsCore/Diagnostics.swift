@@ -26,6 +26,8 @@ package enum DiagnosticEvent: Sendable, Equatable {
     case disconnected
     case backgroundRefreshSkipped(BackgroundRefreshSkip)
     case lowBatteryNotified
+    case chargeBeforeBedNotified
+    case scoresArrivedNotified
 
     package var category: DiagnosticCategory {
         switch self {
@@ -35,7 +37,7 @@ package enum DiagnosticEvent: Sendable, Equatable {
         case .endpointResponse, .endpointUnreachable: .network
         case .callbackRejected, .callbackAccepted: .callback
         case .backgroundRefreshSkipped: .refresh
-        case .lowBatteryNotified: .notification
+        case .lowBatteryNotified, .chargeBeforeBedNotified, .scoresArrivedNotified: .notification
         }
     }
 
@@ -91,6 +93,10 @@ package enum DiagnosticEvent: Sendable, Equatable {
             "Background refresh skipped: \(reason.rawValue)"
         case .lowBatteryNotified:
             "Low ring battery notification sent"
+        case .chargeBeforeBedNotified:
+            "Charge-before-bed notification sent"
+        case .scoresArrivedNotified:
+            "Scores-arrived notification sent"
         case .disconnected:
             "Disconnected and deleted local authorization"
         }

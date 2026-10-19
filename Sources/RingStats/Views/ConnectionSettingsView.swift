@@ -26,6 +26,8 @@ enum ConnectionStep: String, CaseIterable {
 struct ConnectionSettingsView: View {
     @Environment(\.openURL) private var openURL
     static let windowWidth: CGFloat = 460
+    /// The voluntary week-in check-in thread.
+    static let checkInDiscussion = URL(string: "https://github.com/PetriLahdelma/ring-stats/discussions/65")!
     static let windowHeight: CGFloat = 440
     /// The portal where the user creates their application, from the
     /// provider's descriptor.
@@ -276,6 +278,14 @@ struct ConnectionSettingsView: View {
                 .scaledFont(.caption)
                 .foregroundStyle(Palette.secondaryInk)
                 .fixedSize(horizontal: false, vertical: true)
+            // Ring Stats keeps no telemetry; this thread is the only measure
+            // of whether it earns its place.
+            Link(destination: Self.checkInDiscussion) {
+                Label("A week in, tell us whether you still use it", systemImage: "bubble.left")
+            }
+            .scaledFont(.caption)
+            .foregroundStyle(Palette.signalBlue)
+            .keyboardActivatable(cornerRadius: 4) { openURL(Self.checkInDiscussion) }
             Spacer(minLength: 0)
             HStack {
                 Spacer()

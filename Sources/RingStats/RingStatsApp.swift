@@ -173,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var defaultsObserver: NSObjectProtocol?
     private(set) var backgroundRefresher: BackgroundRefresher?
     private(set) var lowBatteryWatcher: LowBatteryWatcher?
+    private(set) var scoresArrivedWatcher: ScoresArrivedWatcher?
     /// Re-measures each window's content at the current Text Size.
     private var windowContentMeasurers: [ObjectIdentifier: () -> NSSize] = [:]
 
@@ -194,6 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusItemValue() }
         lowBatteryWatcher = LowBatteryWatcher(model: model)
+        scoresArrivedWatcher = ScoresArrivedWatcher(model: model)
         let refresher = BackgroundRefresher(model: model) { [weak self] in self?.visibleMetrics ?? [] }
         refresher.start()
         backgroundRefresher = refresher

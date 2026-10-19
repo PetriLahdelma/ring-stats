@@ -49,6 +49,10 @@ dashboard.
 - Read-only Shortcuts actions for any stat and the ring battery.
 - Background refresh, slower on battery power, and an optional low ring
   battery notification at 20%.
+- Battery as a feature: the low-battery level is the user's choice, quiet
+  hours hold notifications, a charge-before-bed suggestion projects today's
+  drain to the morning, and an opt-in "scores are in" notification turns the
+  morning sync into a push.
 - Exclusive loopback sign-in listener and local-path-free release provenance.
 - Oura sandbox test, and research on which other rings Ring Stats could
   support ([research/RING_PROVIDERS.md](research/RING_PROVIDERS.md)).
@@ -71,9 +75,7 @@ dashboard.
 
 ## P1: More useful every day
 
-1. **Battery-first utility.** The low-battery notification ships at a fixed
-   20%. Add a user-controlled threshold and quiet hours.
-2. **Metric-specific context.** Explain what each value represents, its source
+1. **Metric-specific context.** Explain what each value represents, its source
    date/time, and why it may be absent without copying Oura's analytics product.
 3. **Localization.** Start with Finnish and English, including locale-aware
    time, duration, and number formatting.

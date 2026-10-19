@@ -49,7 +49,7 @@ enum MenuBarValuePreference: String, CaseIterable, Identifiable {
             return nil
         case .batteryWhenLow:
             guard !snapshot.batteryIsStale, let level = snapshot.battery?.level,
-                  level < LowBatteryAlert.threshold else { return nil }
+                  level < LowBatteryPreference.threshold else { return nil }
             return "\(level)%"
         case .heartRate:
             guard let reading = snapshot.readings[.heartRate], reading.hasValue else { return nil }
