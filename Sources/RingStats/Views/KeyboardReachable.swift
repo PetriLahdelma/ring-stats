@@ -19,6 +19,7 @@ struct KeyboardReachable: ViewModifier {
     @Environment(\.isEnabled) private var isEnabled
     @FocusState private var focused: Bool
     @State private var ringVisible = false
+    @State private var stopID = UUID()
 
     func body(content: Content) -> some View {
         if NSApplication.shared.isFullKeyboardAccessEnabled {
@@ -35,6 +36,7 @@ struct KeyboardReachable: ViewModifier {
                 .focused($focused)
                 .onChange(of: focused) { _, focused in
                     ringVisible = focused && !MenuPopoverView.focusCameFromPointer(NSApp.currentEvent?.type)
+                    if focused { KeyboardFocusLog.record(stopID) }
                 }
                 .onKeyPress(keys: keys) { press in
                     guard isEnabled else { return .ignored }
@@ -76,5 +78,24 @@ extension View {
             step(press.key == .leftArrow || press.key == .downArrow ? -1 : 1)
             return .handled
         })
+    }
+}
+
+/// Which keyboard-reachable controls have taken focus, for the shell tests.
+/// SwiftUI focus on a switch or a plain button does not move AppKit's first
+/// responder on every macOS release, so a test that counts Tab stops through
+/// the responder alone misses them; this log sees them from the inside.
+@MainActor
+enum KeyboardFocusLog {
+    private(set) static var stops: [UUID] = []
+    static var isRecording = false
+
+    static func record(_ id: UUID) {
+        guard isRecording else { return }
+        stops.append(id)
+    }
+
+    static func reset() {
+        stops.removeAll()
     }
 }

@@ -174,33 +174,35 @@ struct AppShellTests {
         }
     }
 
-    /// The distinct controls Tab visits in a window, in order, by frame.
+    /// The distinct controls Tab visits in a window, in order.
     ///
-    /// SwiftUI hands AppKit focus to proxy views. On macOS 15 a proxy is
-    /// reused for different controls and takes a run-loop turn or two to
-    /// move, so a frame read straight after the Tab press can still be the
-    /// previous control's, which double counts one stop and skips another.
-    /// Each press therefore waits until the focused frame has moved away
-    /// from the previous stop and held still before it is recorded, and
-    /// identity plays no part.
-    /// One turn of the main run loop, so AppKit and SwiftUI can lay out the
-    /// focus proxy. A plain `Task.yield` runs other tasks but not the loop.
-    private func turnRunLoop() async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.async { continuation.resume() }
-        }
-    }
-
+    /// A stop is seen one of two ways. AppKit's first responder moves to a
+    /// proxy view for most SwiftUI focus, and its frame is the stop; on
+    /// macOS 15 the proxy is reused and takes a run-loop turn to move, so
+    /// each press waits until the focused frame has moved away from the
+    /// previous stop and held still. Focusing a keyboard-reachable switch or
+    /// plain button does not move the responder on every release, so when a
+    /// press moves nothing the `KeyboardFocusLog` the modifier writes is the
+    /// stop instead. Logged stops are counted by identity, responder stops by
+    /// frame; a control seen both ways counts once.
     private func tabStops(in window: NSWindow) async -> [NSRect] {
         window.contentView?.layoutSubtreeIfNeeded()
+        KeyboardFocusLog.reset()
+        KeyboardFocusLog.isRecording = true
+        defer { KeyboardFocusLog.isRecording = false }
         var stops: [NSRect] = []
+        var loggedStops: Set<UUID> = []
         var previous: NSRect?
         for _ in 0..<24 {
+            let loggedBefore = KeyboardFocusLog.stops.count
             window.selectNextKeyView(nil)
             var frame: NSRect?
             var unchangedReads = 0
             for _ in 0..<200 {
                 await turnRunLoop()
+                if KeyboardFocusLog.stops.count > loggedBefore, let last = KeyboardFocusLog.stops.last, loggedStops.contains(last) {
+                    break // Back on a logged control the responder cannot see: the cycle wrapped.
+                }
                 guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
                 let current = view.convert(view.bounds, to: nil)
                 if current == frame {
@@ -211,11 +213,28 @@ struct AppShellTests {
                 }
                 if unchangedReads >= 3, current != previous { break }
             }
-            guard let frame else { continue }
-            previous = frame
-            if !stops.contains(frame) { stops.append(frame) }
+            if let frame, frame != previous {
+                previous = frame
+                if !stops.contains(frame) { stops.append(frame) }
+                if let logged = KeyboardFocusLog.stops.last, KeyboardFocusLog.stops.count > loggedBefore {
+                    loggedStops.insert(logged)
+                }
+            } else if KeyboardFocusLog.stops.count > loggedBefore, let logged = KeyboardFocusLog.stops.last {
+                // The responder did not move; the modifier saw focus arrive.
+                if loggedStops.insert(logged).inserted {
+                    stops.append(NSRect(x: -1, y: -CGFloat(loggedStops.count), width: 0, height: 0))
+                }
+            }
         }
         return stops
+    }
+
+    /// One turn of the main run loop, so AppKit and SwiftUI can lay out the
+    /// focus proxy. A plain `Task.yield` runs other tasks but not the loop.
+    private func turnRunLoop() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
     }
 
     /// Tab reaches every control in every window, with the system Keyboard
