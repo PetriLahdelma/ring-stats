@@ -203,17 +203,24 @@ struct AppShellTests {
         defer { KeyboardFocusLog.isRecording = false }
         var stops: [NSRect] = []
         var loggedStops: [NSRect] = []
+        /// Responder frames seen while a logged control held focus. On macOS
+        /// 15 the proxy for a logged control can catch up a press late, so
+        /// such a frame is never counted as a stop of its own.
+        var attributedFrames: [NSRect] = []
         var previous: NSRect?
         for _ in 0..<24 {
             let loggedBefore = loggedHere().count
             window.selectNextKeyView(nil)
             var frame: NSRect?
             var unchangedReads = 0
-            for _ in 0..<200 {
+            var logged: KeyboardFocusLog.Stop?
+            let deadline = Date().addingTimeInterval(1)
+            while Date() < deadline {
                 await turnRunLoop()
-                // A logged focus settles the press on its own: the modifier
-                // saw the control take focus, whatever the responder did.
-                if loggedHere().count > loggedBefore { break }
+                if logged == nil, loggedHere().count > loggedBefore {
+                    logged = loggedHere().last
+                    unchangedReads = 0
+                }
                 guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
                 let current = view.convert(view.bounds, to: nil)
                 if current == frame {
@@ -222,24 +229,19 @@ struct AppShellTests {
                     frame = current
                     unchangedReads = 0
                 }
-                if unchangedReads >= 3, current != previous { break }
+                // A logged press settles once the responder holds still; an
+                // unlogged one once it has moved and holds still.
+                if unchangedReads >= 3, logged != nil || current != previous { break }
             }
-            let logged = loggedHere().count > loggedBefore ? loggedHere().last : nil
             if let logged {
-                // Counted by the control's own frame in the window. On a
-                // release where the control also has a responder proxy, the
-                // responder frame is recorded instead, so it counts once.
+                if let frame, !attributedFrames.contains(frame) { attributedFrames.append(frame) }
+                previous = frame ?? previous
                 guard !loggedStops.contains(logged.frame) else { continue }
                 loggedStops.append(logged.frame)
-                if let frame, frame != previous, !stops.contains(frame) {
-                    stops.append(frame)
-                } else {
-                    stops.append(NSRect(x: -1, y: -CGFloat(loggedStops.count), width: 0, height: 0))
-                }
-                previous = frame ?? previous
+                stops.append(NSRect(x: -1, y: -CGFloat(loggedStops.count), width: 0, height: 0))
             } else if let frame, frame != previous {
                 previous = frame
-                if !stops.contains(frame) { stops.append(frame) }
+                if !attributedFrames.contains(frame), !stops.contains(frame) { stops.append(frame) }
             }
         }
         return stops
