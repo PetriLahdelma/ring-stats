@@ -5,6 +5,18 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Added
+
+- Notifications in Appearance, all off by default: the low battery level is
+  yours to choose (10% to 30%); quiet hours hold notifications and announce a
+  still-low ring afterwards; "Charge before bed" watches today's drain and
+  suggests charging in the evening when the ring would be low by morning;
+  "Today's scores are in" says so once a day when the morning sync lands,
+  without naming a value.
+- The Connected step links to a voluntary week-in check-in thread, the
+  project's only measure of whether it earns its place, since it keeps no
+  telemetry.
+
 ### Changed
 
 - Tile ages and the battery row's "Stale" age tick while the popover is

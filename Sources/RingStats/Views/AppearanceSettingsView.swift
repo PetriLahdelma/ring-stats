@@ -6,6 +6,12 @@ struct AppearanceSettingsView: View {
     @AppStorage(MetricConfiguration.storageKey) private var rawConfiguration = MetricConfiguration.default.encoded
     @AppStorage(TextSizePreference.storageKey) private var textSizeRaw = TextSizePreference.standard.rawValue
     @AppStorage(LowBatteryPreference.storageKey) private var lowBatteryAlerts = false
+    @AppStorage(LowBatteryPreference.thresholdKey) private var lowBatteryThreshold = LowBatteryAlert.threshold
+    @AppStorage(LowBatteryPreference.quietHoursKey) private var quietHoursOn = false
+    @AppStorage(LowBatteryPreference.quietStartKey) private var quietStart = QuietHours.default.start
+    @AppStorage(LowBatteryPreference.quietEndKey) private var quietEnd = QuietHours.default.end
+    @AppStorage(LowBatteryPreference.bedtimeKey) private var bedtimeReminder = false
+    @AppStorage(ScoresNotificationPreference.storageKey) private var scoresNotifications = false
     @AppStorage(MenuBarValuePreference.storageKey) private var menuBarValueRaw = MenuBarValuePreference.nothing.rawValue
     @State private var notificationsDenied = false
 
@@ -172,7 +178,7 @@ struct AppearanceSettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Appearance")
                 .scaledFont(.title)
-            Text("Choose the theme, text size, battery alert, and which stats show.")
+            Text("Choose the theme, text size, notifications, and which stats show.")
                 .foregroundStyle(Palette.secondaryInk)
 
             Text("Theme")
@@ -194,25 +200,8 @@ struct AppearanceSettingsView: View {
             }
             .padding(.top, 4)
 
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Low battery alert")
-                        .scaledFont(.headline)
-                    Text(notificationsDenied
-                        ? "Notifications are off for Ring Stats. Allow them in System Settings, Notifications."
-                        : "Notifies you once when the ring drops below \(LowBatteryAlert.threshold)%, and again only after it has charged.")
-                        .scaledFont(.caption)
-                        .foregroundStyle(notificationsDenied ? Palette.alertText : Palette.secondaryInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                Toggle("Low battery alert", isOn: $lowBatteryAlerts)
-                    .keyboardToggle($lowBatteryAlerts)
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .tint(Palette.signalBlue)
-                    .accessibilityHint("Notifies you when the ring battery drops below \(LowBatteryAlert.threshold)%")
-            }
+            notificationsSection
+
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("In the menu bar")
@@ -236,14 +225,6 @@ struct AppearanceSettingsView: View {
                     if all.indices.contains(index) { menuBarValueRaw = all[index].rawValue }
                 }
                 .accessibilityHint("Shows the chosen stat beside the menu bar icon")
-            }
-            .onChange(of: lowBatteryAlerts) { _, enabled in
-                guard enabled else { return }
-                Task {
-                    let granted = await UserNotificationsNotifier().requestAuthorization()
-                    notificationsDenied = !granted
-                    if !granted { lowBatteryAlerts = false }
-                }
             }
 
             Divider()
@@ -324,6 +305,122 @@ struct AppearanceSettingsView: View {
             let updated = MetricConfiguration.decode(newValue)
             if updated != configuration {
                 configuration = updated
+            }
+        }
+    }
+}
+
+extension AppearanceSettingsView {
+    /// The notification switches. Each asks macOS for permission the first
+    /// time it is turned on and turns itself back off when that is refused.
+    fileprivate var notificationsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Notifications")
+                .scaledFont(.headline)
+            if notificationsDenied {
+                Text("Notifications are off for Ring Stats. Allow them in System Settings, Notifications.")
+                    .scaledFont(.caption)
+                    .foregroundStyle(Palette.alertText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            notificationRow(
+                "Low battery alert",
+                caption: "Notifies you once when the ring drops below the level you choose, and again only after it has charged.",
+                isOn: $lowBatteryAlerts,
+                hint: "Notifies you when the ring battery drops below \(lowBatteryThreshold)%"
+            ) {
+                if lowBatteryAlerts {
+                    Picker("Below", selection: $lowBatteryThreshold) {
+                        ForEach(LowBatteryAlert.thresholds, id: \.self) { level in
+                            Text("Below \(level)%").tag(level)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .keyboardStepper(cornerRadius: 6) { offset in
+                        let all = LowBatteryAlert.thresholds
+                        let index = (all.firstIndex(of: lowBatteryThreshold) ?? 2) + offset
+                        if all.indices.contains(index) { lowBatteryThreshold = all[index] }
+                    }
+                    .accessibilityLabel("Low battery level")
+                }
+            }
+            notificationRow(
+                "Quiet hours",
+                caption: "No notifications between these hours; a low battery is announced afterwards if it is still low.",
+                isOn: $quietHoursOn,
+                hint: "Holds notifications between the chosen hours",
+                requiresPermission: false
+            ) {
+                if quietHoursOn {
+                    HStack(spacing: 6) {
+                        hourPicker("From", selection: $quietStart)
+                        Text("to").scaledFont(.caption).foregroundStyle(Palette.secondaryInk)
+                        hourPicker("To", selection: $quietEnd)
+                    }
+                }
+            }
+            notificationRow(
+                "Charge before bed",
+                caption: "In the evening, if the ring is draining fast enough to be low by morning, suggests charging it. Uses the quiet hours as night, or 22:00 to 07:00.",
+                isOn: $bedtimeReminder,
+                hint: "Suggests charging in the evening when the ring will not last the night"
+            ) { EmptyView() }
+            notificationRow(
+                "Today's scores are in",
+                caption: "Once a day, when the morning sync lands. The notification names no value.",
+                isOn: $scoresNotifications,
+                hint: "Notifies you once a day when today's scores arrive"
+            ) { EmptyView() }
+        }
+    }
+
+    private func hourPicker(_ label: String, selection: Binding<Int>) -> some View {
+        Picker(label, selection: selection) {
+            ForEach(0..<24, id: \.self) { hour in
+                Text(String(format: "%02d:00", hour)).tag(hour)
+            }
+        }
+        .labelsHidden()
+        .fixedSize()
+        .keyboardStepper(cornerRadius: 6) { offset in
+            selection.wrappedValue = (selection.wrappedValue + offset + 24) % 24
+        }
+        .accessibilityLabel("Quiet hours \(label.lowercased())")
+    }
+
+    private func notificationRow<Accessory: View>(
+        _ title: String,
+        caption: String,
+        isOn: Binding<Bool>,
+        hint: String,
+        requiresPermission: Bool = true,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .scaledFont(.headline)
+                Text(caption)
+                    .scaledFont(.caption)
+                    .foregroundStyle(Palette.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            accessory()
+            Toggle(title, isOn: isOn)
+                .keyboardToggle(isOn)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .tint(Palette.signalBlue)
+                .accessibilityHint(hint)
+        }
+        .onChange(of: isOn.wrappedValue) { _, enabled in
+            guard enabled, requiresPermission else { return }
+            Task {
+                let granted = await UserNotificationsNotifier().requestAuthorization()
+                notificationsDenied = !granted
+                if !granted { isOn.wrappedValue = false }
             }
         }
     }

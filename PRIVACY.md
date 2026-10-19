@@ -89,10 +89,14 @@ Ring Stats never sends it anywhere.
 
 While the app runs, it refreshes the visible statistics in the background
 every 30 minutes, or at most every two hours on battery power or in Low Power
-Mode, using the same in-memory handling. If you turn on the low battery alert
-in Appearance, macOS shows a local notification with the ring's battery
-percentage when it drops below 20%. The notification is created on your Mac
-and is not sent anywhere.
+Mode, using the same in-memory handling. Notifications are off by default and
+are created on your Mac by macOS; nothing is sent anywhere. If you turn them
+on in Appearance: the low battery alert names the ring's battery percentage
+when it drops below the level you chose; the charge-before-bed suggestion
+names the level the ring is projected to reach by morning, estimated from the
+levels seen during the day and kept in memory only; and "Today's scores are
+in" says only that, never a value. Quiet hours hold notifications between the
+hours you set.
 
 ## Data sharing
 

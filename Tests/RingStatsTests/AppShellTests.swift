@@ -228,9 +228,9 @@ struct AppShellTests {
         connected.showConnectionWindow()
         defer { NSApp.windows.forEach { $0.close() } }
         let expected: [(String, NSWindowController?, Int)] = [
-            // Theme group, text size, low battery alert, menu bar value,
-            // Reset, stats list.
-            ("Appearance", connected.appearanceWindowController, 6),
+            // Theme group, text size, low battery alert, quiet hours, charge
+            // before bed, scores are in, menu bar value, Reset, stats list.
+            ("Appearance", connected.appearanceWindowController, 9),
             // GitHub, Privacy, Releases.
             ("About", connected.aboutWindowController, 3),
             // Refresh Report, Copy, Save.

@@ -9,8 +9,9 @@
 
 **Your Oura scores in the Mac menu bar.** Readiness, Sleep, Activity, heart
 rate, Stress, Resilience, and the ring battery, one click away. It also tells
-you before the ring dies: the battery in the menu bar when it is low, and a
-nudge at 20%. Oura makes no Mac app and shut down Oura on the Web in October
+you before the ring dies: the battery in the menu bar when it is low, a nudge
+at the level you choose, and a charge-before-bed suggestion when today's drain
+says the ring will not last the night. Oura makes no Mac app and shut down Oura on the Web in October
 2026. Ring Stats is a native Mac app with no server of its own: your data
 goes from Oura to your Mac and nowhere else.
 
@@ -114,8 +115,9 @@ credentials and tokens from the Keychain.
   age, and you can retry from the status line.
 - Optional value in the menu bar, such as today's Readiness or the battery
   when it is low, so a glance needs no click at all.
-- Refreshes in the background every 30 minutes, less often on battery power,
-  with an optional notification when the ring battery is low.
+- Refreshes in the background every 30 minutes, less often on battery power.
+  Optional notifications, all off by default: ring battery below a level you
+  choose, charge before bed, and today's scores are in, with quiet hours.
 - Shortcuts actions, **Get Ring Stat** and **Get Ring Battery**, which also
   work from Raycast, Alfred, and Stream Deck through Shortcuts.
 - Full keyboard access, VoiceOver labels, a text size setting, Reduce Motion
