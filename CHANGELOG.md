@@ -5,6 +5,16 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Changed
+
+- Tile ages and the battery row's "Stale" age tick while the popover is
+  open, as the status line already did.
+- A stat that failed with nothing to show reads "Retry" instead of
+  "Unavailable", and clicking the tile refreshes.
+- Resizing the popover ends on a width that shows whole stat tiles, four at
+  the narrowest and seven at the widest, instead of slicing a tile at 420
+  points with no hint that more stats were there.
+
 ## 1.4.1 (2026-10-19)
 
 ### Changed

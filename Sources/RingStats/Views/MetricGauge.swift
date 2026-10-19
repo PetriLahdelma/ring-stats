@@ -38,6 +38,7 @@ struct MetricTileAnatomy: Equatable, Sendable {
 }
 
 struct MetricGauge: View {
+    @Environment(\.popoverIsPresented) private var isPresented
     let metric: Metric
     let reading: MetricReading?
     let pending: Bool
@@ -64,6 +65,12 @@ struct MetricGauge: View {
         calendar: Calendar = .current
     ) -> String {
         guard let reading else { return pending ? "Updating…" : "No data" }
+        if reading.availability == .unavailable {
+            // A failed stat with nothing to show offers the action itself;
+            // the status line's Retry only reads as a link after a full
+            // failure.
+            return pending ? "Updating…" : "Retry"
+        }
         if reading.availability == .stale {
             // Sighted users need the age as much as VoiceOver users hear it.
             // "Not updated · 23h" is 96 points at the detail size and the
@@ -120,6 +127,9 @@ struct MetricGauge: View {
     ) -> String {
         if pending { return "\(metric.title) updating" }
         guard let reading else { return "\(metric.title), no data" }
+        if reading.availability == .unavailable {
+            return "\(metric.title), unavailable. Retry."
+        }
         let detail = reading.detail.map { ", \($0)" } ?? ""
         if reading.availability == .stale {
             let since = reading.lastFetchedAt.map {
@@ -188,11 +198,14 @@ struct MetricGauge: View {
             VStack(spacing: anatomy.titleDetailSpacing) {
                 Text(metric.title)
                     .font(.system(size: anatomy.titleFontSize, weight: .semibold))
-                Text(Self.detailText(reading: reading, pending: pending, now: Date()))
-                    .font(.system(size: anatomy.detailFontSize))
-                    .foregroundStyle(isStale ? theme.alert : theme.secondaryContent)
-                    .lineLimit(1)
-                    .contentTransition(.opacity)
+                // Ages tick while the popover is open, like the status line.
+                TimelineView(.animation(minimumInterval: 30, paused: !isPresented)) { context in
+                    Text(Self.detailText(reading: reading, pending: pending, now: context.date))
+                        .font(.system(size: anatomy.detailFontSize))
+                        .foregroundStyle(isStale ? theme.alert : theme.secondaryContent)
+                        .lineLimit(1)
+                        .contentTransition(.opacity)
+                }
             }
             .padding(.top, anatomy.labelTopSpacing)
         }
@@ -236,9 +249,11 @@ struct BatteryRow: View {
     var needsPermission = false
     let theme: AppTheme
 
-    private var staleText: String {
+    @Environment(\.popoverIsPresented) private var isPresented
+
+    private func staleText(now: Date) -> String {
         guard let staleSince else { return "Not updated" }
-        return "Stale · \(MetricGauge.staleAge(since: staleSince, now: Date()))"
+        return "Stale · \(MetricGauge.staleAge(since: staleSince, now: now))"
     }
 
     private var batteryStatus: String {
@@ -267,7 +282,7 @@ struct BatteryRow: View {
     var accessibilityDescription: String {
         var parts = [batteryStatus, chargingStatus ?? "Not charging"]
         if stale {
-            parts.append(staleText)
+            parts.append(staleText(now: Date()))
         }
         return parts.joined(separator: ", ")
     }
@@ -282,8 +297,10 @@ struct BatteryRow: View {
                     .foregroundStyle(theme.primaryContent.opacity(AppTheme.increasesContrast ? 1 : 0.68))
             }
             if showsTrailing, stale {
-                Text(staleText)
-                    .foregroundStyle(theme.alert)
+                TimelineView(.animation(minimumInterval: 30, paused: !isPresented)) { context in
+                    Text(staleText(now: context.date))
+                        .foregroundStyle(theme.alert)
+                }
             }
         }
         .lineLimit(1)

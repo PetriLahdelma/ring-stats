@@ -77,13 +77,13 @@ usually after you wake up. Ring Stats does not talk to the ring itself.
 
 ## Connect in two minutes
 
-Ring Stats connects through an Oura developer application that **you** own.
-Every free Oura tool works this way since Oura retired personal access tokens
-in December 2025; Ring Stats makes the step short and turns it into a
-feature: there is no Ring Stats server and no shared secret inside the app,
-so your health data travels from Oura to your Mac only, and Oura's 10-user
-limit on unapproved apps never applies to you. The cost is a free, one-time,
-two-minute step that the app walks you through:
+Ring Stats connects through an Oura developer application that **you** own,
+the way Oura's API has worked for personal use since it retired personal
+access tokens in December 2025. Ring Stats makes the step short and turns it
+into a feature: there is no Ring Stats server and no shared secret inside the
+app, so your health data travels from Oura to your Mac only, and Oura's
+10-user limit on unapproved apps never applies to you. The cost is a free,
+one-time, two-minute step that the app walks you through:
 
 1. In the [Oura developer portal](https://developer.ouraring.com/applications),
    create an application. Any name works. Gen3 and Ring 4 need an active
@@ -121,9 +121,10 @@ credentials and tokens from the Keychain.
 - Full keyboard access, VoiceOver labels, a text size setting, Reduce Motion
   and Increase Contrast support; the rules are in
   [ACCESSIBILITY.md](ACCESSIBILITY.md).
-- Nothing leaves your Mac: health data stays in memory, there is no database,
-  analytics, telemetry, or third-party code. The app runs in the macOS App
-  Sandbox. [PRIVACY.md](PRIVACY.md) has the complete data flow.
+- Connects directly to Oura, with no Ring Stats server in between: health
+  data stays in memory, and there is no database, analytics, telemetry, or
+  third-party code. The app runs in the macOS App Sandbox.
+  [PRIVACY.md](PRIVACY.md) has the complete data flow.
 
 Every screen is explained, with screenshots, in the
 [user guide](docs/USER_GUIDE.md).

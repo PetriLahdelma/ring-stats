@@ -13,6 +13,20 @@ enum PopoverLayout {
     static let captionWidth: CGFloat = minimumWidth - 48
     static let widthDefaultsKey = "popover-width"
 
+    /// The nearest width at which the stats strip shows whole tiles: the side
+    /// padding plus n tiles with their spacing, never fewer tiles than fit the
+    /// minimum width, never more than fit the maximum. A sliced fourth tile at
+    /// 420 points gave no hint that more stats were there.
+    static func snappedWidth(_ width: CGFloat, scale: CGFloat = 1) -> CGFloat {
+        let layout = MetricStripLayout(scale: scale)
+        let padding: CGFloat = 48
+        func widthShowing(tiles: CGFloat) -> CGFloat { padding + tiles * layout.stride - layout.spacing }
+        let fewest = ((minimumWidth - padding + layout.spacing) / layout.stride).rounded(.up)
+        let most = ((maximumWidth - padding + layout.spacing) / layout.stride).rounded(.down)
+        let nearest = ((width - padding + layout.spacing) / layout.stride).rounded()
+        return widthShowing(tiles: min(most, max(fewest, nearest)))
+    }
+
     static func clampedWidth(_ proposedWidth: CGFloat, availableWidth: CGFloat) -> CGFloat {
         let resolvedMaximum = min(maximumWidth, max(minimumWidth, availableWidth))
         return min(resolvedMaximum, max(minimumWidth, proposedWidth))
@@ -697,6 +711,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func windowDidEndLiveResize(_ notification: Notification) {
         guard let panel = notification.object as? NSWindow,
               panel === popoverPanel else { return }
+        let scale = TextSizePreference.resolve(UserDefaults.standard.string(forKey: TextSizePreference.storageKey) ?? "").scale
+        let snapped = PopoverLayout.snappedWidth(panel.contentLayoutRect.width, scale: scale)
+        if snapped != panel.contentLayoutRect.width {
+            let frame = panel.frame
+            panel.setContentSize(NSSize(width: snapped, height: panel.contentLayoutRect.height))
+            // Keep the arrow under the icon: grow or shrink about the center.
+            panel.setFrameOrigin(NSPoint(x: frame.midX - panel.frame.width / 2, y: frame.minY))
+        }
         UserDefaults.standard.set(panel.contentLayoutRect.width, forKey: PopoverLayout.widthDefaultsKey)
         // Text can wrap differently at the new width; refit so nothing clips.
         resizeVisiblePopoverToFit()
