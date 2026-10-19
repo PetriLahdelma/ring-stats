@@ -74,8 +74,8 @@ struct ShortcutAnswersTests {
 
     @Test func missingPermissionAndNoDataExplainThemselves() async {
         let (model, _) = model(results: [.success(snapshot([
-            .stress: OuraAPI.placeholder(for: .insufficientScope),
-            .sleep: OuraAPI.placeholder(for: nil),
+            .stress: MetricReading.placeholder(for: .insufficientScope),
+            .sleep: MetricReading.placeholder(for: nil),
         ]))])
 
         await #expect(throws: ShortcutFailure.needsAccess(.stress)) {

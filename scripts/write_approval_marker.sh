@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/gate_b_evidence.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
@@ -56,29 +57,10 @@ case "$kind" in
     if [[ "${RING_STATS_TEST_MODE:-0}" != "1" ]]; then
       "$SCRIPT_DIR/verify_candidate_manifest.sh" "$CANDIDATE_MANIFEST" >/dev/null
     fi
-    gate_a_marker="$APPROVAL_DIR/gate-a.json"
-    [[ -f "$gate_a_marker" && ! -L "$gate_a_marker" ]] || fail "Gate B requires an existing Gate A marker"
-    [[ "$(/usr/bin/plutil -extract schema_version raw "$gate_a_marker" 2>/dev/null || true)" == "1" && "$(/usr/bin/plutil -extract approval_kind raw "$gate_a_marker" 2>/dev/null || true)" == "gate-a" ]] || fail "Gate A marker schema is invalid"
-    [[ -n "$(/usr/bin/plutil -extract explicit_user_message raw "$gate_a_marker" 2>/dev/null || true)" ]] || fail "Gate A marker lacks explicit approval text"
-    gate_a_time="$(/usr/bin/plutil -extract approved_at raw "$gate_a_marker" 2>/dev/null || true)"
-    gate_a_epoch="$(/bin/date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$gate_a_time" '+%s' 2>/dev/null || true)"
-    [[ -n "$gate_a_epoch" && "$gate_a_epoch" -le "$(/bin/date -u '+%s')" ]] || fail "Gate A marker time is invalid"
-    gate_a_manifest_hash="$(/usr/bin/plutil -extract manifest_sha256 raw "$gate_a_marker" 2>/dev/null || true)"
-    gate_a_archive="$PROJECT_DIR/dist/candidates/$gate_a_manifest_hash"
-    "$SCRIPT_DIR/verify_candidate_archive.sh" "$gate_a_archive" "$gate_a_manifest_hash" >/dev/null
-    gate_a_tree="$(/usr/bin/plutil -extract source_tree_hash raw "$gate_a_marker")"
-    [[ "$gate_a_tree" == "$(/usr/bin/plutil -extract source_tree_hash raw "$gate_a_archive/candidate-manifest.json")" ]] || fail "Gate A marker differs from immutable evidence"
-    [[ "$(/usr/bin/plutil -extract app_binary_sha256 raw "$gate_a_marker")" == "$(/usr/bin/plutil -extract app_binary_sha256 raw "$gate_a_archive/candidate-manifest.json")" ]] || fail "Gate A binary differs from immutable evidence"
-    [[ "$gate_a_tree" == "$(/usr/bin/plutil -extract source_tree_hash raw "$CANDIDATE_MANIFEST")" ]] || fail "Final manifest source tree differs from Gate A"
     identity_plist="$(mktemp "${TMPDIR:-/tmp}/ring-stats-gate-b.XXXXXX.plist")"
     trap 'cleanup; /bin/rm -f "$identity_plist"' EXIT
-    "$SCRIPT_DIR/verify_final_artifact.sh" "$target" "$APP_PATH" "$identity_plist" >/dev/null
-    [[ "$(/usr/bin/plutil -extract bundle_identity_sha256 raw "$CANDIDATE_MANIFEST")" == "$(/usr/bin/plutil -extract bundle_sha256 raw "$identity_plist")" ]] || fail "Final manifest bundle identity differs from artifact"
-    [[ "$(/usr/bin/plutil -extract app_binary_sha256 raw "$CANDIDATE_MANIFEST")" == "$(/usr/bin/plutil -extract artifact_executable_sha256 raw "$identity_plist")" ]] || fail "Final manifest executable differs from artifact"
-    for metadata_field in bundle_identifier version build; do
-      [[ "$(/usr/bin/plutil -extract "$metadata_field" raw "$CANDIDATE_MANIFEST")" == "$(/usr/bin/plutil -extract "$metadata_field" raw "$identity_plist")" ]] || fail "Final manifest metadata differs: $metadata_field"
-    done
-    for field_name in artifact_sha256 bundle_sha256 artifact_executable_sha256 installed_bundle_sha256 installed_executable_sha256 bundle_identifier version build; do
+    cross_check_gate_b_evidence "$target" "$identity_plist"
+    for field_name in $GATE_B_IDENTITY_FIELDS; do
       /usr/bin/plutil -insert "$field_name" -string "$(/usr/bin/plutil -extract "$field_name" raw "$identity_plist")" "$temporary"
     done
     /usr/bin/plutil -insert source_tree_hash -string "$(/usr/bin/plutil -extract source_tree_hash raw "$CANDIDATE_MANIFEST")" "$temporary"

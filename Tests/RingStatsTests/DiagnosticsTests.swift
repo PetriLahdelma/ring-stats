@@ -13,7 +13,7 @@ struct DiagnosticsTests {
             readings: [
                 .readiness: MetricReading(value: "8737", detail: "Optimal", score: 87),
                 .heartRate: MetricReading(value: "4219", detail: "bpm", score: nil),
-                .stress: OuraAPI.placeholder(for: .insufficientScope),
+                .stress: MetricReading.placeholder(for: .insufficientScope),
             ],
             battery: BatteryReading(level: 6613, isCharging: false),
             fetchedAt: now,

@@ -498,7 +498,7 @@ struct AppViewModelTests {
         let partial = HealthSnapshot(
             readings: [
                 .readiness: MetricReading(value: "75", detail: "Good", score: 75),
-                .activity: OuraAPI.placeholder(for: .timedOut),
+                .activity: MetricReading.placeholder(for: .timedOut),
             ],
             battery: nil,
             fetchedAt: now.value.addingTimeInterval(600),
@@ -531,7 +531,7 @@ struct AppViewModelTests {
         let partial = HealthSnapshot(
             readings: [
                 .readiness: MetricReading(value: "75", detail: "Good", score: 75),
-                .activity: OuraAPI.placeholder(for: .timedOut),
+                .activity: MetricReading.placeholder(for: .timedOut),
             ],
             battery: nil,
             fetchedAt: now,
@@ -557,7 +557,7 @@ struct AppViewModelTests {
         )
         let denied = HealthSnapshot(
             readings: [
-                .stress: OuraAPI.placeholder(for: .insufficientScope),
+                .stress: MetricReading.placeholder(for: .insufficientScope),
                 .readiness: MetricReading(value: "70", detail: "Good", score: 70),
             ],
             battery: nil,
@@ -583,7 +583,7 @@ struct AppViewModelTests {
         let partial = HealthSnapshot(
             readings: [
                 .readiness: MetricReading(value: "75", detail: "Good", score: 75),
-                .activity: OuraAPI.placeholder(for: .timedOut),
+                .activity: MetricReading.placeholder(for: .timedOut),
             ],
             battery: nil,
             fetchedAt: now.value,
@@ -677,7 +677,7 @@ struct SnapshotFreshnessTests {
         HealthSnapshot(
             readings: [
                 .readiness: MetricReading(value: "75", detail: "Good", score: 75),
-                .sleep: OuraAPI.placeholder(for: failure),
+                .sleep: MetricReading.placeholder(for: failure),
             ],
             battery: nil,
             fetchedAt: date,

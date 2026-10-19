@@ -20,6 +20,23 @@ struct ProviderBoundaryTests {
 
     /// The app reaches the Oura module only where it chooses the provider.
     /// Any other import would let a view depend on Oura types silently.
+    /// A provider that supplies fewer stats narrows the configuration: its
+    /// unsupported stats leave the order, and one stat stays visible.
+    @Test func configurationNormalizesAgainstWhatAProviderSupplies() {
+        var configuration = MetricConfiguration.default
+        configuration.hidden = [.heartRate]
+        let narrowed = configuration.normalized(supported: Self.heartRateOnly.capabilities.supportedMetrics)
+        #expect(narrowed.order == [.heartRate])
+        #expect(narrowed.hidden.isEmpty, "the one supported stat cannot be hidden")
+        let wide = configuration.normalized(supported: Set(Metric.allCases))
+        #expect(wide == configuration.normalized)
+    }
+
+    /// The Shortcuts stat enum mirrors Core's metrics one to one.
+    @Test func shortcutStatsMirrorTheMetrics() {
+        #expect(RingStat.allCases.map(\.metric) == Metric.allCases)
+    }
+
     @Test func onlyTheCompositionRootImportsTheOuraModule() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 source "$(cd "$(dirname "$0")" && pwd -P)/lib/common.sh"
+source "$(cd "$(dirname "$0")" && pwd -P)/lib/gate_b_evidence.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
@@ -80,29 +81,10 @@ if [[ "$kind" == "gate-b" ]]; then
   [[ -f "$CANDIDATE_MANIFEST" && ! -L "$CANDIDATE_MANIFEST" ]] || fail "Missing safe final candidate manifest: $CANDIDATE_MANIFEST"
   [[ "$(read_field "$marker" source_tree_hash)" == "$(read_field "$CANDIDATE_MANIFEST" source_tree_hash)" ]] || fail "Final source tree differs from Gate B approval"
   [[ "$(read_field "$marker" manifest_sha256)" == "$(/usr/bin/shasum -a 256 "$CANDIDATE_MANIFEST" | /usr/bin/awk '{print $1}')" ]] || fail "Final manifest differs from Gate B approval"
-  gate_a_marker="$APPROVAL_DIR/gate-a.json"
-  [[ -f "$gate_a_marker" && ! -L "$gate_a_marker" ]] || fail "Gate B requires an existing Gate A marker"
-  [[ "$(read_field "$gate_a_marker" schema_version)" == "1" && "$(read_field "$gate_a_marker" approval_kind)" == "gate-a" ]] || fail "Gate A marker schema is invalid"
-  [[ -n "$(read_field "$gate_a_marker" explicit_user_message)" ]] || fail "Gate A marker lacks explicit approval text"
-  gate_a_time="$(read_field "$gate_a_marker" approved_at)"
-  gate_a_epoch="$(/bin/date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$gate_a_time" '+%s' 2>/dev/null || true)"
-  [[ -n "$gate_a_epoch" && "$gate_a_epoch" -le "$(/bin/date -u '+%s')" ]] || fail "Gate A marker time is invalid"
-  gate_a_manifest_hash="$(read_field "$gate_a_marker" manifest_sha256)"
-  gate_a_archive="$PROJECT_DIR/dist/candidates/$gate_a_manifest_hash"
-  "$SCRIPT_DIR/verify_candidate_archive.sh" "$gate_a_archive" "$gate_a_manifest_hash" >/dev/null
-  gate_a_tree="$(read_field "$gate_a_marker" source_tree_hash)"
-  [[ "$gate_a_tree" == "$(read_field "$gate_a_archive/candidate-manifest.json" source_tree_hash)" ]] || fail "Gate A marker differs from immutable evidence"
-  [[ "$(read_field "$gate_a_marker" app_binary_sha256)" == "$(read_field "$gate_a_archive/candidate-manifest.json" app_binary_sha256)" ]] || fail "Gate A binary differs from immutable evidence"
-  [[ "$gate_a_tree" == "$(read_field "$CANDIDATE_MANIFEST" source_tree_hash)" ]] || fail "Final manifest source tree differs from Gate A"
   identity_plist="$(mktemp "${TMPDIR:-/tmp}/ring-stats-gate-b-verify.XXXXXX.plist")"
   trap '/bin/rm -f "$identity_plist"' EXIT
-  "$SCRIPT_DIR/verify_final_artifact.sh" "$target" "$APP_PATH" "$identity_plist" >/dev/null
-  [[ "$(read_field "$CANDIDATE_MANIFEST" bundle_identity_sha256)" == "$(read_field "$identity_plist" bundle_sha256)" ]] || fail "Final manifest bundle identity differs from artifact"
-  [[ "$(read_field "$CANDIDATE_MANIFEST" app_binary_sha256)" == "$(read_field "$identity_plist" artifact_executable_sha256)" ]] || fail "Final manifest executable differs from artifact"
-  for metadata_field in bundle_identifier version build; do
-    [[ "$(read_field "$CANDIDATE_MANIFEST" "$metadata_field")" == "$(read_field "$identity_plist" "$metadata_field")" ]] || fail "Final manifest metadata differs: $metadata_field"
-  done
-  for field_name in artifact_sha256 bundle_sha256 artifact_executable_sha256 installed_bundle_sha256 installed_executable_sha256 bundle_identifier version build; do
+  cross_check_gate_b_evidence "$target" "$identity_plist"
+  for field_name in $GATE_B_IDENTITY_FIELDS; do
     [[ "$(read_field "$marker" "$field_name")" == "$(read_field "$identity_plist" "$field_name")" ]] || fail "Gate B field differs: $field_name"
   done
   trap - EXIT
