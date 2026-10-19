@@ -288,7 +288,7 @@ struct GalleryFixture {
             release = { api.release.open() }
         case .partialFailure:
             var partial = full
-            partial.readings[.sleep] = OuraAPI.placeholder(for: .timedOut)
+            partial.readings[.sleep] = MetricReading.placeholder(for: .timedOut)
             partial.failedMetrics = [.sleep: .timedOut]
             partial.battery = nil
             partial.batteryFailure = .timedOut
@@ -302,12 +302,12 @@ struct GalleryFixture {
         case .noData:
             var empty = full
             for metric in metrics {
-                empty.readings[metric] = OuraAPI.placeholder(for: nil)
+                empty.readings[metric] = MetricReading.placeholder(for: nil)
             }
             model = try await Self.connected(results: [.success(empty)], metrics: metrics, now: now)
         case .permissionRequired:
             var denied = full
-            denied.readings[.stress] = OuraAPI.placeholder(for: .insufficientScope)
+            denied.readings[.stress] = MetricReading.placeholder(for: .insufficientScope)
             denied.failedMetrics = [.stress: .insufficientScope]
             model = try await Self.connected(results: [.success(denied)], metrics: metrics, now: now)
         case .resilienceAndLowBattery:

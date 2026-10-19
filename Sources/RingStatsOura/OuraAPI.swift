@@ -161,7 +161,7 @@ package actor OuraAPI: SnapshotFetching {
         }
 
         for metric in metrics where readings[metric] == nil {
-            readings[metric] = Self.placeholder(for: metricFailures[metric])
+            readings[metric] = MetricReading.placeholder(for: metricFailures[metric])
         }
         return HealthSnapshot(
             readings: readings,
@@ -173,12 +173,6 @@ package actor OuraAPI: SnapshotFetching {
         )
     }
 
-    /// The reading shown when a metric has no value from this refresh. The view
-    /// model replaces transient-failure placeholders with the last known value.
-    /// Forwards to the provider-neutral placeholder in Core.
-    package static func placeholder(for failure: RingStatsError?) -> MetricReading {
-        MetricReading.placeholder(for: failure)
-    }
 
     private static func fetchPart(
         _ metric: Metric,

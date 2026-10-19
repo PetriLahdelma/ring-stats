@@ -38,16 +38,9 @@ enum RingStat: String, AppEnum {
         .resilience: "Resilience",
     ]
 
-    var metric: Metric {
-        switch self {
-        case .readiness: .readiness
-        case .sleep: .sleep
-        case .activity: .activity
-        case .heartRate: .heartRate
-        case .stress: .stress
-        case .resilience: .resilience
-        }
-    }
+    /// The cases mirror `Metric` by raw value, so a stat added to Core is a
+    /// one-line addition here.
+    var metric: Metric { Metric(rawValue: rawValue)! }
 }
 
 struct GetRingStatIntent: AppIntent {

@@ -266,7 +266,7 @@ import Testing
 /// A failed stat with nothing to show names the action; the tile is the retry.
 @Test func unavailableTileOffersRetry() {
     let now = Date(timeIntervalSince1970: 90_000)
-    let unavailable = OuraAPI.placeholder(for: .timedOut)
+    let unavailable = MetricReading.placeholder(for: .timedOut)
     #expect(MetricGauge.detailText(reading: unavailable, pending: false, now: now) == "Retry")
     #expect(MetricGauge.detailText(reading: unavailable, pending: true, now: now) == "Updating…")
     #expect(MetricGauge.accessibilityLabel(metric: .sleep, reading: unavailable, pending: false, now: now) == "Sleep, unavailable. Retry.")
@@ -547,7 +547,7 @@ import Testing
     details += ["Updating…", "No data", "Not updated", "Long-term", "Today"]
     details += ["Stale · 59m", "Stale · 23h"]
     details += ["Restored", "Normal", "Stressful"]
-    details += [nil, .insufficientScope, .timedOut].compactMap { OuraAPI.placeholder(for: $0).detail }
+    details += [nil, .insufficientScope, .timedOut].compactMap { MetricReading.placeholder(for: $0).detail }
     details += [59, 3_540, 82_800].map { age in
         MetricGauge.detailText(
             reading: MetricReading(value: "58", detail: "bpm", score: nil, observedAt: now.addingTimeInterval(-Double(age))),

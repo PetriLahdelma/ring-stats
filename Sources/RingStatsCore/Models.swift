@@ -147,6 +147,16 @@ package struct MetricConfiguration: Codable, Sendable, Equatable {
         return MetricConfiguration(order: normalizedOrder, hidden: normalizedHidden)
     }
 
+    /// The configuration limited to what a provider can supply: unsupported
+    /// stats leave the order, and at least one supported stat stays visible.
+    package func normalized(supported: Set<Metric>) -> MetricConfiguration {
+        let base = normalized
+        let order = base.order.filter { supported.contains($0) }
+        var hidden = base.hidden.intersection(supported)
+        if hidden.count == order.count, let first = order.first { hidden.remove(first) }
+        return MetricConfiguration(order: order, hidden: hidden)
+    }
+
     package func moving(_ source: Metric, relativeTo target: Metric, after: Bool) -> MetricConfiguration {
         guard source != target,
               order.contains(source),

@@ -96,10 +96,7 @@ package actor OAuthClient: OAuthServicing {
         loadError = nil
     }
 
-    package func authorizationRequest(
-        state: String,
-        scopes: Set<AuthorizationScope> = OuraProvider.descriptor.scopes(for: Set(Metric.defaultVisible))
-    ) throws -> URL {
+    package func authorizationRequest(state: String, scopes: Set<AuthorizationScope>) throws -> URL {
         try ensureStoreLoaded()
         guard let credentials else { throw RingStatsError.notConfigured }
         var components = URLComponents(url: Self.authorizationURL, resolvingAgainstBaseURL: false)!
