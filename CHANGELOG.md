@@ -5,6 +5,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+## 1.4.1 (2026-10-19)
+
 ### Changed
 
 - First-run setup is two steps instead of three: the redirect URI, with its
@@ -35,7 +37,6 @@ versioned GitHub releases and annotated tags for new releases.
 - A saved redirect URI outside the app's loopback address is ignored.
 - A token refresh that finishes after a disconnect no longer restores the
   connection.
-
 - The Appearance window now fits its content. At the standard text size its
   last line, the note about keeping one stat visible and reordering with the
   keyboard, was cut off; at Extra Large there was an empty band under the
