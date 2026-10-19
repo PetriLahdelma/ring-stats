@@ -20,6 +20,7 @@ struct KeyboardReachable: ViewModifier {
     @FocusState private var focused: Bool
     @State private var ringVisible = false
     @State private var stopID = UUID()
+    @State private var frame = CGRect.zero
 
     func body(content: Content) -> some View {
         if NSApplication.shared.isFullKeyboardAccessEnabled {
@@ -34,9 +35,10 @@ struct KeyboardReachable: ViewModifier {
                 .focusable(isEnabled)
                 .focusEffectDisabled()
                 .focused($focused)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
                 .onChange(of: focused) { _, focused in
                     ringVisible = focused && !MenuPopoverView.focusCameFromPointer(NSApp.currentEvent?.type)
-                    if focused { KeyboardFocusLog.record(stopID) }
+                    if focused { KeyboardFocusLog.record(stopID, frame: frame) }
                 }
                 .onKeyPress(keys: keys) { press in
                     guard isEnabled else { return .ignored }
@@ -87,12 +89,22 @@ extension View {
 /// the responder alone misses them; this log sees them from the inside.
 @MainActor
 enum KeyboardFocusLog {
-    private(set) static var stops: [UUID] = []
+    struct Stop: Equatable {
+        let id: UUID
+        /// The control's frame in the window, so a control whose view
+        /// identity was rebuilt between visits still counts once.
+        let frame: CGRect
+        /// The key window when focus arrived, so a test that walks one
+        /// window ignores focus landing in another it opened.
+        let window: ObjectIdentifier?
+    }
+
+    private(set) static var stops: [Stop] = []
     static var isRecording = false
 
-    static func record(_ id: UUID) {
+    static func record(_ id: UUID, frame: CGRect) {
         guard isRecording else { return }
-        stops.append(id)
+        stops.append(Stop(id: id, frame: frame.integral, window: NSApp.keyWindow.map(ObjectIdentifier.init)))
     }
 
     static func reset() {

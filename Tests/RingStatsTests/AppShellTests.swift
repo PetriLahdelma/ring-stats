@@ -187,22 +187,33 @@ struct AppShellTests {
     /// frame; a control seen both ways counts once.
     private func tabStops(in window: NSWindow) async -> [NSRect] {
         window.contentView?.layoutSubtreeIfNeeded()
+        window.makeKey()
+        // Windows the test opened a moment ago still hand their first
+        // responder out asynchronously; let that happen before recording, so
+        // their focus arrivals are not taken for stops in this window.
+        for _ in 0..<30 { await turnRunLoop() }
         KeyboardFocusLog.reset()
         KeyboardFocusLog.isRecording = true
+        let thisWindow = ObjectIdentifier(window)
+        /// Logged stops that belong to this window; focus landing in another
+        /// window the test opened is not a stop here.
+        func loggedHere() -> [KeyboardFocusLog.Stop] {
+            KeyboardFocusLog.stops.filter { $0.window == nil || $0.window == thisWindow }
+        }
         defer { KeyboardFocusLog.isRecording = false }
         var stops: [NSRect] = []
-        var loggedStops: Set<UUID> = []
+        var loggedStops: [NSRect] = []
         var previous: NSRect?
         for _ in 0..<24 {
-            let loggedBefore = KeyboardFocusLog.stops.count
+            let loggedBefore = loggedHere().count
             window.selectNextKeyView(nil)
             var frame: NSRect?
             var unchangedReads = 0
             for _ in 0..<200 {
                 await turnRunLoop()
-                if KeyboardFocusLog.stops.count > loggedBefore, let last = KeyboardFocusLog.stops.last, loggedStops.contains(last) {
-                    break // Back on a logged control the responder cannot see: the cycle wrapped.
-                }
+                // A logged focus settles the press on its own: the modifier
+                // saw the control take focus, whatever the responder did.
+                if loggedHere().count > loggedBefore { break }
                 guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
                 let current = view.convert(view.bounds, to: nil)
                 if current == frame {
@@ -213,17 +224,22 @@ struct AppShellTests {
                 }
                 if unchangedReads >= 3, current != previous { break }
             }
-            if let frame, frame != previous {
-                previous = frame
-                if !stops.contains(frame) { stops.append(frame) }
-                if let logged = KeyboardFocusLog.stops.last, KeyboardFocusLog.stops.count > loggedBefore {
-                    loggedStops.insert(logged)
-                }
-            } else if KeyboardFocusLog.stops.count > loggedBefore, let logged = KeyboardFocusLog.stops.last {
-                // The responder did not move; the modifier saw focus arrive.
-                if loggedStops.insert(logged).inserted {
+            let logged = loggedHere().count > loggedBefore ? loggedHere().last : nil
+            if let logged {
+                // Counted by the control's own frame in the window. On a
+                // release where the control also has a responder proxy, the
+                // responder frame is recorded instead, so it counts once.
+                guard !loggedStops.contains(logged.frame) else { continue }
+                loggedStops.append(logged.frame)
+                if let frame, frame != previous, !stops.contains(frame) {
+                    stops.append(frame)
+                } else {
                     stops.append(NSRect(x: -1, y: -CGFloat(loggedStops.count), width: 0, height: 0))
                 }
+                previous = frame ?? previous
+            } else if let frame, frame != previous {
+                previous = frame
+                if !stops.contains(frame) { stops.append(frame) }
             }
         }
         return stops
