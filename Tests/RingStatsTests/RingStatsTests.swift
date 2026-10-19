@@ -248,6 +248,30 @@ import Testing
     #expect(PopoverLayout.clampedWidth(800, availableWidth: 700) == 700)
 }
 
+/// A resize ends on a width that shows whole tiles: four at the narrowest,
+/// seven at the widest, never a sliced fourth tile at 420.
+@Test func resizeSnapsToWholeTiles() {
+    #expect(PopoverLayout.snappedWidth(420) == 464)
+    #expect(PopoverLayout.snappedWidth(500) == 464)
+    #expect(PopoverLayout.snappedWidth(540) == 572)
+    #expect(PopoverLayout.snappedWidth(680) == 680)
+    #expect(PopoverLayout.snappedWidth(784) == 788)
+    #expect(PopoverLayout.snappedWidth(840) == 788)
+    // Extra Large tiles are wider, so fewer fit; the width still shows whole ones.
+    let large = PopoverLayout.snappedWidth(680, scale: TextSizePreference.extraLarge.scale)
+    let layout = MetricStripLayout(scale: TextSizePreference.extraLarge.scale)
+    #expect((large - 48 + layout.spacing).truncatingRemainder(dividingBy: layout.stride) == 0)
+}
+
+/// A failed stat with nothing to show names the action; the tile is the retry.
+@Test func unavailableTileOffersRetry() {
+    let now = Date(timeIntervalSince1970: 90_000)
+    let unavailable = OuraAPI.placeholder(for: .timedOut)
+    #expect(MetricGauge.detailText(reading: unavailable, pending: false, now: now) == "Retry")
+    #expect(MetricGauge.detailText(reading: unavailable, pending: true, now: now) == "Updating…")
+    #expect(MetricGauge.accessibilityLabel(metric: .sleep, reading: unavailable, pending: false, now: now) == "Sleep, unavailable. Retry.")
+}
+
 @Test @MainActor func statusPopoverSupportsNativeHorizontalResize() {
     let panel = StatusPopoverPanel()
     #expect(panel.styleMask.contains(.resizable))

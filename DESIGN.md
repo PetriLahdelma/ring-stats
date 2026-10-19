@@ -211,6 +211,7 @@ Every tile has the same zones in the same order (`MetricTileAnatomy` in code), s
 
 ### Connection
 - Opens independently from the disconnected Connect action and from both menu surfaces in every configured state, at a fixed 460×440pt.
+- The popover resizes by dragging its edge and settles on a width that shows whole tiles: four at the narrowest, seven at the widest. Tile ages tick while the popover is open. A stat that failed with nothing to show reads "Retry", and the tile itself is the control.
 - First-run setup is two steps with a step indicator: create the Oura application (with why it is needed, the redirect URI to paste with a Copy button that confirms visibly and to VoiceOver, and the membership requirement), and enter credentials (with a link back to the portal and “Stored only in this Mac’s Keychain”). While the browser flow runs, the window says so and offers Cancel; after 20 seconds it adds the one likely cause of a browser-side error, a redirect URI that does not match.
 - A new connection ends on “Connected securely”; **Show My Stats** closes the window and opens the popover.
 - Once configured, Connection shows status, Reauthorize Permissions, and **Disconnect & Delete Local Data**.

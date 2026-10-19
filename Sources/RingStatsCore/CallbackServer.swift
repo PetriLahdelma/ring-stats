@@ -69,7 +69,7 @@ package actor CallbackServer {
             opened.append(try Self.listeningSocket(ipv6: true))
         } catch {
             opened.forEach { close($0) }
-            completeCallback(with: .failure(error))
+            await completeCallback(with: .failure(error))
             throw error
         }
         sockets = opened
@@ -119,8 +119,8 @@ package actor CallbackServer {
         }
     }
 
-    package func cancel() {
-        completeCallback(with: .failure(CancellationError()))
+    package func cancel() async {
+        await completeCallback(with: .failure(CancellationError()))
     }
 
     private nonisolated static func listeningSocket(ipv6: Bool) throws -> Int32 {
@@ -200,14 +200,19 @@ package actor CallbackServer {
 
     /// Closes the listening sockets before reporting the result, so the port
     /// is free again by the time the caller continues.
-    private func completeCallback(with result: Result<URL, any Error>) {
+    private func completeCallback(with result: Result<URL, any Error>) async {
         if !sources.isEmpty {
             sources.forEach { $0.cancel() }
             let clients = clients
             queue.sync { clients.closeAll() }
             // Every listening and client socket closes in its source's
-            // cancellation handler; wait for them so the port is free.
-            closed.wait()
+            // cancellation handler; wait for them so the port is free, without
+            // blocking a cooperative thread while they do.
+            let closed = closed
+            let queue = queue
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                closed.notify(queue: queue) { continuation.resume() }
+            }
             sources.removeAll()
             sockets.removeAll()
         }

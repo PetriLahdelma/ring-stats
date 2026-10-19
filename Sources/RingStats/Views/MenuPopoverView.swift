@@ -457,6 +457,7 @@ struct MenuPopoverView: View {
                             let isDragging = reorderSession?.source == metric
                             let showsFocusRing = previewFocusRing == metric
                                 || (focusRingVisible && focusedMetric == metric && reorderSession == nil)
+                            let offersRetry = reading?.availability == .unavailable && !model.loading
                             MetricGauge(
                                 metric: metric,
                                 reading: reading,
@@ -464,6 +465,10 @@ struct MenuPopoverView: View {
                                 theme: theme
                             )
                             .contentShape(Rectangle())
+                            // "Retry" in the tile is the action: a tap refreshes.
+                            .simultaneousGesture(TapGesture().onEnded { if offersRetry { requestRefresh() } })
+                            .linkCursor(offersRetry)
+                            .accessibilityHint(offersRetry ? "Refreshes the stats now" : "")
                             .overlay {
                                 if showsFocusRing {
                                     MetricFocusRing(theme: theme)
