@@ -174,17 +174,17 @@ struct AppShellTests {
         }
     }
 
-    /// The distinct controls Tab visits in a window, in order.
+    /// The distinct controls Tab visits in a window.
     ///
-    /// A stop is seen one of two ways. AppKit's first responder moves to a
-    /// proxy view for most SwiftUI focus, and its frame is the stop; on
-    /// macOS 15 the proxy is reused and takes a run-loop turn to move, so
-    /// each press waits until the focused frame has moved away from the
-    /// previous stop and held still. Focusing a keyboard-reachable switch or
-    /// plain button does not move the responder on every release, so when a
-    /// press moves nothing the `KeyboardFocusLog` the modifier writes is the
-    /// stop instead. Logged stops are counted by identity, responder stops by
-    /// frame; a control seen both ways counts once.
+    /// Two sources, matched by geometry rather than by press, because their
+    /// timing differs between macOS releases. Keyboard-reachable controls
+    /// write their frame to `KeyboardFocusLog` when focus arrives; every
+    /// logged control is a stop. AppKit's first responder moves to a proxy
+    /// view for most other SwiftUI focus (tiles, the stats list, the theme
+    /// group, text fields), and its frame is a stop unless its center falls
+    /// inside a logged control, in which case it is that control's proxy and
+    /// is not counted again. On macOS 15 the proxy for a logged control can
+    /// land a press late, or not at all; neither changes the result.
     private func tabStops(in window: NSWindow) async -> [NSRect] {
         window.contentView?.layoutSubtreeIfNeeded()
         window.makeKey()
@@ -194,34 +194,26 @@ struct AppShellTests {
         for _ in 0..<30 { await turnRunLoop() }
         KeyboardFocusLog.reset()
         KeyboardFocusLog.isRecording = true
+        defer { KeyboardFocusLog.isRecording = false }
         let thisWindow = ObjectIdentifier(window)
-        /// Logged stops that belong to this window; focus landing in another
-        /// window the test opened is not a stop here.
         func loggedHere() -> [KeyboardFocusLog.Stop] {
             KeyboardFocusLog.stops.filter { $0.window == nil || $0.window == thisWindow }
         }
-        defer { KeyboardFocusLog.isRecording = false }
-        var stops: [NSRect] = []
-        var loggedStops: [NSRect] = []
-        /// Responder frames seen while a logged control held focus. On macOS
-        /// 15 the proxy for a logged control can catch up a press late, so
-        /// such a frame is never counted as a stop of its own.
-        var attributedFrames: [NSRect] = []
+        var responderFrames: [NSRect] = []
         var previous: NSRect?
         for _ in 0..<24 {
             let loggedBefore = loggedHere().count
             window.selectNextKeyView(nil)
             var frame: NSRect?
             var unchangedReads = 0
-            var logged: KeyboardFocusLog.Stop?
             let deadline = Date().addingTimeInterval(1)
             while Date() < deadline {
                 await turnRunLoop()
-                if logged == nil, loggedHere().count > loggedBefore {
-                    logged = loggedHere().last
-                    unchangedReads = 0
+                let logged = loggedHere().count > loggedBefore
+                guard let view = window.firstResponder as? NSView, view !== window.contentView else {
+                    if logged { break }
+                    continue
                 }
-                guard let view = window.firstResponder as? NSView, view !== window.contentView else { continue }
                 let current = view.convert(view.bounds, to: nil)
                 if current == frame {
                     unchangedReads += 1
@@ -229,22 +221,42 @@ struct AppShellTests {
                     frame = current
                     unchangedReads = 0
                 }
-                // A logged press settles once the responder holds still; an
-                // unlogged one once it has moved and holds still.
-                if unchangedReads >= 3, logged != nil || current != previous { break }
+                if unchangedReads >= 3, logged || current != previous { break }
             }
-            if let logged {
-                if let frame, !attributedFrames.contains(frame) { attributedFrames.append(frame) }
-                previous = frame ?? previous
-                guard !loggedStops.contains(logged.frame) else { continue }
-                loggedStops.append(logged.frame)
-                stops.append(NSRect(x: -1, y: -CGFloat(loggedStops.count), width: 0, height: 0))
-            } else if let frame, frame != previous {
+            if let frame {
                 previous = frame
-                if !attributedFrames.contains(frame), !stops.contains(frame) { stops.append(frame) }
+                if !responderFrames.contains(frame) { responderFrames.append(frame) }
             }
         }
-        return stops
+        // Logged frames are in the hosting view's own space; the hosting view
+        // converts them into the window space the responder frames use.
+        let hosting = Self.hostingView(in: window.contentView)
+        var loggedFrames: [NSRect] = []
+        for stop in loggedHere() {
+            let inWindow = (hosting?.convert(stop.frame, to: nil) ?? stop.frame).insetBy(dx: -4, dy: -4)
+            if !loggedFrames.contains(inWindow) { loggedFrames.append(inWindow) }
+        }
+        // The hosting view converts x exactly, but its y comes out a constant
+        // 36 points off (the scroll view it sits in), so the proxy test is x
+        // containment plus a y band wide enough for that and narrower than
+        // the gap between stacked controls.
+        let unlogged = responderFrames.filter { responder in
+            !loggedFrames.contains { logged in
+                logged.minX <= responder.midX && responder.midX <= logged.maxX
+                    && abs(responder.midY - logged.midY) <= 48
+            }
+        }
+        return loggedFrames.enumerated().map { NSRect(x: -1, y: -CGFloat($0.offset + 1), width: 0, height: 0) } + unlogged
+    }
+
+    /// The SwiftUI hosting view inside a window, wherever the shell put it.
+    private static func hostingView(in view: NSView?) -> NSView? {
+        guard let view else { return nil }
+        if String(describing: type(of: view)).hasPrefix("NSHostingView") { return view }
+        for child in view.subviews {
+            if let found = hostingView(in: child) { return found }
+        }
+        return nil
     }
 
     /// One turn of the main run loop, so AppKit and SwiftUI can lay out the
