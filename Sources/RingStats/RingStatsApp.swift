@@ -169,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private(set) var appearanceWindowController: NSWindowController?
     private(set) var aboutWindowController: NSWindowController?
     private(set) var diagnosticsWindowController: NSWindowController?
-    private var lastAppliedTextSize = UserDefaults.standard.string(forKey: TextSizePreference.storageKey) ?? ""
+    private var lastAppliedWindowLayout = AppDelegate.windowLayoutSignature()
     private var defaultsObserver: NSObjectProtocol?
     private(set) var backgroundRefresher: BackgroundRefresher?
     private(set) var lowBatteryWatcher: LowBatteryWatcher?
@@ -576,10 +576,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     /// Resizes open windows after the Text Size preference changes, keeping
     /// each window's top edge in place.
+    /// The settings that change a window's content height: the text size,
+    /// and which Appearance tab is open.
+    private static func windowLayoutSignature() -> String {
+        let defaults = UserDefaults.standard
+        return "\(defaults.string(forKey: TextSizePreference.storageKey) ?? "")|\(defaults.string(forKey: AppearanceTab.storageKey) ?? "")"
+    }
+
     func refitWindowsForTextSize() {
-        let stored = UserDefaults.standard.string(forKey: TextSizePreference.storageKey) ?? ""
-        guard stored != lastAppliedTextSize else { return }
-        lastAppliedTextSize = stored
+        let signature = Self.windowLayoutSignature()
+        guard signature != lastAppliedWindowLayout else { return }
+        lastAppliedWindowLayout = signature
         let controllers = [
             connectionWindowController,
             appearanceWindowController,
