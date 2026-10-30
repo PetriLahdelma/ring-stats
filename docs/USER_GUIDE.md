@@ -63,13 +63,27 @@ icon.
 
 ## Appearance
 
-Choose the theme, the text size, the low battery alert, what shows in the
-menu bar, and which stats show in what order.
+Three tabs: **Look** for the theme and text size, **Notifications** for the
+four switches, and **Stats** for which stats show, in what order, and what
+the menu bar shows. Tab reaches the tab bar; the Left and Right Arrow keys
+change the tab.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="../.github/assets/guide/appearance-dark.png">
-    <img src="../.github/assets/guide/appearance-light.png" alt="The Appearance window: theme choice, text size slider, low battery alert switch, menu bar value picker, and the stats list" width="500">
+    <img src="../.github/assets/guide/appearance-light.png" alt="The Appearance window on the Look tab: theme choice and text size slider" width="500">
+  </picture>
+</p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../.github/assets/guide/appearance-notifications-dark.png">
+    <img src="../.github/assets/guide/appearance-notifications-light.png" alt="The Notifications tab: low battery alert, quiet hours, charge before bed, and scores are in, each with a switch" width="500">
+  </picture>
+</p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../.github/assets/guide/appearance-stats-dark.png">
+    <img src="../.github/assets/guide/appearance-stats-light.png" alt="The Stats tab: the stats list with checkboxes and drag handles, Reset, and the menu bar value picker" width="500">
   </picture>
 </p>
 

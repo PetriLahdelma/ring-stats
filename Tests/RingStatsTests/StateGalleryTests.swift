@@ -91,6 +91,8 @@ struct StateGalleryTests {
             let scale = textSize.scale
             let windows: [(String, AnyView, CGFloat?)] = [
                 ("appearance", AnyView(AppearanceSettingsView()), nil),
+                ("appearance-notifications", AnyView(AppearanceSettingsView(initialTab: .notifications)), nil),
+                ("appearance-stats", AnyView(AppearanceSettingsView(initialTab: .stats)), nil),
                 ("about", AnyView(AboutCreditsView()), nil),
                 ("diagnostics", AnyView(DiagnosticsView().environmentObject(model)), DiagnosticsView.baseSize.height),
             ] + ConnectionStep.allCases.map { step in

@@ -277,9 +277,9 @@ struct AppShellTests {
         connected.showConnectionWindow()
         defer { NSApp.windows.forEach { $0.close() } }
         let expected: [(String, NSWindowController?, Int)] = [
-            // Theme group, text size, low battery alert, quiet hours, charge
-            // before bed, scores are in, menu bar value, Reset, stats list.
-            ("Appearance", connected.appearanceWindowController, 9),
+            // Tab bar, theme group, text size: the Look tab the window opens
+            // on. The other tabs are counted in `tabReachesEveryAppearanceTab`.
+            ("Appearance", connected.appearanceWindowController, 3),
             // GitHub, Privacy, Releases.
             ("About", connected.aboutWindowController, 3),
             // Refresh Report, Copy, Save.
@@ -298,6 +298,32 @@ struct AppShellTests {
         let window = try #require(setup.connectionWindowController?.window)
         // Open Oura developer portal, Copy callback URL, I Have Created It.
         #expect(await tabStops(in: window).count == 3)
+    }
+
+    /// Every control on each Appearance tab is a Tab stop, with the system
+    /// Keyboard navigation setting off: the tab bar, then the tab's controls.
+    @Test func tabReachesEveryAppearanceTab() async throws {
+        let model = await delegate().model
+        let expected: [(AppearanceTab, Int)] = [
+            // Tab bar, theme group, text size.
+            (.look, 3),
+            // Tab bar, four switches (the pickers appear once a switch is on).
+            (.notifications, 5),
+            // Tab bar, Reset, stats list, menu bar value.
+            (.stats, 4),
+        ]
+        for (tab, count) in expected {
+            let hosting = NSHostingView(rootView: AppearanceSettingsView(initialTab: tab).environmentObject(model))
+            let size = hosting.fittingSize
+            hosting.frame = CGRect(origin: .zero, size: size)
+            let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.contentView = hosting
+            window.orderFrontRegardless()
+            defer { window.close() }
+            let stops = await tabStops(in: window)
+            #expect(stops.count == count, "\(tab): \(stops)")
+        }
     }
 
     @Test func themeArrowsStopAtEitherEnd() {

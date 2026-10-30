@@ -5,6 +5,11 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
+### Changed
+
+- Appearance is three tabs, Look, Notifications, and Stats, so the window
+  fits a 13-inch display; stacked, its last control scrolled below the fold.
+
 ### Added
 
 - Notifications in Appearance, all off by default: the low battery level is
