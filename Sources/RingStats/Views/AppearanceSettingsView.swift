@@ -1,6 +1,23 @@
 import SwiftUI
 import RingStatsCore
 
+/// The three groups of the Appearance window.
+enum AppearanceTab: String, CaseIterable, Identifiable {
+    case look
+    case notifications
+    case stats
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .look: "Look"
+        case .notifications: "Notifications"
+        case .stats: "Stats"
+        }
+    }
+}
+
 struct AppearanceSettingsView: View {
     @AppStorage(AppTheme.storageKey) private var selectedThemeRaw = AppTheme.ringStats.rawValue
     @AppStorage(MetricConfiguration.storageKey) private var rawConfiguration = MetricConfiguration.default.encoded
@@ -24,6 +41,9 @@ struct AppearanceSettingsView: View {
     @Environment(\.textScale) private var textScale
 
     static let windowWidth: CGFloat = 500
+    /// The Stats tab's height at the standard text size; the other tabs
+    /// stretch to it so switching tabs never changes the window.
+    static let tabHeight: CGFloat = 500
 
     /// The stats list shows every row without scrolling. A row is 38 pt
     /// until Extra Large text outgrows that; the insets are the list's own.
@@ -37,10 +57,16 @@ struct AppearanceSettingsView: View {
     @State private var selectedMetric: Metric?
     @FocusState private var themeGroupFocused: Bool
     @State private var themeFocusRingVisible = false
+    @State private var tab: AppearanceTab
+    @FocusState private var tabBarFocused: Bool
+    @State private var tabBarRingVisible = false
 
-    init() {
+    /// - Parameter initialTab: The tab to open on. The state gallery renders
+    ///   each one; the app opens on Look.
+    init(initialTab: AppearanceTab = .look) {
         let stored = UserDefaults.standard.string(forKey: MetricConfiguration.storageKey)
         _configuration = State(initialValue: MetricConfiguration.decode(stored))
+        _tab = State(initialValue: initialTab)
     }
 
     private var selectedTheme: AppTheme {
@@ -181,119 +207,23 @@ struct AppearanceSettingsView: View {
             Text("Choose the theme, text size, notifications, and which stats show.")
                 .foregroundStyle(Palette.secondaryInk)
 
-            Text("Theme")
-                .scaledFont(.headline)
-                .padding(.top, 6)
-
-            themeGroup
-
-            HStack(alignment: .firstTextBaseline) {
-                Text("Text size")
-                    .scaledFont(.headline)
-                Spacer()
-                TextSizeSlider(selection: textSize)
-                    .keyboardStepper { offset in
-                        let sizes = TextSizePreference.allCases
-                        let index = (sizes.firstIndex(of: textSize.wrappedValue) ?? 0) + offset
-                        if sizes.indices.contains(index) { textSize.wrappedValue = sizes[index] }
-                    }
-            }
-            .padding(.top, 4)
-
-            notificationsSection
-
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("In the menu bar")
-                        .scaledFont(.headline)
-                    Text("Show a value beside the icon, so a glance needs no click. Anyone who sees your screen sees it too.")
-                        .scaledFont(.caption)
-                        .foregroundStyle(Palette.secondaryInk)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                Picker("In the menu bar", selection: $menuBarValueRaw) {
-                    ForEach(MenuBarValuePreference.allCases) { choice in
-                        Text(choice.title).tag(choice.rawValue)
-                    }
-                }
-                .labelsHidden()
-                .fixedSize()
-                .keyboardStepper(cornerRadius: 6) { offset in
-                    let all = MenuBarValuePreference.allCases
-                    let index = (all.firstIndex(of: MenuBarValuePreference.resolve(menuBarValueRaw)) ?? 0) + offset
-                    if all.indices.contains(index) { menuBarValueRaw = all[index].rawValue }
-                }
-                .accessibilityHint("Shows the chosen stat beside the menu bar icon")
-            }
-
-            Divider()
-                .overlay(Palette.separator)
-                .padding(.vertical, 6)
-
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Stats")
-                        .scaledFont(.headline)
-                    Text("Show or hide stats, and drag rows to reorder them.")
-                        .scaledFont(.caption)
-                        .foregroundStyle(Palette.secondaryInk)
-                }
-                Spacer()
-                Button("Reset") {
-                    apply(.default)
-                }
-                .keyboardActivatable { apply(.default) }
-            }
-
-            List(selection: $selectedMetric) {
-                ForEach(configuration.order) { metric in
-                    let capabilities = configuration.reorderCapabilities(for: metric)
-                    HStack(spacing: 10) {
-                        Toggle(isOn: visibilityBinding(for: metric)) {
-                            Label(metric.title, systemImage: metric.symbolName)
-                                .scaledFont(.body)
-                        }
-                        .toggleStyle(.checkbox)
-                        .disabled(
-                            configuration.visibleMetrics.count == 1
-                                && !configuration.hidden.contains(metric)
-                        )
-
-                        Spacer()
-                        Image(systemName: "line.3.horizontal")
-                            .scaledFont(size: 12, weight: .medium)
-                            .foregroundStyle(Palette.secondaryInk)
-                            .frame(width: 24, height: 24)
-                            .contentShape(Rectangle())
-                            .accessibilityLabel("Reorder \(metric.title)")
-                            .accessibilityValue(
-                                "Position \(capabilities?.position ?? 1) of \(capabilities?.total ?? configuration.order.count)"
-                            )
-                            .accessibilityHint("Drag, or select the row and press Option-Up or Option-Down, to move this stat")
-                            .accessibilityActions {
-                                if capabilities?.canMoveUp == true {
-                                    Button("Move Up") { move(metric, offset: -1) }
-                                }
-                                if capabilities?.canMoveDown == true {
-                                    Button("Move Down") { move(metric, offset: 1) }
-                                }
-                            }
-                    }
-                    .padding(.vertical, 3)
-                    .tag(metric)
-                }
-                .onMove { offsets, destination in
-                    apply(configuration.moving(fromOffsets: offsets, toOffset: destination))
+            // Three tabs instead of one stack: stacked, the window outgrew a
+            // 13-inch display once the notification switches arrived, and
+            // its last control scrolled below the fold. The bar is drawn
+            // here rather than by NSTabView so the state gallery captures
+            // it and so it is one keyboard stop that the arrows move.
+            tabBar
+                .padding(.top, 2)
+            Group {
+                switch tab {
+                case .look: lookTab
+                case .notifications: notificationsTab
+                case .stats: statsTab
                 }
             }
-            .frame(height: Self.listHeight(rows: configuration.order.count, textScale: textScale))
-            .scrollContentBackground(.hidden)
-            .onKeyPress(keys: [.space, .upArrow, .downArrow], action: handleListKey)
-
-            Text("At least one stat must remain visible. To reorder stats, including hidden ones, drag a row, or select it and press Option with the Up or Down Arrow. Space shows or hides the selected stat.")
-                .scaledFont(.caption)
-                .foregroundStyle(Palette.secondaryInk)
+            // The window measures its content once, so every tab gets the
+            // height of the tallest, the stats list with its menu-bar row.
+            .frame(maxWidth: .infinity, minHeight: (Self.tabHeight * textScale).rounded(), alignment: .topLeading)
         }
         .padding(24)
         .scaledFont(.body)
@@ -423,5 +353,190 @@ extension AppearanceSettingsView {
                 if !granted { isOn.wrappedValue = false }
             }
         }
+    }
+}
+
+extension AppearanceSettingsView {
+    fileprivate var lookTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Theme")
+                .scaledFont(.headline)
+            themeGroup
+            HStack(alignment: .firstTextBaseline) {
+                Text("Text size")
+                    .scaledFont(.headline)
+                Spacer()
+                TextSizeSlider(selection: textSize)
+                    .keyboardStepper { offset in
+                        let sizes = TextSizePreference.allCases
+                        let index = (sizes.firstIndex(of: textSize.wrappedValue) ?? 0) + offset
+                        if sizes.indices.contains(index) { textSize.wrappedValue = sizes[index] }
+                    }
+            }
+            .padding(.top, 4)
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+    }
+
+    fileprivate var notificationsTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            notificationsSection
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+    }
+
+    fileprivate var statsTab: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Stats")
+                        .scaledFont(.headline)
+                    Text("Show or hide stats, and drag rows to reorder them.")
+                        .scaledFont(.caption)
+                        .foregroundStyle(Palette.secondaryInk)
+                }
+                Spacer()
+                Button("Reset") {
+                    apply(.default)
+                }
+                .keyboardActivatable { apply(.default) }
+            }
+
+            List(selection: $selectedMetric) {
+                ForEach(configuration.order) { metric in
+                    let capabilities = configuration.reorderCapabilities(for: metric)
+                    HStack(spacing: 10) {
+                        Toggle(isOn: visibilityBinding(for: metric)) {
+                            Label(metric.title, systemImage: metric.symbolName)
+                                .scaledFont(.body)
+                        }
+                        .toggleStyle(.checkbox)
+                        .disabled(
+                            configuration.visibleMetrics.count == 1
+                                && !configuration.hidden.contains(metric)
+                        )
+
+                        Spacer()
+                        Image(systemName: "line.3.horizontal")
+                            .scaledFont(size: 12, weight: .medium)
+                            .foregroundStyle(Palette.secondaryInk)
+                            .frame(width: 24, height: 24)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel("Reorder \(metric.title)")
+                            .accessibilityValue(
+                                "Position \(capabilities?.position ?? 1) of \(capabilities?.total ?? configuration.order.count)"
+                            )
+                            .accessibilityHint("Drag, or select the row and press Option-Up or Option-Down, to move this stat")
+                            .accessibilityActions {
+                                if capabilities?.canMoveUp == true {
+                                    Button("Move Up") { move(metric, offset: -1) }
+                                }
+                                if capabilities?.canMoveDown == true {
+                                    Button("Move Down") { move(metric, offset: 1) }
+                                }
+                            }
+                    }
+                    .padding(.vertical, 3)
+                    .tag(metric)
+                }
+                .onMove { offsets, destination in
+                    apply(configuration.moving(fromOffsets: offsets, toOffset: destination))
+                }
+            }
+            .frame(height: Self.listHeight(rows: configuration.order.count, textScale: textScale))
+            .scrollContentBackground(.hidden)
+            .onKeyPress(keys: [.space, .upArrow, .downArrow], action: handleListKey)
+
+            Text("At least one stat must remain visible. To reorder stats, including hidden ones, drag a row, or select it and press Option with the Up or Down Arrow. Space shows or hides the selected stat.")
+                .scaledFont(.caption)
+                .foregroundStyle(Palette.secondaryInk)
+
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("In the menu bar")
+                        .scaledFont(.headline)
+                    Text("Show a value beside the icon, so a glance needs no click. Anyone who sees your screen sees it too.")
+                        .scaledFont(.caption)
+                        .foregroundStyle(Palette.secondaryInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+                Picker("In the menu bar", selection: $menuBarValueRaw) {
+                    ForEach(MenuBarValuePreference.allCases) { choice in
+                        Text(choice.title).tag(choice.rawValue)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .keyboardStepper(cornerRadius: 6) { offset in
+                    let all = MenuBarValuePreference.allCases
+                    let index = (all.firstIndex(of: MenuBarValuePreference.resolve(menuBarValueRaw)) ?? 0) + offset
+                    if all.indices.contains(index) { menuBarValueRaw = all[index].rawValue }
+                }
+                .accessibilityHint("Shows the chosen stat beside the menu bar icon")
+            }
+            .padding(.top, 4)
+        }
+        .padding(16)
+    }
+}
+
+extension AppearanceSettingsView {
+    /// The three tabs as one keyboard stop: Tab reaches the bar, the arrow
+    /// keys move between tabs, a click picks one. Drawn with the window's
+    /// own card and ink so every theme and both appearances read it.
+    fileprivate var tabBar: some View {
+        HStack(spacing: 2) {
+            ForEach(AppearanceTab.allCases) { candidate in
+                Button {
+                    tab = candidate
+                } label: {
+                    Text(candidate.title)
+                        .scaledFont(.headline)
+                        .padding(.vertical, 5)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            tab == candidate ? Palette.card : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        )
+                        .overlay {
+                            if tab == candidate {
+                                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .stroke(Palette.separator, lineWidth: 1)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(tab == candidate ? [.isSelected] : [])
+            }
+        }
+        .padding(3)
+        .background(Palette.separator.opacity(0.35), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            if tabBarRingVisible && tabBarFocused {
+                FocusRing(theme: .ringStats, cornerRadius: 9, outset: 3)
+            }
+        }
+        .focusable()
+        .focusEffectDisabled()
+        .focused($tabBarFocused)
+        .onChange(of: tabBarFocused) { _, focused in
+            tabBarRingVisible = focused && !MenuPopoverView.focusCameFromPointer(NSApp.currentEvent?.type)
+        }
+        .onKeyPress(keys: [.leftArrow, .rightArrow]) { press in
+            let all = AppearanceTab.allCases
+            let index = (all.firstIndex(of: tab) ?? 0) + (press.key == .leftArrow ? -1 : 1)
+            guard all.indices.contains(index) else { return .handled }
+            tabBarRingVisible = true
+            tab = all[index]
+            return .handled
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Appearance sections")
+        .accessibilityValue(tab.title)
+        .accessibilityHint("Use the Left and Right Arrow keys to change the section")
     }
 }
