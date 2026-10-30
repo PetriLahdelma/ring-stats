@@ -7,7 +7,15 @@ enum AppearanceTab: String, CaseIterable, Identifiable {
     case notifications
     case stats
 
+    /// The last tab opened, so the window reopens on it and so the app can
+    /// refit the window when the tab changes.
+    static let storageKey = "appearance-tab"
+
     var id: String { rawValue }
+
+    static func resolve(_ storedValue: String?) -> AppearanceTab {
+        storedValue.flatMap(AppearanceTab.init(rawValue:)) ?? .look
+    }
 
     var title: String {
         switch self {
@@ -41,9 +49,6 @@ struct AppearanceSettingsView: View {
     @Environment(\.textScale) private var textScale
 
     static let windowWidth: CGFloat = 500
-    /// The Stats tab's height at the standard text size; the other tabs
-    /// stretch to it so switching tabs never changes the window.
-    static let tabHeight: CGFloat = 500
 
     /// The stats list shows every row without scrolling. A row is 38 pt
     /// until Extra Large text outgrows that; the insets are the list's own.
@@ -62,11 +67,11 @@ struct AppearanceSettingsView: View {
     @State private var tabBarRingVisible = false
 
     /// - Parameter initialTab: The tab to open on. The state gallery renders
-    ///   each one; the app opens on Look.
-    init(initialTab: AppearanceTab = .look) {
+    ///   each one; the app reopens on the last tab used.
+    init(initialTab: AppearanceTab? = nil) {
         let stored = UserDefaults.standard.string(forKey: MetricConfiguration.storageKey)
         _configuration = State(initialValue: MetricConfiguration.decode(stored))
-        _tab = State(initialValue: initialTab)
+        _tab = State(initialValue: initialTab ?? AppearanceTab.resolve(UserDefaults.standard.string(forKey: AppearanceTab.storageKey)))
     }
 
     private var selectedTheme: AppTheme {
@@ -221,9 +226,12 @@ struct AppearanceSettingsView: View {
                 case .stats: statsTab
                 }
             }
-            // The window measures its content once, so every tab gets the
-            // height of the tallest, the stats list with its menu-bar row.
-            .frame(maxWidth: .infinity, minHeight: (Self.tabHeight * textScale).rounded(), alignment: .topLeading)
+            // Each tab is as tall as its content; the app refits the window
+            // when the tab changes, so no tab carries another's empty space.
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .onChange(of: tab) { _, tab in
+            UserDefaults.standard.set(tab.rawValue, forKey: AppearanceTab.storageKey)
         }
         .padding(24)
         .scaledFont(.body)

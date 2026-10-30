@@ -9,6 +9,8 @@ versioned GitHub releases and annotated tags for new releases.
 
 - Appearance is three tabs, Look, Notifications, and Stats, so the window
   fits a 13-inch display; stacked, its last control scrolled below the fold.
+  Each tab is as tall as its own content, the window resizes to the tab,
+  and it reopens on the last tab used.
 
 ### Added
 
