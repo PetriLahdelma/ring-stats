@@ -82,9 +82,10 @@ import Testing
     #expect(status.isRetryable)
 }
 
-/// The age never hides: it is the freshness promise, and clicking it
-/// refreshes.
-@Test func successAgeStaysVisibleAndIsRetryable() throws {
+/// "Updated just now" confirms a refresh for a few seconds, then fades so the
+/// popover is not captioned all the time. The age comes back once the data is
+/// older than the refresh interval, where it is a freshness warning.
+@Test func successConfirmationFadesThenReturnsWhenStale() throws {
     let refreshedAt = Date(timeIntervalSince1970: 10_000)
     func status(after seconds: TimeInterval) throws -> RefreshStatusPresentation {
         try #require(
@@ -99,11 +100,30 @@ import Testing
     }
     #expect(try status(after: 0).isVisible)
     #expect(try status(after: 0).label == "Updated just now")
-    #expect(try status(after: 3).isVisible)
-    #expect(try status(after: 299).isVisible)
-    #expect(try status(after: 120).label == "Updated 2m ago")
-    #expect(try status(after: 120).accessibility == "Updated 2m ago")
-    #expect(try status(after: 120).isRetryable)
+    #expect(try status(after: 2.9).isVisible)
+    #expect(!(try status(after: 3).isVisible))
+    #expect(!(try status(after: 120).isVisible))
+    #expect(try status(after: 120).label == "Updated 2m ago", "the label stays populated so the text can fade")
+    #expect(!(try status(after: 299).isVisible))
+    #expect(try status(after: 300).isVisible)
+    #expect(try status(after: 300).isRetryable)
+}
+
+/// An empty day's "nothing published yet" is a warning, not a confirmation,
+/// so it never fades.
+@Test func nothingPublishedStaysVisible() throws {
+    let refreshedAt = Date(timeIntervalSince1970: 10_000)
+    let status = try #require(
+        PopoverTimestampText.refreshStatus(
+            isRefreshing: false,
+            outcome: .succeeded(at: refreshedAt),
+            lastUpdatedAt: refreshedAt,
+            now: refreshedAt.addingTimeInterval(60),
+            refreshInterval: 300,
+            nothingPublished: true
+        )
+    )
+    #expect(status.isVisible)
 }
 
 @Test func agedDataKeepsItsAgeVisible() throws {
