@@ -75,18 +75,24 @@ enum PopoverTimestampText {
                 isRetryable: true
             )
         case .succeeded(let at):
-            // Always visible: the age is the freshness promise, and hiding it
-            // between the confirmation and the next refresh hid it most of
-            // the time.
+            // "Updated just now" confirms the refresh for a moment and then
+            // fades, so the popover is not captioned all the time. The age
+            // returns once the data is older than the refresh interval,
+            // where it is a freshness warning worth the space.
             // A successful fetch that returned no scores must not read as
-            // "updated" above a strip of empty tiles.
+            // "updated" above a strip of empty tiles, and that warning never
+            // fades.
+            let sinceRefresh = max(0, now.timeIntervalSince(at))
             let label = nothingPublished
                 ? "Checked \(relativeAge(since: at, now: now)) · nothing published yet"
                 : "Updated \(relativeAge(since: at, now: now))"
+            let isVisible = nothingPublished
+                || sinceRefresh < confirmationDuration
+                || sinceRefresh >= refreshInterval
             return RefreshStatusPresentation(
                 label: label,
                 accessibility: label,
-                isVisible: true,
+                isVisible: isVisible,
                 showsSpinner: false,
                 tone: .neutral,
                 isRetryable: true
@@ -163,11 +169,14 @@ struct RefreshStatusView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .linkCursor(status.isRetryable)
+                .linkCursor(status.isRetryable && status.isVisible)
                 .keyboardActivatable(theme: theme, cornerRadius: 4, action: requestRefresh)
-                .disabled(!status.isRetryable)
+                .disabled(!status.isRetryable || !status.isVisible)
+                .opacity(status.isVisible ? 1 : 0)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.4), value: status.isVisible)
                 .accessibilityLabel(status.accessibility)
                 .accessibilityHint(status.isRetryable ? "Refreshes the stats now" : "")
+                .accessibilityHidden(!status.isVisible)
                 .accessibilitySortPriority(1)
             }
         }

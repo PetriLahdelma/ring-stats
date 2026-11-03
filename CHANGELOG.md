@@ -34,6 +34,13 @@ versioned GitHub releases and annotated tags for new releases.
   the narrowest and seven at the widest, instead of slicing a tile at 420
   points with no hint that more stats were there.
 
+### Fixed
+
+- "Updated just now" fades three seconds after a refresh again, as it did
+  before 1.4.0, instead of captioning the popover all the time. The age
+  comes back once the data is older than the refresh interval, where it is
+  a freshness warning, and "nothing published yet" never fades.
+
 ## 1.4.1 (2026-10-19)
 
 ### Changed

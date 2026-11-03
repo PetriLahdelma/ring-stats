@@ -14,10 +14,10 @@ struct AppShellTests {
     private static let screen = NSRect(x: 0, y: 0, width: 1_440, height: 875)
     private static let menuBarButton = NSRect(x: 1_200, y: 875, width: 24, height: 24)
 
-    private func delegate(connected: Bool = true) async -> AppDelegate {
+    private func delegate(connected: Bool = true, fetchedAt: Date = Date()) async -> AppDelegate {
         let snapshot = GalleryFixture.snapshot(
             metrics: Set(Metric.defaultVisible),
-            at: Date(),
+            at: fetchedAt,
             lowBattery: false
         )
         let model = AppViewModel(
@@ -138,7 +138,9 @@ struct AppShellTests {
     /// Tab reaches every stat and then the ☰ button, even with the system
     /// Keyboard navigation setting off, as it is by default.
     @Test func tabReachesEveryStatAndTheOptionsMenu() async throws {
-        let delegate = await delegate()
+        // Stale data keeps the status line shown; fresh data would fade it
+        // three seconds after the refresh, mid-test.
+        let delegate = await delegate(fetchedAt: Date().addingTimeInterval(-600))
         delegate.showPopover(anchoredTo: Self.menuBarButton, visibleFrame: Self.screen)
         defer { delegate.closePopover() }
         let panel = try #require(delegate.popoverPanel)
