@@ -5,12 +5,7 @@ versioned GitHub releases and annotated tags for new releases.
 
 ## Unreleased
 
-### Changed
-
-- Appearance is three tabs, Look, Notifications, and Stats, so the window
-  fits a 13-inch display; stacked, its last control scrolled below the fold.
-  Each tab is as tall as its own content, the window resizes to the tab,
-  and it reopens on the last tab used.
+## 1.4.2 (2026-11-03)
 
 ### Added
 
@@ -26,6 +21,10 @@ versioned GitHub releases and annotated tags for new releases.
 
 ### Changed
 
+- Appearance is three tabs, Look, Notifications, and Stats, so the window
+  fits a 13-inch display; stacked, its last control scrolled below the fold.
+  Each tab is as tall as its own content, the window resizes to the tab,
+  and it reopens on the last tab used.
 - Tile ages and the battery row's "Stale" age tick while the popover is
   open, as the status line already did.
 - A stat that failed with nothing to show reads "Retry" instead of
